@@ -1635,6 +1635,24 @@ void Game::update_ambient(uint32_t now_ms) {
       ambient_behavior_ = 0;
       ambient_x_offset_ = 0;
     }
+  } else if (ambient_behavior_ == 7) {
+    // Scenery interact: walk to +50, settle there for 4 s, walk back.
+    constexpr int   target = 50;
+    constexpr float walk_ms = 1500.0f;
+    constexpr float settle_ms = 4000.0f;
+    constexpr float full = walk_ms * 2 + settle_ms;
+    float et = (float)elapsed;
+    if (et < walk_ms) {
+      ambient_x_offset_ = (int16_t)(target * (et / walk_ms));
+    } else if (et < walk_ms + settle_ms) {
+      ambient_x_offset_ = (int16_t)target;
+    } else if (et < full) {
+      float back = (et - walk_ms - settle_ms) / walk_ms;
+      ambient_x_offset_ = (int16_t)(target * (1.0f - back));
+    } else {
+      ambient_behavior_ = 0;
+      ambient_x_offset_ = 0;
+    }
   } else {
     ambient_x_offset_ = 0;
   }
@@ -1645,13 +1663,14 @@ void Game::update_ambient(uint32_t now_ms) {
     uint32_t r = (now_ms * 2654435761u) >> 11;
     uint8_t  pct = (uint8_t)(r % 100);
     uint8_t  next;
-    if      (pct < 30) next = 0;  // stand    30%
-    else if (pct < 50) next = 1;  // walk     20%
-    else if (pct < 65) next = 5;  // run      15%
-    else if (pct < 75) next = 2;  // sit      10%
-    else if (pct < 85) next = 6;  // lie down 10%
-    else if (pct < 95) next = 3;  // pant     10%
-    else               next = 4;  // bark      5%
+    if      (pct < 25) next = 0;  // stand    25%
+    else if (pct < 45) next = 1;  // walk     20%
+    else if (pct < 60) next = 5;  // run      15%
+    else if (pct < 70) next = 2;  // sit      10%
+    else if (pct < 78) next = 6;  // lie down  8%
+    else if (pct < 85) next = 3;  // pant      7%
+    else if (pct < 90) next = 4;  // bark      5%
+    else               next = 7;  // scenery interact 10%
 
     ambient_behavior_ = next;
     if (next == 1 || next == 5) {

@@ -326,6 +326,10 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
               pose = ((now_ms / 100) & 1) ? PetPose::IdleB : PetPose::IdleA;
               break;
             case 6: pose = PetPose::Sleep;   break;   // lie down
+            case 7: // scenery interact -- walk while moving, sit while settled
+              if (game.ambient_x_offset() == 50) pose = PetPose::Sit;
+              else pose = ((now_ms / 250) & 1) ? PetPose::IdleB : PetPose::IdleA;
+              break;
             default:
               pose = ((now_ms / kIdleFrameMs) & 1) ? PetPose::IdleB : PetPose::IdleA;
               break;
@@ -1463,6 +1467,15 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   }
   if (any_visitor) {
     r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
+  }
+
+  // Round 3: water bowl rendered at Bailey's destination during the
+  // scenery-interact ambient behavior. Small blue oval with rim.
+  if (game.ambient_behavior() == 7) {
+    int bowl_x = kPetX + 50 + 8;       // matches target +50 offset
+    int bowl_y = kPetY + kPetDrawH - 8;
+    r.fillRect(bowl_x,     bowl_y,     14, 4, kBlue);     // water
+    r.drawRect(bowl_x - 1, bowl_y - 1, 16, 6, kGrayLight); // rim
   }
 
   // Round 3: bath-toy floater during the Clean action. Bobs gently up
