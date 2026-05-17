@@ -126,6 +126,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.wall_poster       = 0;
     s._pad18[0] = s._pad18[1] = 0;
   }
+  if (s.version < 19) {
+    // v18 -> v19: zero progression counters.
+    s.trainer_xp     = 0;
+    s.time_played_ms = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

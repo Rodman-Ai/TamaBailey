@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 18;
+constexpr uint16_t kSaveVersion  = 19;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -132,6 +132,9 @@ struct SaveData {
   uint8_t  stickers_unlocked;              // bitmap: paw / star / bone / heart / fire
   uint8_t  wall_poster;                    // 0..3 cycled in scene 4
   uint8_t  _pad18[2];
+  // ---- v19 additions (Round 5 Phase C1: progression) ----
+  uint32_t trainer_xp;                     // +1 per user action; level = sqrt(xp / 10)
+  uint64_t time_played_ms;                 // sum of tick dt; excludes offline catchup
 };
 #pragma pack(pop)
 

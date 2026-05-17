@@ -1370,6 +1370,18 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                 (unsigned)game.streak_days(), (unsigned long)game.total_pets());
   r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
 
+  // Round 5 Phase C1: trainer level + lifetime play time.
+  std::snprintf(buf, sizeof(buf), "Trainer Lv %u  (%u XP)",
+                (unsigned)game.trainer_level(), (unsigned)game.trainer_xp());
+  r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
+  {
+    uint64_t mins = game.time_played_ms() / 60000ULL;
+    uint64_t hrs  = mins / 60ULL;
+    std::snprintf(buf, sizeof(buf), "Played: %luh %02lum",
+                  (unsigned long)hrs, (unsigned long)(mins % 60));
+    r.drawText(x, y, buf, kGrayLight, 1); y += kInfoStep;
+  }
+
   // Round 3: best-friend bond from the last sync code consumed.
   if (game.best_friend_hash() != 0) {
     std::snprintf(buf, sizeof(buf), "Best friend: %04X",

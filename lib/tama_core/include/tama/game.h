@@ -319,6 +319,12 @@ class Game {
   uint8_t     wall_poster()       const { return wall_poster_; }
   void        cycle_wall_poster()       { wall_poster_ = (wall_poster_ + 1) % 4; dirty_ = true; }
 
+  // Round 5 Phase C1: progression + lifetime counters.
+  // XP awarded per user action; level = sqrt(xp / 10), capped at 30.
+  uint32_t  trainer_xp()      const { return trainer_xp_; }
+  uint32_t  trainer_level()   const;     // derived from xp
+  uint64_t  time_played_ms()  const { return time_played_ms_; }
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -604,6 +610,11 @@ class Game {
   // Round 5 Phase A2: decor + sticker collection (persisted v18).
   uint8_t  stickers_unlocked_ = 0;
   uint8_t  wall_poster_       = 0;
+
+  // Round 5 Phase C1: progression + lifetime counters (persisted v19).
+  uint32_t trainer_xp_     = 0;
+  uint64_t time_played_ms_ = 0;
+  void     award_xp(uint32_t n);
 };
 
 }  // namespace tama

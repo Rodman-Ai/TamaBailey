@@ -271,6 +271,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v18 fields
     stickers_unlocked_ = s.stickers_unlocked & 0x1F;   // 5 bits
     wall_poster_       = s.wall_poster & 0x3;
+    // v19 fields
+    trainer_xp_        = s.trainer_xp;
+    time_played_ms_    = s.time_played_ms;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1007,6 +1010,34 @@ void Game::apply_input(Input in) {
     case Input::None:
       break;
   }
+
+  // Round 5 Phase C1: award trainer XP for "real" user actions.
+  // Heavier actions (treats, walking, tricks) get more weight than
+  // simple pets / button mashes.
+  uint32_t xp = 0;
+  switch (in) {
+    case Input::Feed: case Input::PetTap: case Input::Stroke:
+    case Input::Brush: case Input::MicTrigger:
+      xp = 1; break;
+    case Input::Play: case Input::Clean: case Input::CycleToy:
+    case Input::CycleAccessory: case Input::CycleScene:
+    case Input::CycleCoat: case Input::TakePhoto: case Input::CycleAge:
+      xp = 2; break;
+    case Input::Walk: case Input::TreatGive: case Input::Bedtime:
+    case Input::ImuFlick: case Input::ImuShake: case Input::HideSeek:
+      xp = 3; break;
+    case Input::VoiceSit: case Input::VoiceCome: case Input::VoiceHighFive:
+    case Input::VoiceRollOver: case Input::VoiceJump:
+      xp = 5; break;
+    case Input::PlayWithFriend:
+    case Input::PlayWithFriendOllie: case Input::PlayWithFriendMitchell:
+    case Input::PlayWithFriendEnzo:  case Input::PlayWithFriendLincoln:
+    case Input::PlayWithFriendRuben: case Input::PlayWithFriendFrancie:
+    case Input::PlayWithFriendBomi:  case Input::PlayWithFriendNoshy:
+      xp = 4; break;
+    default: break;
+  }
+  if (xp > 0) award_xp(xp);
 }
 
 void Game::apply_decay(uint32_t dt_ms) {
@@ -1230,6 +1261,10 @@ void Game::tick(uint32_t now_ms) {
   }
 
   if (!in_transition()) pet_.age_ms += dt;
+  // Round 5 Phase C1: accumulate lifetime play-time. `dt` is already
+  // clamped to 1 s when the gap exceeds 1 hour (see line above), so
+  // multi-day offline jumps count as just one second here.
+  time_played_ms_ += dt;
 
   // update_daylight caches current_hour_, which apply_decay and
   // update_mood both consult for sleep-schedule behavior; run it first.
@@ -1394,6 +1429,9 @@ void Game::force_save(Storage& storage) {
   s.stickers_unlocked       = stickers_unlocked_;
   s.wall_poster             = wall_poster_;
   s._pad18[0] = s._pad18[1] = 0;
+  // v19 additions
+  s.trainer_xp              = trainer_xp_;
+  s.time_played_ms          = time_played_ms_;
 
   storage.save(s);
   dirty_ = false;
@@ -1502,6 +1540,24 @@ Weather Game::tomorrow_weather() const {
   else if (roll < 25) return Weather::Rain;
   else if (roll < 29) return Weather::Snow;
   else                return Weather::Fog;
+}
+
+uint32_t Game::trainer_level() const {
+  // level = sqrt(xp / 10), integer, capped at 30. Each level needs
+  // (level^2) * 10 XP. So lvl 1 = 10 XP, lvl 2 = 40, lvl 5 = 250,
+  // lvl 10 = 1000, lvl 30 = 9000.
+  uint32_t x = trainer_xp_ / 10;
+  uint32_t lvl = 0;
+  while ((lvl + 1) * (lvl + 1) <= x && lvl < 30) ++lvl;
+  return lvl;
+}
+
+void Game::award_xp(uint32_t n) {
+  // Cap at 9999 to keep the formatting line short.
+  uint32_t next = trainer_xp_ + n;
+  if (next > 9999) next = 9999;
+  trainer_xp_ = next;
+  dirty_ = true;
 }
 
 void Game::set_pet_name(const char* name) {
