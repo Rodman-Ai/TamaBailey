@@ -287,6 +287,12 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v24 fields
     bed_type_   = s.bed_type   < 3 ? s.bed_type   : 0;
     bowl_color_ = s.bowl_color < 3 ? s.bowl_color : 0;
+    // v25 fields
+    fish_caught_     = s.fish_caught;
+    tug_high_score_  = s.tug_high_score;
+    memory_iq_       = s.memory_iq;
+    vet_visits_      = s.vet_visits;
+    stick_chases_    = s.stick_chases;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -512,6 +518,34 @@ void Game::apply_input(Input in) {
 
   switch (in) {
     case Input::Feed: {
+      // Round 5 Phase B mini-games: A button has mini-game-specific
+      // meaning during Fishing / MemoryPaws / TugOfWar modes.
+      if (mode_ == GameMode::Fishing) {
+        // Hit the nibble: A within the 1 s window after fishing_nibble_ms_.
+        uint32_t since_nibble = last_tick_ms_ - fishing_nibble_ms_;
+        if (last_tick_ms_ >= fishing_nibble_ms_ && since_nibble < 1000) {
+          fish_caught_++;
+          pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 10);
+          play_clip(ClipId::Yip);
+        }
+        mode_ = GameMode::Idle;
+        dirty_ = true;
+        break;
+      }
+      if (mode_ == GameMode::TugOfWar) {
+        if (tug_last_btn_ != 1) {
+          tug_count_++;
+          tug_last_btn_ = 1;
+        }
+        break;
+      }
+      if (mode_ == GameMode::MemoryPaws && memory_target_button_ == 1) {
+        memory_round_index_++;
+        if (memory_round_index_ > memory_iq_) memory_iq_ = memory_round_index_;
+        memory_target_button_ = (uint8_t)(1 + (rng_next() % 4));
+        memory_round_started_ms_ = last_tick_ms_;
+        break;
+      }
       // Walk dig: A button during an active dig prompt counts as a
       // successful dig (+3 bones, achievement at 10 lifetime).
       if (mode_ == GameMode::Walking && dig_prompt_active()) {
@@ -542,6 +576,23 @@ void Game::apply_input(Input in) {
       break;
     }
     case Input::Play: {
+      // Mini-game B button maps:
+      //  TugOfWar -- alternates with A; only counts on a switch.
+      //  MemoryPaws (target=2) -- correct press.
+      if (mode_ == GameMode::TugOfWar) {
+        if (tug_last_btn_ != 2) {
+          tug_count_++;
+          tug_last_btn_ = 2;
+        }
+        return;
+      }
+      if (mode_ == GameMode::MemoryPaws && memory_target_button_ == 2) {
+        memory_round_index_++;
+        if (memory_round_index_ > memory_iq_) memory_iq_ = memory_round_index_;
+        memory_target_button_ = (uint8_t)(1 + (rng_next() % 4));
+        memory_round_started_ms_ = last_tick_ms_;
+        return;
+      }
       // During a walk, B advances a step (matches the HUD label).
       if (mode_ == GameMode::Walking) {
         apply_input(Input::Walk);
@@ -592,6 +643,14 @@ void Game::apply_input(Input in) {
       break;
     }
     case Input::Clean:
+      // MemoryPaws: C maps to target 3; otherwise fall through.
+      if (mode_ == GameMode::MemoryPaws && memory_target_button_ == 3) {
+        memory_round_index_++;
+        if (memory_round_index_ > memory_iq_) memory_iq_ = memory_round_index_;
+        memory_target_button_ = (uint8_t)(1 + (rng_next() % 4));
+        memory_round_started_ms_ = last_tick_ms_;
+        break;
+      }
       // During a walk, C ends the walk early.
       if (mode_ == GameMode::Walking) {
         mode_ = GameMode::Idle;
@@ -1036,6 +1095,57 @@ void Game::apply_input(Input in) {
       dirty_ = true;
       break;
     }
+    // Round 5 Phase B: mini-games. Each enters its own GameMode and
+    // is driven by update_minigames(now_ms) each tick.
+    case Input::Fish: {
+      if (mode_ != GameMode::Idle) break;
+      if (settings_.scene_id != 3) break;     // Beach only
+      mode_                = GameMode::Fishing;
+      fishing_started_ms_  = last_tick_ms_;
+      // Nibble window opens 1-3 s after cast.
+      fishing_nibble_ms_   = last_tick_ms_ + 1000 + (rng_next() % 2000);
+      dirty_ = true;
+      break;
+    }
+    case Input::MemoryPaws: {
+      if (mode_ != GameMode::Idle) break;
+      mode_                       = GameMode::MemoryPaws;
+      memory_round_index_         = 0;
+      memory_round_started_ms_    = last_tick_ms_;
+      memory_target_button_       = (uint8_t)(1 + (rng_next() % 4));
+      dirty_ = true;
+      break;
+    }
+    case Input::TugOfWar: {
+      if (mode_ != GameMode::Idle) break;
+      mode_              = GameMode::TugOfWar;
+      tug_started_ms_    = last_tick_ms_;
+      tug_count_         = 0;
+      tug_last_btn_      = 0;
+      dirty_ = true;
+      break;
+    }
+    case Input::ChaseStick: {
+      // Fetch-flow variant in the Forest scene. Counts towards
+      // stick_chases instead of fetch_catches when caught. Forward
+      // to the regular fetch trigger to reuse the state machine.
+      if (settings_.scene_id != 6) break;     // Forest only
+      stick_chases_++;
+      apply_input(Input::Play);   // existing fetch starter
+      dirty_ = true;
+      break;
+    }
+    case Input::VetVisit: {
+      // Cure + a small animation pulse. Only meaningful while sick.
+      if (sickness_ == 0) break;
+      try_cure_sickness();
+      vet_visits_++;
+      pet_.current_action    = Action::Clean;
+      pet_.action_started_ms = last_tick_ms_;
+      play_clip(ClipId::Heart);
+      dirty_ = true;
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1333,6 +1443,7 @@ void Game::tick(uint32_t now_ms) {
   maybe_trigger_lightning(now_ms);
   maybe_trigger_snore(now_ms);
   maybe_spawn_firefly(now_ms);
+  update_minigames(now_ms);
 
   // Streak check + weather roll + birthday/bedtime whenever we have a
   // synced clock.
@@ -1501,6 +1612,12 @@ void Game::force_save(Storage& storage) {
   s.bed_type                = bed_type_;
   s.bowl_color              = bowl_color_;
   s._pad24                  = 0;
+  // v25 additions
+  s.fish_caught             = fish_caught_;
+  s.tug_high_score          = tug_high_score_;
+  s.memory_iq               = memory_iq_;
+  s.vet_visits              = vet_visits_;
+  s.stick_chases            = stick_chases_;
 
   storage.save(s);
   dirty_ = false;
@@ -1554,6 +1671,11 @@ void Game::update_fetch_mode(uint32_t now_ms) {
       break;
     case GameMode::Walking:
       // Walk progression is handled in update_walk(); nothing to do here.
+      break;
+    case GameMode::Fishing:
+    case GameMode::MemoryPaws:
+    case GameMode::TugOfWar:
+      // Mini-game progression handled in update_minigames().
       break;
     case GameMode::Idle:
       break;
@@ -1715,6 +1837,55 @@ void Game::set_birthday(uint8_t month, uint8_t day) {
   birthday_month_ = month;
   birthday_day_   = day;
   dirty_          = true;
+}
+
+uint32_t Game::fishing_phase_ms_remaining() const {
+  if (mode_ != GameMode::Fishing) return 0;
+  // 5 s overall window before timeout.
+  uint32_t elapsed = last_tick_ms_ - fishing_started_ms_;
+  if (elapsed >= 5000) return 0;
+  return 5000 - elapsed;
+}
+
+uint32_t Game::tug_ms_remaining() const {
+  if (mode_ != GameMode::TugOfWar) return 0;
+  uint32_t elapsed = last_tick_ms_ - tug_started_ms_;
+  if (elapsed >= 5000) return 0;
+  return 5000 - elapsed;
+}
+
+void Game::update_minigames(uint32_t now_ms) {
+  // Fishing: auto-end after the 5 s window if the player never tapped
+  // during the nibble.
+  if (mode_ == GameMode::Fishing) {
+    if (now_ms - fishing_started_ms_ >= 5000) {
+      mode_ = GameMode::Idle;
+      dirty_ = true;
+    }
+    return;
+  }
+  // TugOfWar: end after 5 s; record high score; +happiness scaled.
+  if (mode_ == GameMode::TugOfWar) {
+    if (now_ms - tug_started_ms_ >= 5000) {
+      if (tug_count_ > tug_high_score_) tug_high_score_ = tug_count_;
+      // 1 happiness per 4 alternations, capped.
+      uint32_t boost = tug_count_ / 4;
+      if (boost > 30) boost = 30;
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + boost);
+      mode_ = GameMode::Idle;
+      dirty_ = true;
+    }
+    return;
+  }
+  // MemoryPaws: a 3 s reaction window per round. Missing it ends the
+  // game.
+  if (mode_ == GameMode::MemoryPaws) {
+    if (now_ms - memory_round_started_ms_ >= 3000) {
+      mode_ = GameMode::Idle;
+      dirty_ = true;
+    }
+    return;
+  }
 }
 
 void Game::maybe_spawn_firefly(uint32_t now_ms) {

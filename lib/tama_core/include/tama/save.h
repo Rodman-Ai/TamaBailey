@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 24;
+constexpr uint16_t kSaveVersion  = 25;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -153,6 +153,12 @@ struct SaveData {
   uint8_t  bed_type;                       // 0 basket / 1 kennel pad / 2 blanket
   uint8_t  bowl_color;                     // 0 blue / 1 red / 2 silver
   uint16_t _pad24;
+  // ---- v25 additions (Round 5 Phase B remainder: mini-game scores) ----
+  uint16_t fish_caught;                    // lifetime fishing catches
+  uint16_t tug_high_score;                 // best A/B alternation count in 5 s
+  uint8_t  memory_iq;                      // highest memory-paws round survived
+  uint8_t  vet_visits;                     // lifetime vet visit rituals
+  uint16_t stick_chases;                   // lifetime stick-chase wins
 };
 #pragma pack(pop)
 

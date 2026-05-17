@@ -50,6 +50,12 @@ enum class Input : uint8_t {
   TradeBones             = 37,  // spend 5 bones for 1 biscuit (Shop row)
   CycleBathToy           = 38,  // cycle active bath toy (0..3)
   HideSeek               = 39,  // play a round of hide & seek
+  // Round 5 Phase B remainder: mini-game triggers.
+  Fish                   = 40,  // start fishing (Beach scene)
+  MemoryPaws             = 41,  // start memory mini-game
+  TugOfWar               = 42,  // start tug-of-war timing game
+  ChaseStick             = 43,  // fetch variant in Forest scene
+  VetVisit               = 44,  // cure-via-vet animation when sick
 };
 
 }  // namespace tama

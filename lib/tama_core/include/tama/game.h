@@ -96,6 +96,10 @@ enum class GameMode : uint8_t {
   PickingCoat    = 5,
   PhotoMode      = 6,
   Walking        = 7,   // Round 2: Nintendogs-style walk
+  // Round 5 Phase B remainder: mini-game modes.
+  Fishing        = 8,
+  MemoryPaws     = 9,
+  TugOfWar       = 10,
 };
 
 // Round 2: 5 toys -- ball is unlocked by default. Index also indexes
@@ -377,6 +381,19 @@ class Game {
   uint8_t     stickers_unlocked() const { return stickers_unlocked_; }
   uint8_t     wall_poster()       const { return wall_poster_; }
   void        cycle_wall_poster()       { wall_poster_ = (wall_poster_ + 1) % 4; dirty_ = true; }
+
+  // Round 5 Phase B remainder: mini-game score accessors.
+  uint16_t  fish_caught()    const { return fish_caught_; }
+  uint16_t  tug_high_score() const { return tug_high_score_; }
+  uint8_t   memory_iq()      const { return memory_iq_; }
+  uint8_t   vet_visits()     const { return vet_visits_; }
+  uint16_t  stick_chases()   const { return stick_chases_; }
+  // Per-mode state read by the renderers + smoke tests.
+  uint32_t  fishing_phase_ms_remaining() const;
+  int       memory_round_index()  const { return memory_round_index_; }
+  uint8_t   memory_target_button() const { return memory_target_button_; }
+  uint16_t  tug_count()           const { return tug_count_; }
+  uint32_t  tug_ms_remaining()    const;
 
   // Round 5 Phase A remainder: bed type + food bowl color cyclers.
   // bed_type: 0 basket / 1 kennel pad / 2 blanket pile (in scene 4).
@@ -730,6 +747,23 @@ class Game {
   // Round 5 Phase A remainder: bed + bowl decor (persisted v24).
   uint8_t  bed_type_   = 0;
   uint8_t  bowl_color_ = 0;
+
+  // Round 5 Phase B remainder: mini-game scores (persisted v25).
+  uint16_t fish_caught_     = 0;
+  uint16_t tug_high_score_  = 0;
+  uint8_t  memory_iq_       = 0;
+  uint8_t  vet_visits_      = 0;
+  uint16_t stick_chases_    = 0;
+  // Transient mini-game state.
+  uint32_t fishing_started_ms_     = 0;
+  uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens
+  uint32_t tug_started_ms_         = 0;
+  uint16_t tug_count_              = 0;
+  uint8_t  tug_last_btn_           = 0;  // 0=none, 1=A, 2=B
+  uint8_t  memory_target_button_   = 0;  // 1..4 currently expected
+  uint8_t  memory_round_index_     = 0;
+  uint32_t memory_round_started_ms_ = 0;
+  void update_minigames(uint32_t now_ms);
 };
 
 }  // namespace tama

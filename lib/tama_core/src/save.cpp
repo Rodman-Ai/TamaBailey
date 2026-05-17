@@ -159,6 +159,14 @@ bool save_validate_and_migrate(SaveData& s) {
     s.bowl_color = 0;
     s._pad24     = 0;
   }
+  if (s.version < 25) {
+    // v24 -> v25: zero all mini-game scores.
+    s.fish_caught    = 0;
+    s.tug_high_score = 0;
+    s.memory_iq      = 0;
+    s.vet_visits     = 0;
+    s.stick_chases   = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
