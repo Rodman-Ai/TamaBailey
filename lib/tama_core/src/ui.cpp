@@ -796,13 +796,16 @@ void draw_footer(Renderer& r, const Game& game) {
 }
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
+  // Tab IDs correspond to the MenuTab enum AFTER the Actions=0
+  // reorder. ACT renders first so the leftmost tab matches the
+  // menu's default-open tab.
 #if BAILEY_MEMORIAL_WALL
-  const char* labels[] = {"STA", "BDG", "OPT", "SYN", "MEM", "BAG", "SHP", "ACT"};
+  const char* labels[] = {"ACT", "STA", "BDG", "OPT", "SYN", "MEM", "BAG", "SHP"};
   const int   tab_ids[] = {0, 1, 2, 3, 4, 5, 6, 7};
   constexpr int n_tabs = 8;
 #else
-  const char* labels[] = {"STA", "BDG", "OPT", "SYN", "BAG", "SHP", "ACT"};
-  const int   tab_ids[] = {0, 1, 2, 3, 5, 6, 7};
+  const char* labels[] = {"ACT", "STA", "BDG", "OPT", "SYN", "BAG", "SHP"};
+  const int   tab_ids[] = {0, 1, 2, 3, 4, 6, 7};
   constexpr int n_tabs = 7;
 #endif
   int x = 6;
@@ -1058,15 +1061,26 @@ void draw_menu_actions(Renderer& r, const Game& game) {
   static const char* const kMain[8] = {
     "Go for a walk", "Play fetch", "Give treat", "Brush",
     "Switch toy", "Bedtime", "Tricks >",
-    "Play with a friend",
+    "Play with a friend >",
   };
   static const char* const kTricks[6] = {
     "Sit", "Come", "High five", "Roll over", "Jump", "< Back",
   };
-  bool tricks_view = (game.actions_submenu() == 1);
-  const char* const* rows = tricks_view ? kTricks : kMain;
-  int n_rows              = tricks_view ? 6 : 8;
-  const char* header      = tricks_view ? "TRICKS" : "ACTIONS";
+  static const char* const kFriends[10] = {
+    "Random", "Ollie", "Mitchell", "Enzo", "Lincoln",
+    "Ruben", "Francie", "Bomi", "Noshy", "< Back",
+  };
+  uint8_t sub = game.actions_submenu();
+  const char* const* rows;
+  int                n_rows;
+  const char*        header;
+  if (sub == 1) {
+    rows = kTricks;  n_rows = 6;  header = "TRICKS";
+  } else if (sub == 2) {
+    rows = kFriends; n_rows = 10; header = "VISIT FRIENDS";
+  } else {
+    rows = kMain;    n_rows = 8;  header = "ACTIONS";
+  }
 
   int x = 14;
   int y = 14 + kStatsBarH + 20;

@@ -227,8 +227,10 @@ class Game {
 
   // --- Settings menus interact via these ---
   enum class MenuTab : uint8_t {
-    Stats = 0, Achievements = 1, Settings = 2, Sync = 3, Memorial = 4,
-    Inventory = 5, Shop = 6, Actions = 7,
+    // Actions is intentionally first so the menu always opens onto it
+    // and the tab bar renders it leftmost.
+    Actions = 0, Stats = 1, Achievements = 2, Settings = 3,
+    Sync = 4, Memorial = 5, Inventory = 6, Shop = 7,
   };
   static MenuTab next_menu_tab(MenuTab cur);
   uint8_t actions_cursor()  const { return actions_cursor_; }
@@ -318,7 +320,7 @@ class Game {
   uint32_t last_stroke_ms_   = 0;
   bool     dirty_            = false;
   bool     menu_open_        = false;
-  MenuTab  menu_tab_         = MenuTab::Stats;
+  MenuTab  menu_tab_         = MenuTab::Actions;
   GameMode mode_             = GameMode::Idle;
   uint32_t mode_started_ms_  = 0;
   uint32_t last_weather_roll_day_ = 0;

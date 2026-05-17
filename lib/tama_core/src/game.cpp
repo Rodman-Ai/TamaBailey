@@ -324,23 +324,22 @@ void Game::apply_input(Input in) {
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
-      // Main menu has 8 rows; tricks submenu has 6 rows (5 tricks +
-      // <Back). A executes / opens submenu / returns; B moves cursor.
-      // C falls through to cycle tabs.
+      // Main = 8 rows. Tricks submenu = 6 rows (5 tricks + <Back).
+      // Friends submenu = 10 rows (Random + 8 friends + <Back).
       if (actions_submenu_ == 0) {
-        // Index 6 is "Tricks >" -- opens the submenu instead of
-        // dispatching.
+        // Index 6 = "Tricks >", index 7 = "Play with a friend >".
         if (in == Input::Feed) {
           if (actions_cursor_ == 6) {
-            actions_submenu_ = 1;
-            actions_cursor_  = 0;
-            return;
+            actions_submenu_ = 1; actions_cursor_ = 0; return;
+          }
+          if (actions_cursor_ == 7) {
+            actions_submenu_ = 2; actions_cursor_ = 0; return;
           }
           static const Input kMain[8] = {
             Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
             Input::CycleToy, Input::Bedtime,
             Input::None,   // Tricks > (handled above)
-            Input::PlayWithFriend,
+            Input::None,   // Play with a friend > (handled above)
           };
           Input chosen = kMain[actions_cursor_ % 8];
           if (chosen != Input::None) {
@@ -353,12 +352,12 @@ void Game::apply_input(Input in) {
           actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 8);
           return;
         }
-      } else {
+      } else if (actions_submenu_ == 1) {
         // Tricks submenu: 5 tricks + <Back. <Back is index 5.
         if (in == Input::Feed) {
           if (actions_cursor_ == 5) {
             actions_submenu_ = 0;
-            actions_cursor_  = 6;   // land on the Tricks row of main
+            actions_cursor_  = 6;
             return;
           }
           static const Input kTricks[5] = {
@@ -367,12 +366,37 @@ void Game::apply_input(Input in) {
           };
           Input chosen = kTricks[actions_cursor_ % 5];
           menu_open_       = false;
-          actions_submenu_ = 0;     // reset for next open
+          actions_submenu_ = 0;
           apply_input(chosen);
           return;
         }
         if (in == Input::Play) {
           actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 6);
+          return;
+        }
+      } else {
+        // Friends submenu: Random + 8 named + <Back. <Back is index 9.
+        if (in == Input::Feed) {
+          if (actions_cursor_ == 9) {
+            actions_submenu_ = 0;
+            actions_cursor_  = 7;   // land on the Friends row of main
+            return;
+          }
+          Input chosen;
+          if (actions_cursor_ == 0) {
+            chosen = Input::PlayWithFriend;       // random
+          } else {
+            // 1..8 -> Ollie..Noshy
+            chosen = (Input)((int)Input::PlayWithFriendOllie +
+                             (actions_cursor_ - 1));
+          }
+          menu_open_       = false;
+          actions_submenu_ = 0;
+          apply_input(chosen);
+          return;
+        }
+        if (in == Input::Play) {
+          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 10);
           return;
         }
       }
@@ -572,6 +596,12 @@ void Game::apply_input(Input in) {
     }
     case Input::MenuToggle:
       menu_open_ = !menu_open_;
+      // Every menu OPEN starts on a clean Actions tab.
+      if (menu_open_) {
+        menu_tab_        = MenuTab::Actions;
+        actions_cursor_  = 0;
+        actions_submenu_ = 0;
+      }
       break;
     case Input::MenuNext:
       if (menu_open_) menu_tab_ = next_menu_tab(menu_tab_);
@@ -689,7 +719,9 @@ void Game::apply_input(Input in) {
     }
     case Input::MenuCursorNext:
       if (menu_open_ && menu_tab_ == MenuTab::Actions) {
-        int n = (actions_submenu_ == 1) ? 6 : 8;
+        int n = (actions_submenu_ == 1) ? 6
+              : (actions_submenu_ == 2) ? 10
+              : 8;
         actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % n);
       }
       break;
@@ -1554,7 +1586,7 @@ void Game::update_vocab() {
 
 Game::MenuTab Game::next_menu_tab(MenuTab cur) {
   int t = (int)cur + 1;
-  constexpr int last = (int)MenuTab::Actions;
+  constexpr int last = (int)MenuTab::Shop;
   if (t > last) t = 0;
 #if !BAILEY_MEMORIAL_WALL
   if (t == (int)MenuTab::Memorial) ++t;
