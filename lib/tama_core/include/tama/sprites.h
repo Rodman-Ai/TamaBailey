@@ -31,11 +31,12 @@ void sprites_init();
 const uint8_t* pet_sprite(LifeStage stage, PetPose pose);
 
 // Small accessories drawn next to / above the pet.
-const uint8_t* food_bowl_sprite();      // 16x16
-const uint8_t* ball_sprite();           // 16x16
-const uint8_t* poop_sprite();           // 16x16
-const uint8_t* bubble_sprite();         // 16x16
-const uint8_t* zzz_sprite();            // 16x16
-const uint8_t* heart_sprite();          // 16x16
+const uint8_t* food_bowl_sprite();        // 16x16 (full of kibble)
+const uint8_t* food_bowl_empty_sprite();  // 16x16 (same outline, empty)
+const uint8_t* ball_sprite();             // 16x16
+const uint8_t* poop_sprite();             // 16x16
+const uint8_t* bubble_sprite();           // 16x16
+const uint8_t* zzz_sprite();              // 16x16
+const uint8_t* heart_sprite();            // 16x16
 
 }  // namespace tama

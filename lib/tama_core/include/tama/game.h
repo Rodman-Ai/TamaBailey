@@ -59,9 +59,9 @@ constexpr uint32_t kActionPetBoost   =  5;
 constexpr uint32_t kActionStrokeBoost = 1;  // continuous stroke
 constexpr uint32_t kStreakBonus      = 10;  // daily streak happiness bump
 
-constexpr uint32_t kActionEatDurationMs   = 1000;
-constexpr uint32_t kActionPlayDurationMs  = 1500;
-constexpr uint32_t kActionCleanDurationMs = 1000;
+constexpr uint32_t kActionEatDurationMs   = 1500;
+constexpr uint32_t kActionPlayDurationMs  = 1800;
+constexpr uint32_t kActionCleanDurationMs = 1800;
 constexpr uint32_t kActionPetDurationMs   =  600;
 
 constexpr uint32_t kPetCooldownMs   = 12000;

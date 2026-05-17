@@ -38,6 +38,7 @@ constexpr uint8_t LG = 15;  // light gray
 
 uint8_t  g_pet[4][(int)PetPose::COUNT][W * H];  // stage x pose x pixels
 uint8_t  g_food[A * A];
+uint8_t  g_food_empty[A * A];
 uint8_t  g_ball[A * A];
 uint8_t  g_poop[A * A];
 uint8_t  g_bubble[A * A];
@@ -307,6 +308,20 @@ void draw_accessory_food() {
   for (int y = 9; y < 14; ++y) { g_food[y * A + 1] = OL; g_food[y * A + 14] = OL; }
 }
 
+void draw_accessory_food_empty() {
+  std::memset(g_food_empty, TR, A * A);
+  // Bowl interior only -- no kibble on top.
+  for (int y = 10; y < 14; ++y)
+    for (int x = 2; x < 14; ++x)
+      g_food_empty[y * A + x] = GR;
+  // Outline
+  for (int x = 1; x < 15; ++x) { g_food_empty[9 * A + x] = OL; g_food_empty[13 * A + x] = OL; }
+  for (int y = 9; y < 14; ++y) { g_food_empty[y * A + 1] = OL; g_food_empty[y * A + 14] = OL; }
+  // Subtle shadow inside the empty bowl.
+  g_food_empty[11 * A + 7] = DG;
+  g_food_empty[11 * A + 8] = DG;
+}
+
 void draw_accessory_ball() {
   std::memset(g_ball, TR, A * A);
   int cx = 8, cy = 9, r = 5;
@@ -424,6 +439,7 @@ void sprites_init() {
   }
 
   draw_accessory_food();
+  draw_accessory_food_empty();
   draw_accessory_ball();
   draw_accessory_poop();
   draw_accessory_bubble();
@@ -439,7 +455,8 @@ const uint8_t* pet_sprite(LifeStage stage, PetPose pose) {
   return g_pet[s][p];
 }
 
-const uint8_t* food_bowl_sprite() { return g_food; }
+const uint8_t* food_bowl_sprite()       { return g_food; }
+const uint8_t* food_bowl_empty_sprite() { return g_food_empty; }
 const uint8_t* ball_sprite()      { return g_ball; }
 const uint8_t* poop_sprite()      { return g_poop; }
 const uint8_t* bubble_sprite()    { return g_bubble; }

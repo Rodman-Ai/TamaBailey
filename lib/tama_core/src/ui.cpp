@@ -1,5 +1,6 @@
 #include "tama/ui.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -188,14 +189,44 @@ void draw_coat_accents(Renderer& r, uint8_t coat_pattern) {
   }
 }
 
+// ============= Action animations (Feed / Play / Bath) =====================
+
+// Small deterministic noise -- gives each particle a unique offset / speed
+// while staying frame-stable for a given (seed, idx).
+static inline uint32_t pnoise(uint32_t seed, uint32_t idx) {
+  uint32_t v = (seed ^ (idx * 2654435761u)) * 1664525u + 1013904223u;
+  return v;
+}
+
+// Decoration: when this action is running, draw the choreographed
+// particles + accessories. Helpers are below.
+static void draw_feed_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x);
+static void draw_play_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x);
+static void draw_bath_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x);
+
 void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
                      const Game& game) {
   PetPose pose = PetPose::IdleA;
 
   switch (pet.current_action) {
-    case Action::Eat:   pose = PetPose::Eating;  break;
-    case Action::Play:  pose = PetPose::Playing; break;
-    case Action::Clean: pose = PetPose::IdleA;   break;
+    case Action::Eat: {
+      // 3 head bobs across the munch phase (300..975 ms).
+      uint32_t elapsed = now_ms - pet.action_started_ms;
+      bool head_down = (elapsed > 300 && elapsed < 975 &&
+                        ((elapsed / 110) & 1));
+      pose = head_down ? PetPose::IdleA : PetPose::IdleB;
+      break;
+    }
+    case Action::Play: {
+      // Wiggle frame -- alternate every ~80ms.
+      uint32_t elapsed = now_ms - pet.action_started_ms;
+      pose = ((elapsed / 80) & 1) ? PetPose::IdleA : PetPose::IdleB;
+      break;
+    }
+    case Action::Clean: pose = PetPose::Pant;    break;
     case Action::Pet:   pose = PetPose::IdleB;   break;
     case Action::None:
       switch (pet.mood) {
@@ -232,6 +263,15 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
     draw_x = kPetX + (int)(cycle * max_dx / 5000);
   } else {
     draw_x = kPetX + game.ambient_x_offset();
+    // Bath shake-off: small horizontal jiggle in the back half of the
+    // Clean action (t01 >= 0.55).
+    if (pet.current_action == Action::Clean) {
+      uint32_t elapsed = now_ms - pet.action_started_ms;
+      if (elapsed > (kActionCleanDurationMs * 55) / 100 &&
+          elapsed < (kActionCleanDurationMs * 80) / 100) {
+        draw_x += ((elapsed / 60) & 1) ? -2 : 2;
+      }
+    }
     // Clamp so the sprite stays on screen.
     if (draw_x < 4) draw_x = 4;
     if (draw_x + kPetDrawW > kScreenW - 4) draw_x = kScreenW - 4 - kPetDrawW;
@@ -253,32 +293,238 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
   }
 
   switch (pet.current_action) {
-    case Action::Eat:
-      r.drawSprite(kPetX + kPetDrawW - 8, kPetY + kPetDrawH - kAccessoryScale * 16 + 8,
-                   16, 16, food_bowl_sprite(), kSpritePalette, kAccessoryScale);
-      break;
-    case Action::Play:
-      r.drawSprite(kPetX - 4, kPetY + kPetDrawH - kAccessoryScale * 16,
-                   16, 16, ball_sprite(), kSpritePalette, kAccessoryScale);
-      break;
-    case Action::Clean:
-      r.drawSprite(kPetX + 16, kPetY - 4,
-                   16, 16, bubble_sprite(), kSpritePalette, kAccessoryScale);
-      r.drawSprite(kPetX + kPetDrawW - 36, kPetY + 8,
-                   16, 16, bubble_sprite(), kSpritePalette, kAccessoryScale);
-      break;
+    case Action::Eat:   draw_feed_choreography(r, pet, now_ms, draw_x); break;
+    case Action::Play:  draw_play_choreography(r, pet, now_ms, draw_x); break;
+    case Action::Clean: draw_bath_choreography(r, pet, now_ms, draw_x); break;
     case Action::Pet:
-      r.drawSprite(kPetX + kPetDrawW / 2 - 16, kPetY - 4,
+      r.drawSprite(draw_x + kPetDrawW / 2 - 16, kPetY - 4,
                    16, 16, heart_sprite(), kSpritePalette, kAccessoryScale);
       break;
     case Action::None:
       if (pet.mood == Mood::Sleeping)
-        r.drawSprite(kPetX + kPetDrawW - 40, kPetY - 8,
+        r.drawSprite(draw_x + kPetDrawW - 40, kPetY - 8,
                      16, 16, zzz_sprite(), kSpritePalette, kAccessoryScale);
       else if (pet.mood == Mood::Dirty)
-        r.drawSprite(kPetX + kPetDrawW - 36, kPetY + kPetDrawH - 36,
+        r.drawSprite(draw_x + kPetDrawW - 36, kPetY + kPetDrawH - 36,
                      16, 16, poop_sprite(), kSpritePalette, kAccessoryScale);
       break;
+  }
+}
+
+// ----- Feed: bowl slides in, head bobs, kibble pops, tongue lick --------
+static void draw_feed_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x) {
+  uint32_t elapsed = now_ms - pet.action_started_ms;
+  float t = (float)elapsed / (float)tama::kActionEatDurationMs;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+
+  // Bowl position: slides in 0.00-0.20, parks 0.20-0.85, slides out 0.85-1.00.
+  const int bowl_parked_x = pet_x + kPetDrawW - 12;
+  const int bowl_off_x    = kScreenW + 4;
+  const int bowl_y        = kPetY + kPetDrawH - kAccessoryScale * 16 + 10;
+  int bowl_x;
+  bool empty = false;
+  if (t < 0.20f) {
+    float u = t / 0.20f;             // 0..1
+    float ease = u * (2.0f - u);     // quadratic ease-out
+    bowl_x = (int)(bowl_off_x + (bowl_parked_x - bowl_off_x) * ease);
+  } else if (t < 0.85f) {
+    bowl_x = bowl_parked_x;
+  } else {
+    float u = (t - 0.85f) / 0.15f;   // 0..1
+    float ease = u * u;              // ease-in
+    bowl_x = (int)(bowl_parked_x + (bowl_off_x - bowl_parked_x) * ease);
+    empty = true;
+  }
+  const uint8_t* bowl = empty ? tama::food_bowl_empty_sprite()
+                              : tama::food_bowl_sprite();
+  r.drawSprite(bowl_x, bowl_y, 16, 16, bowl, kSpritePalette, kAccessoryScale);
+
+  // Kibble particles during the munch phase (0.20-0.65). 8 particles
+  // arc up from the bowl rim, fade by disappearing past their arc.
+  if (t >= 0.20f && t < 0.65f) {
+    float phase = (t - 0.20f) / 0.45f;
+    for (int i = 0; i < 8; ++i) {
+      uint32_t n = pnoise(0xF00D, i);
+      float launch = (float)(n & 0xFF) / 255.0f;      // 0..1 when in window
+      if (phase < launch) continue;
+      float local = (phase - launch) * 2.5f;
+      if (local > 1.0f) continue;
+      // Arc parameters per particle
+      int   bowl_cx = bowl_x + 8;
+      int   bowl_cy = bowl_y + 4;
+      float dx_max  = 10.0f + (float)((n >> 8) & 0x0F);
+      float peak    = 12.0f + (float)((n >> 12) & 0x07);
+      int   dir     = ((n >> 16) & 1) ? -1 : 1;
+      int   px = bowl_cx + (int)(dir * dx_max * local);
+      int   py = bowl_cy - (int)(peak * 4 * local * (1.0f - local));
+      uint16_t col = ((n >> 20) & 1) ? kYellow : kOrange;
+      r.fillRect(px, py, 2, 2, col);
+    }
+  }
+
+  // Tongue + heart sparkles during the lick phase (0.65-0.85).
+  if (t >= 0.65f && t < 0.85f) {
+    int hx = pet_x + 18 * kPetScale;
+    int hy = kPetY  + 19 * kPetScale;
+    // Tongue lick: small pink curl in front of mouth.
+    r.fillRect(hx + 1, hy + 1, 3, 2, kPink);
+    r.fillRect(hx + 3, hy - 1, 2, 2, kPink);
+    // 3 hearts drifting up
+    float phase = (t - 0.65f) / 0.20f;
+    for (int i = 0; i < 3; ++i) {
+      uint32_t n = pnoise(0xBEEF, i);
+      float local = phase - (float)(n & 0x3F) / 255.0f;
+      if (local < 0 || local > 1) continue;
+      int hxp = pet_x + 18 * kPetScale + ((i - 1) * 12);
+      int hyp = kPetY + 8 - (int)(local * 24);
+      r.fillRect(hxp, hyp, 3, 2, kHeartRed);
+      r.fillRect(hxp - 1, hyp + 1, 5, 2, kHeartRed);
+      r.fillRect(hxp,     hyp + 3, 3, 1, kHeartRed);
+    }
+  }
+}
+
+// ----- Play (puppy path): ball drops, bounces, rolls, hearts up ---------
+static void draw_play_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x) {
+  uint32_t elapsed = now_ms - pet.action_started_ms;
+  float t = (float)elapsed / (float)tama::kActionPlayDurationMs;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+
+  // Ground reference for the ball.
+  const int ground_y = kPetY + kPetDrawH - 18;
+  const int catch_x  = pet_x + 6;     // where Bailey "catches" the ball
+
+  if (t < 0.18f) {
+    // Phase 1: ball drops from above. Quadratic acceleration.
+    float u = t / 0.18f;
+    int ball_y = -16 + (int)((ground_y + 16) * u * u);
+    int ball_x = catch_x + 60;
+    r.drawSprite(ball_x, ball_y, 16, 16, tama::ball_sprite(),
+                 kSpritePalette, kAccessoryScale);
+  } else if (t < 0.55f) {
+    // Phase 2/3: bouncing. Two damped bounces, each ~half the previous.
+    float u = (t - 0.18f) / 0.37f;
+    // Two bounces: first 0..0.55, second 0.55..1
+    float peak, bphase;
+    if (u < 0.55f) { peak = 30; bphase = u / 0.55f; }
+    else            { peak = 16; bphase = (u - 0.55f) / 0.45f; }
+    // half-sine arc for each bounce
+    float h = peak * sinf(3.14159f * bphase);
+    int ball_y = ground_y - (int)h;
+    int ball_x = catch_x + 60 - (int)(60 * u * 0.4f);
+    // Squash-stretch: flatter on bounce frames (bphase < 0.05 or > 0.95)
+    bool impact = (bphase < 0.08f || bphase > 0.92f);
+    if (impact) {
+      r.fillRect(ball_x + 2, ball_y + 10, 12, 4, kGreen);
+      r.drawRect(ball_x + 2, ball_y + 10, 12, 4, kBlack);
+    } else {
+      r.drawSprite(ball_x, ball_y, 16, 16, tama::ball_sprite(),
+                   kSpritePalette, kAccessoryScale);
+    }
+  } else if (t < 0.80f) {
+    // Phase 4: ball rolls in horizontally to Bailey.
+    float u = (t - 0.55f) / 0.25f;
+    int ball_x = catch_x + 36 - (int)(36 * u);
+    int ball_y = ground_y - 2;
+    r.drawSprite(ball_x, ball_y, 16, 16, tama::ball_sprite(),
+                 kSpritePalette, kAccessoryScale);
+  } else {
+    // Phase 5: ball "caught" -- hearts float up.
+    float phase = (t - 0.80f) / 0.20f;
+    for (int i = 0; i < 3; ++i) {
+      uint32_t n = pnoise(0xCAFE, i);
+      float local = phase - (float)(n & 0x3F) / 255.0f;
+      if (local < 0 || local > 1) continue;
+      int hxp = pet_x + 18 * kPetScale + ((i - 1) * 14);
+      int hyp = kPetY - 4 - (int)(local * 28);
+      r.fillRect(hxp,     hyp,     3, 2, kHeartRed);
+      r.fillRect(hxp - 1, hyp + 1, 5, 2, kHeartRed);
+      r.fillRect(hxp,     hyp + 3, 3, 1, kHeartRed);
+    }
+  }
+}
+
+// ----- Bath: shower, foam, shake, sparkles ------------------------------
+static void draw_bath_choreography(Renderer& r, const Pet& pet,
+                                   uint32_t now_ms, int pet_x) {
+  uint32_t elapsed = now_ms - pet.action_started_ms;
+  float t = (float)elapsed / (float)tama::kActionCleanDurationMs;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+
+  const int top_y    = kStatsBarH + 4;
+  const int ground_y = kPetY + kPetDrawH - 8;
+
+  // Phase 1: shower (0.00-0.30).
+  if (t < 0.30f) {
+    float phase = t / 0.30f;
+    for (int i = 0; i < 10; ++i) {
+      uint32_t n = pnoise(0xDB0B, i);
+      float launch = (float)(n & 0xFF) / 255.0f;
+      float local  = phase - launch * 0.4f;
+      if (local < 0 || local > 1) continue;
+      int dx = pet_x + (int)((n >> 8) % kPetDrawW);
+      int dy = top_y + (int)((ground_y - top_y) * local);
+      r.drawVLine(dx, dy, 3, kBlue);
+      r.drawPixel(dx + 1, dy + 2, kSkyDeep);
+    }
+  }
+
+  // Phase 2: foaming bubbles (0.15-0.65). Bubbles overlap droplet tail.
+  if (t >= 0.15f && t < 0.65f) {
+    float phase = (t - 0.15f) / 0.50f;
+    for (int i = 0; i < 6; ++i) {
+      uint32_t n = pnoise(0xB0BB, i);
+      float launch = (float)(n & 0x3F) / 100.0f;   // 0..0.64
+      if (phase < launch) continue;
+      float local = (phase - launch) / 0.5f;
+      if (local > 1) local = 1;
+      // Grow scale 1 -> 2 across first 30 %, drift up the rest.
+      int   scale = 1 + (int)(local * 1.5f);
+      int   bx    = pet_x + ((n >> 6) % kPetDrawW);
+      int   by    = (kPetY + kPetDrawH - 12)
+                    - (int)(local * 36.0f);
+      r.drawSprite(bx, by, 16, 16, tama::bubble_sprite(),
+                   kSpritePalette, scale);
+    }
+  }
+
+  // Phase 3: shake-off droplet burst (0.55-0.80). Droplets fling out radially.
+  if (t >= 0.55f && t < 0.80f) {
+    float phase = (t - 0.55f) / 0.25f;
+    int   cx = pet_x + kPetDrawW / 2;
+    int   cy = kPetY + kPetDrawH / 2;
+    for (int i = 0; i < 8; ++i) {
+      uint32_t n  = pnoise(0xD1DA, i);
+      float ang   = ((float)(n & 0xFFFF) / 65535.0f) * 6.2831853f;
+      float dist  = phase * 36.0f + 6;
+      int   dx = cx + (int)(cosf(ang) * dist);
+      int   dy = cy + (int)(sinf(ang) * dist);
+      r.drawPixel(dx,     dy,     kBlue);
+      r.drawPixel(dx + 1, dy,     kSkyDeep);
+      r.drawPixel(dx,     dy + 1, kSkyDeep);
+    }
+  }
+
+  // Phase 4: sparkles (0.78-1.00).
+  if (t >= 0.78f) {
+    float phase = (t - 0.78f) / 0.22f;
+    for (int i = 0; i < 6; ++i) {
+      uint32_t n = pnoise(0x5A55, i);
+      float launch = (float)(n & 0x3F) / 64.0f;
+      float local  = phase - launch * 0.6f;
+      if (local < 0 || local > 0.5f) continue;     // each sparkle lives ~120ms
+      int sx = pet_x + ((n >> 6) % kPetDrawW);
+      int sy = kPetY  + ((n >> 14) % kPetDrawH);
+      // Cross-shaped white sparkle.
+      r.fillRect(sx - 2, sy,     5, 1, kWhite);
+      r.fillRect(sx,     sy - 2, 1, 5, kWhite);
+      r.drawPixel(sx,    sy,        kYellow);
+    }
   }
 }
 
