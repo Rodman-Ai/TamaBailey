@@ -1197,10 +1197,10 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 
 void draw_menu_actions(Renderer& r, const Game& game) {
   static const char* const kMain[10] = {
+    "Play with a friend >", "Tricks >",
+    "Change scene", "Change hat",
     "Go for a walk", "Play fetch", "Give treat", "Brush",
     "Switch toy", "Bedtime",
-    "Change scene", "Change hat",
-    "Tricks >", "Play with a friend >",
   };
   static const char* const kTricks[6] = {
     "Sit", "Come", "High five", "Roll over", "Jump", "< Back",

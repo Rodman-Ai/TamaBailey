@@ -364,25 +364,27 @@ void Game::apply_input(Input in) {
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
-      // Main = 10 rows (was 8: + Change scene, Change hat).
+      // Main = 10 rows. Reordered so the most-used picks come first:
+      //   0 Friends >  1 Tricks >  2 Change scene  3 Change hat
+      //   4..9 the everyday-action rows
       // Tricks submenu = 6 rows (5 tricks + <Back).
       // Friends submenu = 10 rows (Random + 8 friends + <Back).
       if (actions_submenu_ == 0) {
-        // Index 8 = "Tricks >", index 9 = "Play with a friend >".
+        // Index 0 = "Play with a friend >", index 1 = "Tricks >".
         if (in == Input::Feed) {
-          if (actions_cursor_ == 8) {
-            actions_submenu_ = 1; actions_cursor_ = 0; return;
-          }
-          if (actions_cursor_ == 9) {
+          if (actions_cursor_ == 0) {
             actions_submenu_ = 2; actions_cursor_ = 0; return;
           }
+          if (actions_cursor_ == 1) {
+            actions_submenu_ = 1; actions_cursor_ = 0; return;
+          }
           static const Input kMain[10] = {
-            Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
-            Input::CycleToy, Input::Bedtime,
+            Input::None,            // Friends >  (handled above)
+            Input::None,            // Tricks >   (handled above)
             Input::CycleScene,      // Change scene
             Input::CycleAccessory,  // Change hat
-            Input::None,   // Tricks > (handled above)
-            Input::None,   // Play with a friend > (handled above)
+            Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
+            Input::CycleToy, Input::Bedtime,
           };
           Input chosen = kMain[actions_cursor_ % 10];
           if (chosen != Input::None) {
@@ -400,7 +402,7 @@ void Game::apply_input(Input in) {
         if (in == Input::Feed) {
           if (actions_cursor_ == 5) {
             actions_submenu_ = 0;
-            actions_cursor_  = 8;   // land on the Tricks row of main
+            actions_cursor_  = 1;   // land on the Tricks row of main
             return;
           }
           static const Input kTricks[5] = {
@@ -422,7 +424,7 @@ void Game::apply_input(Input in) {
         if (in == Input::Feed) {
           if (actions_cursor_ == 9) {
             actions_submenu_ = 0;
-            actions_cursor_  = 9;   // land on the Friends row of main
+            actions_cursor_  = 0;   // land on the Friends row of main
             return;
           }
           Input chosen;
