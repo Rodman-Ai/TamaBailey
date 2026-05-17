@@ -2,9 +2,17 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <math.h>
 #include "driver/i2s.h"
 
 #include "pins.h"
+
+#ifndef BAILEY_AUDIO_PA_ACTIVE_LOW
+#define BAILEY_AUDIO_PA_ACTIVE_LOW 0
+#endif
+#ifndef BAILEY_AUDIO_TEST_TONE
+#define BAILEY_AUDIO_TEST_TONE 0
+#endif
 
 namespace bailey {
 
@@ -24,6 +32,17 @@ bool reg_write(uint8_t reg, uint8_t val) {
   Wire.write(reg);
   Wire.write(val);
   return Wire.endTransmission() == 0;
+}
+
+// Read back a single register so we can verify writes actually stuck
+// (handy when debugging "no sound" issues -- the audit prints a
+// before/after register dump after init).
+uint8_t reg_read(uint8_t reg) {
+  Wire.beginTransmission(kEs8311Addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return 0xFF;
+  if (Wire.requestFrom((int)kEs8311Addr, 1) < 1) return 0xFF;
+  return Wire.read();
 }
 
 bool es8311_init() {
@@ -66,18 +85,29 @@ bool es8311_init() {
   // ADC settings (unused by us but configured to a sane default).
   reg_write(0x14, 0x1A);
 
-  // DAC volume + unmute. 0x90 ~= -3 dB (was 0xBF ~= -8 dB which
-  // combined with settings.volume = 70 and the per-sample /100 scale
-  // left peaks around -11 dB -- too quiet to hear over board noise).
-  reg_write(0x32, 0x90);
-  reg_write(0x37, 0x00);
-
-  // DAC route to output stage.
-  reg_write(0x44, 0x08);
+  // Extra DAC enable / mixer / unmute sweep -- the Espressif reference
+  // driver writes these even though some are no-ops on power-on; we
+  // include them defensively because "init OK but no sound" usually
+  // points to a missing unmute or mixer-route register.
+  reg_write(0x42, 0x00);   // DAC mixer route (audio -> output)
+  reg_write(0x37, 0x08);   // DAC unmute via alt mute bit
+  reg_write(0x32, 0xBF);   // DAC volume ~= -8 dB (re-stamped post-unmute)
+  reg_write(0x44, 0x18);   // DAC route enable + bit-7 power
   reg_write(0x45, 0x00);
 
   // Let the codec settle before the first I2S write races in.
   delay(50);
+
+  // Read back a handful of key registers so the serial log shows
+  // whether the writes actually landed. If any read returns 0xFF on
+  // every register, the I2C bus is wedged.
+  Serial.printf("[audio] ES8311 readback: 0x00=%02X 0x01=%02X "
+                "0x06=%02X 0x09=%02X 0x0D=%02X 0x10=%02X 0x11=%02X "
+                "0x32=%02X 0x37=%02X 0x44=%02X\n",
+                reg_read(0x00), reg_read(0x01), reg_read(0x06),
+                reg_read(0x09), reg_read(0x0D), reg_read(0x10),
+                reg_read(0x11), reg_read(0x32), reg_read(0x37),
+                reg_read(0x44));
 
   Serial.println("[audio] ES8311 init OK");
   return true;
@@ -101,7 +131,10 @@ bool i2s_init() {
   cfg.intr_alloc_flags     = 0;
   cfg.dma_buf_count        = 6;
   cfg.dma_buf_len          = 256;
-  cfg.use_apll             = true;
+  // APLL on ESP32-S3 can refuse to lock cleanly at 16 kHz / fixed_mclk
+  // combinations; fall back to PLL_F160M which is solid at this rate
+  // and inaudibly close to APLL for a small speaker.
+  cfg.use_apll             = false;
   cfg.tx_desc_auto_clear   = true;
   cfg.fixed_mclk           = (int)kSrTarget * 256;  // 4.096 MHz on MCLK pin
 
@@ -119,8 +152,43 @@ bool i2s_init() {
     Serial.println("[audio] i2s_set_pin failed");
     return false;
   }
+  // Pre-fill 100 ms of silence so the first real i2s_write doesn't
+  // race against an empty DMA queue (some codecs latch garbage on the
+  // first cycle and stay muted).
+  constexpr int kSilenceFrames = kSrTarget / 10;  // 100 ms
+  int16_t zero[256 * 2] = {};
+  int written_total = 0;
+  while (written_total < kSilenceFrames) {
+    size_t w = 0;
+    i2s_write(kI2sPort, zero, sizeof(zero), &w, portMAX_DELAY);
+    written_total += (int)(w / (2 * sizeof(int16_t)));
+  }
   return true;
 }
+
+#if BAILEY_AUDIO_TEST_TONE
+// 440 Hz sine for 2 seconds. Useful smoke for the I2S + codec + PA
+// chain when no game-side sound is heard.
+void play_test_tone() {
+  constexpr int kDurFrames = kSrTarget * 2;
+  constexpr int kChunkFrames = 256;
+  int16_t chunk[kChunkFrames * 2];
+  for (int pos = 0; pos < kDurFrames; ) {
+    int frames = kDurFrames - pos;
+    if (frames > kChunkFrames) frames = kChunkFrames;
+    for (int i = 0; i < frames; ++i) {
+      float t = (float)(pos + i) / (float)kSrTarget;
+      int16_t v = (int16_t)(sinf(2.0f * 3.14159265f * 440.0f * t) * 12000);
+      chunk[i * 2 + 0] = v;
+      chunk[i * 2 + 1] = v;
+    }
+    size_t w = 0;
+    i2s_write(kI2sPort, chunk, frames * 2 * sizeof(int16_t),
+              &w, portMAX_DELAY);
+    pos += frames;
+  }
+}
+#endif
 
 // Linear-resample mono int16 22050 Hz -> stereo int16 16000 Hz with
 // per-sample volume scaling.
@@ -177,12 +245,29 @@ const char* clip_name(tama::ClipId c) {
 
 bool EspSpeaker::begin() {
   pinMode(PIN_AUDIO_PA_CTRL, OUTPUT);
-  digitalWrite(PIN_AUDIO_PA_CTRL, HIGH);   // power amp enable
+  // PA enable polarity is board-specific. Default is active-HIGH
+  // (the most common); flip with -D BAILEY_AUDIO_PA_ACTIVE_LOW=1
+  // if your board's amp enable is wired the other way.
+#if BAILEY_AUDIO_PA_ACTIVE_LOW
+  digitalWrite(PIN_AUDIO_PA_CTRL, LOW);
+  Serial.println("[audio] PA polarity = active-LOW");
+#else
+  digitalWrite(PIN_AUDIO_PA_CTRL, HIGH);
+  Serial.println("[audio] PA polarity = active-HIGH");
+#endif
   Wire.begin(PIN_AUDIO_I2C_SDA, PIN_AUDIO_I2C_SCL, 400000);
   bool ok_codec = es8311_init();
   bool ok_i2s   = i2s_init();
   ok_ = ok_codec && ok_i2s;
-  if (!ok_) Serial.println("[audio] using log-only fallback");
+  if (!ok_) {
+    Serial.println("[audio] using log-only fallback");
+    return ok_;
+  }
+#if BAILEY_AUDIO_TEST_TONE
+  Serial.println("[audio] playing 2 s test tone (440 Hz)");
+  play_test_tone();
+  Serial.println("[audio] test tone done");
+#endif
   return ok_;
 }
 
