@@ -1004,7 +1004,8 @@ void draw_menu_inventory(Renderer& r, const Game& game) {
   int y = 14 + kStatsBarH + 22;
   char buf[40];
   r.drawText(x, y, "INVENTORY", kYellow, 1); y += 12;
-  std::snprintf(buf, sizeof(buf), "Biscuits: %u", (unsigned)game.biscuits());
+  std::snprintf(buf, sizeof(buf), "Biscuits: %u   Bones: %u",
+                (unsigned)game.biscuits(), (unsigned)game.bones_collected());
   r.drawText(x, y, buf, kYellow, 1); y += 12;
   r.drawText(x, y, "Toys:", kWhite, 1); y += 10;
   for (int i = 0; i < (int)Toy::COUNT; ++i) {
@@ -1035,7 +1036,7 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 
   struct Row { const char* name; bool owned; uint32_t price; };
   // Catalog mirrors Game::buy_item indices.
-  const Row rows[15] = {
+  const Row rows[16] = {
     {"Ball",          (game.toys_owned() & 1)  != 0, game.shop_price(0)},
     {"Frisbee",       (game.toys_owned() & 2)  != 0, game.shop_price(1)},
     {"Rope",          (game.toys_owned() & 4)  != 0, game.shop_price(2)},
@@ -1051,21 +1052,30 @@ void draw_menu_shop(Renderer& r, const Game& game) {
     {"Coat: Brindle", game.coat_pattern() == 2,      game.shop_price(12)},
     {"Coat: Tri",     game.coat_pattern() == 3,      game.shop_price(13)},
     {"Coat: Black",   game.coat_pattern() == 4,      game.shop_price(14)},
+    {"Trade 5 bones", false,                          0},  // priced in bones, not biscuits
   };
   // Show 6 rows around the cursor
   uint8_t cur = game.shop_cursor();
   int start = (cur > 2) ? (cur - 2) : 0;
-  if (start > 9) start = 9;
+  if (start > 10) start = 10;
   for (int i = 0; i < 6; ++i) {
     int idx = start + i;
-    if (idx >= 15) break;
+    if (idx >= 16) break;
     bool sel = idx == cur;
     if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
-    std::snprintf(buf, sizeof(buf), "%c %s  %ub",
-                  sel ? '>' : ' ', rows[idx].name, (unsigned)rows[idx].price);
-    uint16_t fg = rows[idx].owned ? kGreen
-                                  : (game.biscuits() >= rows[idx].price ? kWhite : kGrayDark);
-    r.drawText(x, y, buf, fg, 1);
+    if (idx == 15) {
+      // Trade-bones row: priced in bones (5 -> 1 biscuit).
+      std::snprintf(buf, sizeof(buf), "%c %s  5 bones",
+                    sel ? '>' : ' ', rows[idx].name);
+      uint16_t fg = game.bones_collected() >= 5 ? kWhite : kGrayDark;
+      r.drawText(x, y, buf, fg, 1);
+    } else {
+      std::snprintf(buf, sizeof(buf), "%c %s  %ub",
+                    sel ? '>' : ' ', rows[idx].name, (unsigned)rows[idx].price);
+      uint16_t fg = rows[idx].owned ? kGreen
+                                    : (game.biscuits() >= rows[idx].price ? kWhite : kGrayDark);
+      r.drawText(x, y, buf, fg, 1);
+    }
     y += 10;
   }
   y += 4;
@@ -1248,9 +1258,23 @@ static void draw_walk_progress(Renderer& r, const Game& game) {
   r.drawRect(x0 - 1, y0 - 1, w + 2, 7, kGrayLight);
   int fill = w * game.walk_steps() / 20;
   if (fill > 0) r.fillRect(x0, y0, fill, 5, kGreen);
-  char buf[32];
+  char buf[40];
   std::snprintf(buf, sizeof(buf), "WALK %u/20  B=step C=stop", game.walk_steps());
   r.drawText((kScreenW - text_width(buf, 1)) / 2, y0 + 10, buf, kYellow, 1);
+  std::snprintf(buf, sizeof(buf), "today: %u steps  bones: %u",
+                (unsigned)game.walk_today_steps(),
+                (unsigned)game.bones_collected());
+  r.drawText((kScreenW - text_width(buf, 1)) / 2, y0 + 22, buf, kGrayLight, 1);
+  // Transient "FOUND!" popup for the last 1500 ms after a walk item-find.
+  uint32_t since = game.last_tick_ms() - game.last_walk_find_ms();
+  if (game.last_walk_find_kind() != 0 && since < 1500) {
+    const char* what = game.last_walk_find_kind() == 1 ? "bone"
+                     : game.last_walk_find_kind() == 2 ? "new toy"
+                     :                                    "treat";
+    std::snprintf(buf, sizeof(buf), "FOUND: %s!", what);
+    int tx = (kScreenW - text_width(buf, 2)) / 2;
+    r.drawText(tx, y0 + 36, buf, kGreen, 2);
+  }
 }
 
 void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {

@@ -199,6 +199,7 @@ class Game {
   uint32_t  transition_started_ms() const { return transition_started_ms_; }
   uint8_t   move_out_family_idx()   const { return move_out_family_idx_; }
   uint8_t   ambient_behavior()      const { return ambient_behavior_; }
+  uint32_t  last_tick_ms()          const { return last_tick_ms_; }
   int16_t   ambient_x_offset()      const { return ambient_x_offset_; }
   uint32_t  ambient_started_ms()    const { return ambient_started_ms_; }
   uint8_t   shop_cursor()    const { return shop_cursor_; }
@@ -212,6 +213,12 @@ class Game {
   }
   // Active holiday: 0 none, 1 birthday, 2 halloween, 3 christmas
   uint8_t   active_holiday() const { return active_holiday_; }
+  // Round 3: walk-find HUD popup + bones counter + daily-steps.
+  uint32_t  bones_collected() const { return bones_collected_; }
+  uint16_t  walk_today_steps() const { return walk_today_steps_; }
+  // 0 = no recent find, 1 = bone, 2 = toy unlocked, 3 = treat (biscuit-flavored)
+  uint8_t   last_walk_find_kind() const { return last_walk_find_kind_; }
+  uint32_t  last_walk_find_ms()   const { return last_walk_find_ms_; }
   // Manually override the weather (e.g. from a wttr.in fetch on the web).
   void      set_weather(Weather w) { weather_ = (uint8_t)w; dirty_ = true; }
 
@@ -392,6 +399,12 @@ class Game {
 
   // xorshift32 state for ambient spawn rolls; seeded in init().
   uint32_t rng_state_         = 0;
+
+  // Round 3 Phase 1 transient + collectible state.
+  uint32_t bones_collected_   = 0;   // persisted (save v7)
+  uint16_t walk_today_steps_  = 0;   // persisted (save v7)
+  uint8_t  last_walk_find_kind_ = 0; // transient, no save
+  uint32_t last_walk_find_ms_   = 0; // transient, no save
 };
 
 }  // namespace tama

@@ -63,6 +63,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.friend_visits[6] = 0;
     s.friend_visits[7] = 0;
   }
+  if (s.version < 7) {
+    // v6 -> v7: zero the Round-3 walk-collectible fields.
+    s.bones_collected   = 0;
+    s.walk_today_steps  = 0;
+    s._pad7             = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

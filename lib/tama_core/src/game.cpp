@@ -228,6 +228,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     for (int i = 0; i < 7; ++i) mood_history_[i] = s.mood_history[i];
     mood_history_head_         = s.mood_history_head;
     for (int i = 0; i < (int)Friend::COUNT; ++i) friend_visits_[i] = s.friend_visits[i];
+    // v7 fields
+    bones_collected_  = s.bones_collected;
+    walk_today_steps_ = s.walk_today_steps;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -336,7 +339,7 @@ void Game::apply_input(Input in) {
     if (menu_tab_ == MenuTab::Shop) {
       if (in == Input::Feed) { buy_item(shop_cursor_); return; }
       if (in == Input::Play) {
-        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 15);
+        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 16);
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
@@ -537,6 +540,7 @@ void Game::apply_input(Input in) {
         // Each Walk press during Walking = a step.
         walk_steps_++;
         total_steps_++;
+        walk_today_steps_++;
         pet_.stats.energy = clamp_stat((int)pet_.stats.energy - 1);
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
         // 1/8 chance to find an item per step.
@@ -544,16 +548,20 @@ void Game::apply_input(Input in) {
         if ((r & 7) == 0) {
           int kind = (r >> 3) % 3;
           if (kind == 0) {
-            grant_biscuits(1);                          // bone
+            bones_collected_++;                         // collectible bone
+            last_walk_find_kind_ = 1;
           } else if (kind == 1 && (toy_owned_ != kAllToysMask)) {
             // Unlock a random missing toy
             for (int i = 0; i < (int)Toy::COUNT; ++i) {
               uint8_t bit = 1u << ((i + (r >> 6)) % (int)Toy::COUNT);
               if (!(toy_owned_ & bit)) { toy_owned_ |= bit; break; }
             }
+            last_walk_find_kind_ = 2;
           } else {
             treats_[r & 3 ? 0 : 1]++;                   // biscuit treat usually
+            last_walk_find_kind_ = 3;
           }
+          last_walk_find_ms_ = last_tick_ms_;
         }
         fulfill_wish_if_matches(Wish::Walk);
         dirty_ = true;
@@ -822,6 +830,10 @@ void Game::apply_input(Input in) {
       // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
       unlock_achievement(AchievementId::CalledByName);
       apply_input(Input::PetTap);  // chain to the pet logic
+      break;
+    case Input::TradeBones:
+      // 5 bones -> 1 biscuit. Same path as Shop row 15.
+      buy_item(15);
       break;
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
@@ -1157,6 +1169,10 @@ void Game::force_save(Storage& storage) {
   for (int i = 0; i < 7; ++i) s.mood_history[i] = mood_history_[i];
   s.mood_history_head       = mood_history_head_;
   for (int i = 0; i < (int)Friend::COUNT; ++i) s.friend_visits[i] = friend_visits_[i];
+  // v7 additions
+  s.bones_collected  = bones_collected_;
+  s.walk_today_steps = walk_today_steps_;
+  s._pad7            = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1607,6 +1623,7 @@ void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
   today_happiness_sum_ = 0;
   today_samples_       = 0;
   today_actions_       = 0;
+  walk_today_steps_    = 0;     // round 3: reset daily walk counter at midnight
   dirty_ = true;
 }
 
@@ -1659,10 +1676,20 @@ uint32_t Game::shop_price(uint8_t i) const {
     return treat_prices[i - 8];
   }
   if (i < 15) return 20;           // coat
+  if (i == 15) return 0;           // Trade-bones row: priced in bones, not biscuits
   return 0;
 }
 
 bool Game::buy_item(uint8_t i) {
+  // Special row: spend 5 bones for 1 biscuit. Priced in bones, not biscuits,
+  // so the standard "biscuits_ < price" check doesn't apply.
+  if (i == 15) {
+    if (bones_collected_ < 5) return false;
+    bones_collected_ -= 5;
+    grant_biscuits(1);
+    dirty_ = true;
+    return true;
+  }
   uint32_t price = shop_price(i);
   if (price == 0 || biscuits_ < price) return false;
   if (i < 5) {
