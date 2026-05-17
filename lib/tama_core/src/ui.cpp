@@ -227,7 +227,29 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
       break;
     }
     case Action::Clean: pose = PetPose::Pant;    break;
-    case Action::Pet:   pose = PetPose::IdleB;   break;
+    case Action::Pet: {
+      // Voice / menu trick overrides the default pet pose with a
+      // per-trick visual.
+      uint8_t kind = game.voice_trick_kind();
+      uint32_t elapsed = now_ms - pet.action_started_ms;
+      switch (kind) {
+        case 1: pose = PetPose::Sit; break;                       // Sit
+        case 2: pose = ((elapsed / 200) & 1) ? PetPose::IdleA     // Come
+                                              : PetPose::IdleB;
+                break;
+        case 3: pose = PetPose::Bark; break;                      // High five
+        case 4: {                                                 // Roll over
+          uint32_t phase = (elapsed / 150) % 4;
+          pose = (phase == 0) ? PetPose::IdleA :
+                 (phase == 1) ? PetPose::Sleep :
+                 (phase == 2) ? PetPose::IdleB : PetPose::IdleA;
+          break;
+        }
+        case 5: pose = PetPose::IdleB; break;                     // Jump
+        default: pose = PetPose::IdleB; break;
+      }
+      break;
+    }
     case Action::None:
       switch (pet.mood) {
         case Mood::Sleeping:  pose = PetPose::Sleep; break;
@@ -272,13 +294,32 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
         draw_x += ((elapsed / 60) & 1) ? -2 : 2;
       }
     }
+    // Voice-trick "Come": slide Bailey 18 px toward the center over the
+    // first half of the action, then back.
+    if (pet.current_action == Action::Pet && game.voice_trick_kind() == 2) {
+      uint32_t elapsed = now_ms - pet.action_started_ms;
+      float u = (float)elapsed / 600.0f;  // 0..1 over the duration
+      if (u > 1.0f) u = 1.0f;
+      float tri = 1.0f - fabsf(u * 2.0f - 1.0f);   // 0..1..0
+      draw_x += (int)(tri * 18);
+    }
     // Clamp so the sprite stays on screen.
     if (draw_x < 4) draw_x = 4;
     if (draw_x + kPetDrawW > kScreenW - 4) draw_x = kScreenW - 4 - kPetDrawW;
   }
 
+  // Voice-trick "Jump": parabolic Y offset.
+  int draw_y = kPetY;
+  if (pet.current_action == Action::Pet && game.voice_trick_kind() == 5) {
+    uint32_t elapsed = now_ms - pet.action_started_ms;
+    float u = (float)elapsed / 600.0f;
+    if (u > 1.0f) u = 1.0f;
+    float lift = 4.0f * u * (1.0f - u);   // 0..1..0 (peak at u=0.5)
+    draw_y -= (int)(lift * 28);
+  }
+
   const uint8_t* sprite = pet_sprite(pet.stage, pose);
-  r.drawSprite(draw_x, kPetY, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
+  r.drawSprite(draw_x, draw_y, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
 
   // Magic transition: scatter twinkles over the pet.
   if (pet.mood == Mood::Magic) {
@@ -394,8 +435,9 @@ static void draw_play_choreography(Renderer& r, const Pet& pet,
   if (t < 0) t = 0;
   if (t > 1) t = 1;
 
-  // Ground reference for the ball.
-  const int ground_y = kPetY + kPetDrawH - 18;
+  // Ground reference for the ball -- below Bailey's paws so the rolling
+  // ball never crosses his leg row.
+  const int ground_y = kPetY + kPetDrawH + 4;
   const int catch_x  = pet_x + 6;     // where Bailey "catches" the ball
 
   if (t < 0.18f) {
@@ -484,9 +526,11 @@ static void draw_bath_choreography(Renderer& r, const Pet& pet,
       float local = (phase - launch) / 0.5f;
       if (local > 1) local = 1;
       // Grow scale 1 -> 2 across first 30 %, drift up the rest.
+      // Spawn band positioned ABOVE the leg row so bubbles foam around
+      // Bailey's body/head, not over his paws.
       int   scale = 1 + (int)(local * 1.5f);
       int   bx    = pet_x + ((n >> 6) % kPetDrawW);
-      int   by    = (kPetY + kPetDrawH - 12)
+      int   by    = (kPetY + 18 + (int)((n >> 10) % 60))
                     - (int)(local * 36.0f);
       r.drawSprite(bx, by, 16, 16, tama::bubble_sprite(),
                    kSpritePalette, scale);
@@ -626,13 +670,13 @@ void draw_footer(Renderer& r, const Game& game) {
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
 #if BAILEY_MEMORIAL_WALL
-  const char* labels[] = {"STATS", "BADGES", "OPTS", "SYNC", "MEM", "BAG", "SHOP"};
-  const int   tab_ids[] = {0, 1, 2, 3, 4, 5, 6};
-  constexpr int n_tabs = 7;
+  const char* labels[] = {"STA", "BDG", "OPT", "SYN", "MEM", "BAG", "SHP", "ACT"};
+  const int   tab_ids[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  constexpr int n_tabs = 8;
 #else
-  const char* labels[] = {"STATS", "BADGES", "OPTS", "SYNC", "BAG", "SHOP"};
-  const int   tab_ids[] = {0, 1, 2, 3, 5, 6};
-  constexpr int n_tabs = 6;
+  const char* labels[] = {"STA", "BDG", "OPT", "SYN", "BAG", "SHP", "ACT"};
+  const int   tab_ids[] = {0, 1, 2, 3, 5, 6, 7};
+  constexpr int n_tabs = 7;
 #endif
   int x = 6;
   int y = 14 + kStatsBarH;
@@ -883,6 +927,33 @@ void draw_menu_shop(Renderer& r, const Game& game) {
   r.drawText(x, y, "A=buy  B=next  C=tab", kGray, 1);
 }
 
+void draw_menu_actions(Renderer& r, const Game& game) {
+  static const char* const kRows[11] = {
+    "Go for a walk", "Play fetch", "Give treat", "Brush",
+    "Switch toy", "Bedtime",
+    "Sit", "Come", "High five", "Roll over", "Jump",
+  };
+  int x = 14;
+  int y = 14 + kStatsBarH + 20;
+  r.drawText(x, y, "ACTIONS", kYellow, 1); y += 12;
+  uint8_t cur = game.actions_cursor() % 11;
+  // Show 8 rows centered on the cursor.
+  int start = (cur > 4) ? (cur - 4) : 0;
+  if (start > 3) start = 3;   // clamp so we don't run past the end
+  for (int i = 0; i < 8; ++i) {
+    int idx = start + i;
+    if (idx >= 11) break;
+    bool sel = (idx == cur);
+    if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
+    char buf[40];
+    std::snprintf(buf, sizeof(buf), "%c %s", sel ? '>' : ' ', kRows[idx]);
+    r.drawText(x, y, buf, sel ? kYellow : kWhite, 1);
+    y += 10;
+  }
+  y += 4;
+  r.drawText(x, y, "A=do  B=next  C=tab", kGray, 1);
+}
+
 void draw_menu_sync(Renderer& r, const Game& game_const) {
   // generate_sync_code mutates internal buffer; we need a mutable ref.
   auto& game = const_cast<Game&>(game_const);
@@ -1128,6 +1199,7 @@ void draw_menu_overlay(Renderer& r, const Game& game) {
       break;
     case Game::MenuTab::Inventory: draw_menu_inventory(r, game); break;
     case Game::MenuTab::Shop:      draw_menu_shop(r, game); break;
+    case Game::MenuTab::Actions:   draw_menu_actions(r, game); break;
   }
 
   r.drawText(14, kScreenH - kStatusH - 14, "Long-press: close  |  short: next tab",

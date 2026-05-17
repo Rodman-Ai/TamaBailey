@@ -306,18 +306,33 @@ void Game::apply_input(Input in) {
   }
 
   if (menu_open_ && (in == Input::Feed || in == Input::Play || in == Input::Clean)) {
-    // While on the Shop tab, button A buys the cursor item; B moves cursor;
-    // C closes menu. Other tabs cycle to next tab.
+    // Tab-specific A/B handling. C always cycles to next tab.
     if (menu_tab_ == MenuTab::Shop) {
-      if (in == Input::Feed) {
-        buy_item(shop_cursor_);
-        return;
-      }
+      if (in == Input::Feed) { buy_item(shop_cursor_); return; }
       if (in == Input::Play) {
         shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 15);
         return;
       }
-      // Input::Clean falls through to cycle tab below
+    } else if (menu_tab_ == MenuTab::Actions) {
+      // 11 rows; A executes, B moves cursor down. C falls through.
+      if (in == Input::Feed) {
+        static const Input kActions[11] = {
+          Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
+          Input::CycleToy, Input::Bedtime,
+          Input::VoiceSit, Input::VoiceCome, Input::VoiceHighFive,
+          Input::VoiceRollOver, Input::VoiceJump,
+        };
+        Input chosen = kActions[actions_cursor_ % 11];
+        // Close the menu before dispatching so the action plays
+        // unobscured.
+        menu_open_ = false;
+        apply_input(chosen);
+        return;
+      }
+      if (in == Input::Play) {
+        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 11);
+        return;
+      }
     }
     menu_tab_ = next_menu_tab(menu_tab_);
     return;
@@ -592,6 +607,46 @@ void Game::apply_input(Input in) {
       }
       break;
     }
+    case Input::VoiceSit:
+    case Input::VoiceCome:
+    case Input::VoiceHighFive:
+    case Input::VoiceRollOver:
+    case Input::VoiceJump: {
+      uint8_t kind = (uint8_t)((int)in - (int)Input::VoiceSit + 1);  // 1..5
+      voice_trick_kind_       = kind;
+      voice_trick_started_ms_ = last_tick_ms_;
+      // Bailey performs a trick: log into trick_perf so the favorite
+      // tracker counts it (re-uses the existing Trick enum: Sit=0,
+      // Shake=1, RollOver=2, Speak=3, Spin=4; we map HighFive->Shake,
+      // Come->Speak, Jump->Spin).
+      static const Trick kMap[6] = {
+        Trick::Sit, Trick::Sit, Trick::Speak,
+        Trick::Shake, Trick::RollOver, Trick::Spin,
+      };
+      Trick t = kMap[kind];
+      trick_perf_[(int)t]++;
+      pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness + 5);
+      pet_.current_action    = Action::Pet;
+      pet_.action_started_ms = last_tick_ms_;
+      ClipId clip = (kind == 4 /*RollOver*/) ? ClipId::Yip : ClipId::Wuff;
+      play_clip(clip);
+      unlock_achievement(AchievementId::LearnedFirstTrick);
+      dirty_ = true;
+      break;
+    }
+    case Input::Bedtime: {
+      // Manual tuck-in: force the bedtime bonus regardless of clock.
+      well_tucked_in_today_ = 1;
+      pet_.stats.happiness  = clamp_stat((int)pet_.stats.happiness + 3);
+      play_clip(ClipId::Heart);
+      dirty_ = true;
+      break;
+    }
+    case Input::MenuCursorNext:
+      if (menu_open_ && menu_tab_ == MenuTab::Actions) {
+        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 11);
+      }
+      break;
     case Input::MicTrigger:
       // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
       unlock_achievement(AchievementId::CalledByName);
@@ -847,7 +902,10 @@ void Game::tick(uint32_t now_ms) {
       case Action::Pet:   dur = kActionPetDurationMs;   break;
       default: break;
     }
-    if (elapsed > dur) pet_.current_action = Action::None;
+    if (elapsed > dur) {
+      pet_.current_action = Action::None;
+      voice_trick_kind_   = 0;   // clear any in-flight voice trick
+    }
   }
 
   // Finish MovingOut / Magic transitions once the dwell time elapses.
@@ -1373,7 +1431,7 @@ void Game::update_vocab() {
 
 Game::MenuTab Game::next_menu_tab(MenuTab cur) {
   int t = (int)cur + 1;
-  constexpr int last = (int)MenuTab::Shop;
+  constexpr int last = (int)MenuTab::Actions;
   if (t > last) t = 0;
 #if !BAILEY_MEMORIAL_WALL
   if (t == (int)MenuTab::Memorial) ++t;

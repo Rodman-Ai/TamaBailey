@@ -214,9 +214,14 @@ class Game {
   // --- Settings menus interact via these ---
   enum class MenuTab : uint8_t {
     Stats = 0, Achievements = 1, Settings = 2, Sync = 3, Memorial = 4,
-    Inventory = 5, Shop = 6,
+    Inventory = 5, Shop = 6, Actions = 7,
   };
   static MenuTab next_menu_tab(MenuTab cur);
+  uint8_t actions_cursor() const { return actions_cursor_; }
+  // Voice / menu trick currently being performed.
+  // 0 = none, else (1+(int)VoiceX - (int)VoiceSit).
+  uint8_t voice_trick_kind()   const { return voice_trick_kind_; }
+  uint32_t voice_trick_started_ms() const { return voice_trick_started_ms_; }
 
   // Round 2 Phase 2 helpers
   bool buy_item(uint8_t shop_index);   // returns true on success
@@ -324,6 +329,9 @@ class Game {
   uint8_t  npc_visit_kind_            = 0;  // 1..4 = visitor sprite kind, 0 = none
   uint8_t  shop_cursor_               = 0;
   uint8_t  active_holiday_            = 0;
+  uint8_t  actions_cursor_            = 0;
+  uint8_t  voice_trick_kind_          = 0;
+  uint32_t voice_trick_started_ms_    = 0;
   // Round 2 Phase 3 transient state
   uint32_t today_day_index_           = 0;
   uint32_t today_happiness_sum_       = 0;

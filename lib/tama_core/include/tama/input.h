@@ -27,6 +27,14 @@ enum class Input : uint8_t {
   CycleToy         = 17,  // cycle active toy
   CycleAge         = 18,  // demo: cycle Puppy/Adult/Senior on demand
   ImuFlick         = 19,  // IMU forward flick (throw / advance fetch)
+  // Voice / menu trick commands
+  VoiceSit         = 20,
+  VoiceCome        = 21,
+  VoiceHighFive    = 22,
+  VoiceRollOver    = 23,
+  VoiceJump        = 24,
+  Bedtime          = 25,  // manual tuck-in (sets well_tucked_in_today)
+  MenuCursorNext   = 26,  // move action-tab cursor down
 };
 
 }  // namespace tama

@@ -10,6 +10,7 @@
 #include "esp_clock.h"
 #include "esp_imu.h"
 #include "esp_input.h"
+#include "esp_mic.h"
 #include "esp_renderer.h"
 #include "esp_storage.h"
 #include "esp_touch.h"
@@ -22,6 +23,7 @@ static bailey::EspClock            clock_;
 static bailey::EspSpeaker          speaker;
 static bailey::EspImu              imu;
 static bailey::EspTouch            touch;
+static bailey::EspMic              mic;
 static tama::Game                  game;
 static bailey::EspInput*           input = nullptr;
 
@@ -43,6 +45,7 @@ void setup() {
   }
 
   speaker.begin();
+  mic.begin();
   imu.begin();
   touch.begin();
   clock_.begin();
@@ -61,6 +64,7 @@ void loop() {
   uint32_t now = millis();
   imu.poll(now, game);
   touch.poll(now, game);
+  mic.poll(now, game);
   game.tick(now);
   game.draw(*renderer);
   renderer->present();
