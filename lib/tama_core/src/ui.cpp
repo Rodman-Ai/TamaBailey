@@ -31,20 +31,123 @@ static const char* const kFamilyNames[8] = {
   "OBriens", "Yamamotos", "Schmidts", "Akinyemis"
 };
 
-const char* mood_text(Mood m) {
-  switch (m) {
-    case Mood::Happy:     return "Bailey is happy!";
-    case Mood::Hungry:    return "Bailey is hungry";
-    case Mood::Sad:       return "Bailey feels sad";
-    case Mood::Dirty:     return "Bailey needs a bath";
-    case Mood::Sleeping:  return "Zzz... napping";
-    case Mood::MovingOut: return "Bailey moved in with...";  // family name appended later
-    case Mood::Magic:     return "Bailey is young again!";
-    case Mood::Gone:      // legacy, should not render
-    case Mood::Neutral:
-    default:              return "How is Bailey today?";
+// Round 4: per-mood phrase banks (5 each). Picked by a rotating
+// index derived from today_day_index + simulated minute, so the
+// footer rotates throughout the day and each new day starts at a
+// fresh offset.
+static const char* const kHappyBank[5] = {
+  "Bailey is happy!",
+  "Bailey wags his tail.",
+  "Bailey is having a great day!",
+  "Bailey's nose is wiggling.",
+  "Bailey is in a good mood.",
+};
+static const char* const kHungryBank[5] = {
+  "Bailey is hungry",
+  "Bailey's tummy rumbles",
+  "Bailey could really eat",
+  "Bailey eyes the food bowl",
+  "Bailey wants a snack",
+};
+static const char* const kSadBank[5] = {
+  "Bailey feels sad",
+  "Bailey looks gloomy",
+  "Bailey misses you",
+  "Bailey needs cheering up",
+  "Bailey is sulking",
+};
+static const char* const kDirtyBank[5] = {
+  "Bailey needs a bath",
+  "Bailey is muddy!",
+  "Bailey smells funky",
+  "Bailey's coat is grubby",
+  "Bailey wants a wash",
+};
+static const char* const kSleepingBank[5] = {
+  "Zzz... napping",
+  "Bailey is dreaming",
+  "Bailey is fast asleep",
+  "Bailey is curled up",
+  "Bailey snoozes peacefully",
+};
+static const char* const kNeutralBank[5] = {
+  "How is Bailey today?",
+  "Bailey looks around",
+  "Bailey is just chillin'",
+  "Bailey ponders life",
+  "Bailey is taking it easy",
+};
+
+// Weather-themed overrides for the Happy bank. Picked when weather
+// matches AND the player is on an "even" rotation tick so the bank
+// still rotates rather than locking on one phrase.
+static const char* happy_for_weather(Weather w) {
+  switch (w) {
+    case Weather::Rain:   return "Bailey splashes in a puddle!";
+    case Weather::Snow:   return "Bailey rolls in the snow!";
+    case Weather::Cloudy: return "Bailey enjoys the cool breeze.";
+    case Weather::Fog:    return "Bailey sniffs through the mist.";
+    case Weather::Sunny:
+    default:              return nullptr;   // no override, use bank
   }
 }
+static const char* sad_for_weather(Weather w) {
+  if (w == Weather::Rain) return "Bailey shivers in the rain";
+  if (w == Weather::Fog)  return "Bailey can't see his friends";
+  return nullptr;
+}
+static const char* sleeping_for_weather(Weather w) {
+  if (w == Weather::Rain) return "Bailey listens to the rain";
+  if (w == Weather::Snow) return "Bailey is bundled up asleep";
+  return nullptr;
+}
+
+const char* mood_text_variant(const Game& game) {
+  const Mood m = game.pet().mood;
+  // MovingOut and Magic are special-cased in draw_footer; if we get
+  // here something is off but we return a safe value.
+  if (m == Mood::MovingOut) return "Bailey moved in with...";
+  if (m == Mood::Magic)     return "Bailey is young again!";
+  if (m == Mood::Gone)      return "How is Bailey today?";
+
+  // Rotation index: minute-of-game-time + day-of-year. Without a
+  // synced clock, today_day_index_ stays 0, but the minute term still
+  // rotates so the bank cycles.
+  uint32_t minute = game.last_tick_ms() / 60000u;
+  uint32_t idx    = (game.today_day_index() + minute) % 5;
+
+  // Weather-flavored picks on even minutes (so the basic bank still
+  // shows up half the time).
+  Weather w = game.weather();
+  if ((minute & 1) == 0) {
+    const char* wo = nullptr;
+    if      (m == Mood::Happy)    wo = happy_for_weather(w);
+    else if (m == Mood::Sad)      wo = sad_for_weather(w);
+    else if (m == Mood::Sleeping) wo = sleeping_for_weather(w);
+    if (wo) return wo;
+  }
+
+  switch (m) {
+    case Mood::Happy:    return kHappyBank[idx];
+    case Mood::Hungry:   return kHungryBank[idx];
+    case Mood::Sad:      return kSadBank[idx];
+    case Mood::Dirty:    return kDirtyBank[idx];
+    case Mood::Sleeping: return kSleepingBank[idx];
+    case Mood::Neutral:
+    default:             return kNeutralBank[idx];
+  }
+}
+
+// Time-of-day prefix prepended to the footer mood line.
+const char* time_of_day_prefix(const Game& game) {
+  if (!game.have_local_hour()) return "";
+  uint8_t h = game.current_hour();
+  if (h < 6 || h >= 22) return "Late: ";
+  if (h < 12)           return "Morning: ";
+  if (h < 18)           return "";
+  return "Evening: ";
+}
+
 
 const char* stage_text(LifeStage s) {
   switch (s) {
@@ -965,10 +1068,19 @@ void draw_footer(Renderer& r, const Game& game) {
                   (unsigned)(rem / 60), (unsigned)(rem % 60));
     msg = msg_buf;
   } else {
-    msg = mood_text(pet.mood);
+    // Round 4: rotating mood-text bank + time-of-day prefix.
+    const char* body   = mood_text_variant(game);
+    const char* prefix = time_of_day_prefix(game);
+    if (prefix[0] != '\0') {
+      std::snprintf(msg_buf, sizeof(msg_buf), "%s%s", prefix, body);
+      msg = msg_buf;
+    } else {
+      msg = body;
+    }
   }
   // Custom-formatted strings (msg_buf) render at scale 1 to fit; the
-  // mood-text fast path keeps scale 2.
+  // mood-text fast path keeps scale 2. Longer prefixed strings also
+  // fall through to scale 1.
   int scale = (msg == msg_buf) ? 1 : 2;
   int tw = text_width(msg, scale);
   int tx = (kScreenW - tw) / 2;

@@ -282,6 +282,12 @@ class Game {
   // (highest = most recent) since Round 2/3 IDs were appended.
   int latest_achievement(int idx) const;
 
+  // Round 4: time-of-day + day index exposed for footer phrase
+  // rotation. today_day_index() is 0 when no clock has been synced.
+  uint32_t  today_day_index() const { return today_day_index_; }
+  uint8_t   current_hour()    const { return current_hour_; }
+  bool      have_local_hour() const { return have_local_hour_; }
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
