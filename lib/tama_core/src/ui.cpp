@@ -1067,10 +1067,10 @@ void draw_menu_shop(Renderer& r, const Game& game) {
     {"Biscuit treat", false,                          game.shop_price(8)},
     {"Bacon treat",   false,                          game.shop_price(9)},
     {"Steak treat",   false,                          game.shop_price(10)},
-    {"Coat: Tan",     game.coat_pattern() == 1,      game.shop_price(11)},
-    {"Coat: Brindle", game.coat_pattern() == 2,      game.shop_price(12)},
-    {"Coat: Tri",     game.coat_pattern() == 3,      game.shop_price(13)},
-    {"Coat: Black",   game.coat_pattern() == 4,      game.shop_price(14)},
+    {"Tan +feed",     game.coat_pattern() == 1,      game.shop_price(11)},
+    {"Brindle +nrg",  game.coat_pattern() == 2,      game.shop_price(12)},
+    {"Tri +cuddle",   game.coat_pattern() == 3,      game.shop_price(13)},
+    {"Black +bones",  game.coat_pattern() == 4,      game.shop_price(14)},
     {"Trade 5 bones", false,                          0},  // priced in bones, not biscuits
   };
   // Show 6 rows around the cursor

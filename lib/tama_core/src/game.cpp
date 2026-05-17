@@ -447,6 +447,7 @@ void Game::apply_input(Input in) {
       uint32_t boost = kActionEatBoost;
       if (well_tucked_in_today_) boost *= 2;  // bedtime routine bonus
       if (horoscope_id() == 2) boost += 10;   // HUNGRY: bigger feed boost
+      if (coat_pattern_ == 1) boost += 5;     // Tan coat: hearty appetite
       pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + boost);
       pet_.current_action = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
@@ -527,7 +528,9 @@ void Game::apply_input(Input in) {
     case Input::PetTap: {
       uint32_t since = last_tick_ms_ - pet_.last_pet_ms;
       if (since >= kPetCooldownMs || pet_.last_pet_ms == 0) {
-        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPetBoost);
+        uint32_t pet_boost = kActionPetBoost;
+        if (coat_pattern_ == 3) pet_boost += 5;   // Tri-color: extra cuddly
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + pet_boost);
         pet_.current_action = Action::Pet;
         pet_.action_started_ms = last_tick_ms_;
         pet_.last_pet_ms = last_tick_ms_;
@@ -557,6 +560,7 @@ void Game::apply_input(Input in) {
           int kind = (r >> 3) % 3;
           if (kind == 0) {
             bones_collected_++;                         // collectible bone
+            if (coat_pattern_ == 4) grant_biscuits(1);  // Black coat: extra biscuit
             last_walk_find_kind_ = 1;
           } else if (kind == 1 && (toy_owned_ != kAllToysMask)) {
             // Unlock a random missing toy
@@ -894,6 +898,8 @@ void Game::apply_decay(uint32_t dt_ms) {
                                h_thr = (uint32_t)(h_thr * 12 / 10); break;
     default: break;
   }
+  // Coat passive: Brindle (id 2) -- snappier energy regen.
+  if (coat_pattern_ == 2) e_thr = (uint32_t)(e_thr * 8 / 10);
 
   // Weather tweaks (Phase 2 data, applied here when set)
   if (weather_ == (uint8_t)Weather::Rain)
