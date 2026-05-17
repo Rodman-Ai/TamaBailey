@@ -62,6 +62,11 @@
         document.getElementById('spectatorBanner')?.classList.add('show');
       }
     }
+    // Handle ?bio=1 -- render a downloadable bio card and offer download.
+    if (params.has('bio')) {
+      // Wait two frames so the game has rendered Bailey's current pose.
+      requestAnimationFrame(() => requestAnimationFrame(renderBioCard));
+    }
 
     function frame() {
       Module._bailey_frame();
@@ -277,6 +282,48 @@
     tryWeather();
     setInterval(maybeNotify, 60 * 1000);  // check once a minute
   });
+
+  // ---- Bio card renderer (?bio=1) ----
+  function renderBioCard() {
+    const stats = [0,1,2,3].map(i => Module._bailey_get_stat ? Module._bailey_get_stat(i) : 0);
+    const off = document.createElement('canvas');
+    off.width = 480; off.height = 720;
+    const o = off.getContext('2d');
+    // Background
+    o.fillStyle = '#1f2227'; o.fillRect(0, 0, off.width, off.height);
+    // Title
+    o.fillStyle = '#f0c060';
+    o.font = 'bold 36px ui-sans-serif, system-ui';
+    o.textAlign = 'center';
+    o.fillText('BAILEY', off.width/2, 56);
+    o.fillStyle = '#8a8f96';
+    o.font = '16px ui-sans-serif, system-ui';
+    o.fillText('a hound on the internet', off.width/2, 80);
+    // Bailey's current screen as a 240x240 inset, 2x scaled to 480x480
+    o.imageSmoothingEnabled = false;
+    o.drawImage(canvas, 0, 0, 240, 240, 0, 100, 480, 480);
+    // Footer stats
+    o.fillStyle = '#e8ebee';
+    o.font = '18px ui-monospace, monospace';
+    o.textAlign = 'left';
+    const labels = ['Food', 'Play', 'Bath', 'Rest'];
+    for (let i = 0; i < 4; ++i) {
+      o.fillText(labels[i] + ': ' + stats[i] + '/100', 30 + i*110, 610);
+    }
+    o.fillStyle = '#f0c060';
+    o.font = '12px ui-sans-serif, system-ui';
+    o.fillText('https://rodman-ai.github.io/TamaBailey/', 30, 700);
+    // Download
+    const link = document.createElement('a');
+    link.download = 'bailey-bio-' + Date.now() + '.png';
+    link.href = off.toDataURL('image/png');
+    link.textContent = 'Click to download Bailey’s bio card';
+    link.className = 'link-btn';
+    link.style.fontSize = '16px';
+    link.style.display = 'block';
+    link.style.margin = '20px auto';
+    document.querySelector('main')?.prepend(link);
+  }
 
   // ---- Sync code share/paste UI ----
   window.addEventListener('load', () => {

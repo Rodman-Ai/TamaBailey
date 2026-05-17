@@ -178,6 +178,8 @@ class Game {
   uint64_t  total_steps()    const { return total_steps_; }
   uint8_t   vocab_learned()  const { return vocab_learned_; }
   uint16_t  trick_perf(Trick t) const { return trick_perf_[(int)t]; }
+  Trick     favorite_trick() const;          // most-performed (Sit if tie)
+  uint8_t   mood_history(uint8_t day_back) const;  // 0=yesterday .. 6=7 days ago
   bool      is_birthday()    const { return is_birthday_today_; }
   bool      tucked_in()      const { return well_tucked_in_today_ != 0; }
   uint8_t   shop_cursor()    const { return shop_cursor_; }
@@ -246,6 +248,8 @@ class Game {
   void update_vocab();
   void grant_biscuits(uint32_t n);
   void fulfill_wish_if_matches(Wish what);
+  void roll_over_day_if_needed(uint64_t now_unix_ms);
+  void perform_random_trick();
 
   Pet      pet_;
   Settings settings_;
@@ -306,6 +310,11 @@ class Game {
   uint8_t  npc_visit_kind_            = 0;  // 1..4 = visitor sprite kind, 0 = none
   uint8_t  shop_cursor_               = 0;
   uint8_t  active_holiday_            = 0;
+  // Round 2 Phase 3 transient state
+  uint32_t today_day_index_           = 0;
+  uint32_t today_happiness_sum_       = 0;
+  uint16_t today_samples_             = 0;
+  uint16_t today_actions_             = 0;
 
   float    daylight_         = 1.0f;
   char     clock_str_[16]    = {0};

@@ -428,6 +428,8 @@ void Game::apply_input(Input in) {
         unlock_achievement(AchievementId::FirstPet);
         if (total_pets_ >= 100) unlock_achievement(AchievementId::Petted100);
         fulfill_wish_if_matches(Wish::Pet);
+        // If Bailey knows tricks, he performs one in delight.
+        perform_random_trick();
         dirty_ = true;
       }
       break;
@@ -796,6 +798,15 @@ void Game::tick(uint32_t now_ms) {
     update_weather(u);
     update_birthday(u);
     update_bedtime(u);
+    roll_over_day_if_needed(u);
+  }
+
+  // Sample today's happiness for the daily-average rollover.
+  today_happiness_sum_ += pet_.stats.happiness;
+  today_samples_       += 1;
+  if (today_samples_ == 0) {  // overflow guard (every ~65k ticks: rescale)
+    today_happiness_sum_ /= 2;
+    today_samples_       = 32768;
   }
 
   if (pet_.current_action != Action::None) {
@@ -1135,6 +1146,63 @@ void Game::update_bedtime(uint64_t now_unix_ms) {
   // Reset flag at noon so it applies once per night.
   if (lt.hour == 12 && lt.minute == 0) {
     well_tucked_in_today_ = 0;
+  }
+}
+
+Trick Game::favorite_trick() const {
+  uint16_t best = 0;
+  int best_i = 0;
+  for (int i = 0; i < (int)Trick::COUNT; ++i) {
+    if (trick_perf_[i] > best) { best = trick_perf_[i]; best_i = i; }
+  }
+  return (Trick)best_i;
+}
+
+uint8_t Game::mood_history(uint8_t day_back) const {
+  if (day_back >= 7) return 0;
+  // mood_history_head_ points to the SLOT we'd next write into; the most
+  // recent completed entry is at (head - 1) mod 7.
+  int idx = ((int)mood_history_head_ - 1 - (int)day_back + 14) % 7;
+  return mood_history_[idx];
+}
+
+void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
+  if (now_unix_ms == 0) return;
+  uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+  if (today_day_index_ == 0) {
+    today_day_index_ = day;
+    return;
+  }
+  if (day == today_day_index_) return;
+
+  // Roll over: write yesterday's average happiness into the ring buffer.
+  uint8_t avg = today_samples_ > 0
+                ? (uint8_t)(today_happiness_sum_ / today_samples_)
+                : 0;
+  mood_history_[mood_history_head_] = avg;
+  mood_history_head_ = (uint8_t)((mood_history_head_ + 1) % 7);
+
+  // Reset bedtime flag once per day (was tied to a noon check before).
+  well_tucked_in_today_ = 0;
+
+  today_day_index_     = day;
+  today_happiness_sum_ = 0;
+  today_samples_       = 0;
+  today_actions_       = 0;
+  dirty_ = true;
+}
+
+void Game::perform_random_trick() {
+  if (tricks_learned_ == 0) return;
+  // Pick a learned trick deterministically from age + last_tick_ms
+  uint32_t r = ((uint32_t)pet_.age_ms ^ last_tick_ms_) * 2654435761u;
+  for (int try_n = 0; try_n < (int)Trick::COUNT; ++try_n) {
+    int i = ((int)(r >> 4) + try_n) % (int)Trick::COUNT;
+    if (tricks_learned_ & (1u << i)) {
+      trick_perf_[i]++;
+      dirty_ = true;
+      return;
+    }
   }
 }
 

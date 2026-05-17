@@ -400,7 +400,33 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                 game.treats(TreatTier::Biscuit),
                 game.treats(TreatTier::Bacon),
                 game.treats(TreatTier::Steak));
-  r.drawText(x, y, buf, kWhite, 1);
+  r.drawText(x, y, buf, kWhite, 1); y += 14;
+
+  // 7-day mood sparkline + one-line yesterday summary.
+  r.drawText(x, y, "Mood (7d):", kGrayLight, 1);
+  int sx = x + 60, sy = y - 1;
+  for (int d = 6; d >= 0; --d) {
+    uint8_t v = game.mood_history((uint8_t)d);
+    int h = (v * 9) / 100;
+    if (h < 1 && v > 0) h = 1;
+    uint16_t col = v >= 70 ? kGreen : (v >= 40 ? kYellow : kRed);
+    r.fillRect(sx + (6 - d) * 10, sy + (9 - h), 8, h, col);
+    r.drawRect(sx + (6 - d) * 10, sy, 8, 10, kGrayDark);
+  }
+  y += 14;
+
+  // Diary auto-templated from yesterday's mood.
+  uint8_t y1 = game.mood_history(0);
+  if (y1 > 0) {
+    const char* desc =
+      y1 >= 80 ? "Great day with Bailey." :
+      y1 >= 60 ? "Bailey had a good day." :
+      y1 >= 40 ? "Bailey felt OK yesterday." :
+      y1 >= 20 ? "Bailey seemed bored." :
+                 "Bailey felt lonely.";
+    std::snprintf(buf, sizeof(buf), "Yesterday: %s", desc);
+    r.drawText(x, y, buf, kGrayLight, 1);
+  }
 }
 
 void draw_menu_achievements(Renderer& r, const Game& game) {
@@ -444,14 +470,34 @@ void draw_menu_options(Renderer& r, const Game& game) {
   std::snprintf(buf, sizeof(buf), "Mic       : %s", s.mic_enabled ? "on" : "off");
   r.drawText(x, y, buf, kWhite, 1); y += 14;
 
-  // Tricks learned
+  // Tricks learned, with the favorite starred
   uint8_t tl = game.tricks_learned();
+  Trick fav = game.favorite_trick();
+  bool any_perf = false;
+  for (int i = 0; i < (int)Trick::COUNT; ++i) any_perf |= (game.trick_perf((Trick)i) > 0);
   r.drawText(x, y, "Tricks    :", kWhite, 1); y += 10;
   for (int i = 0; i < (int)Trick::COUNT; ++i) {
     bool got = (tl & (1u << i)) != 0;
-    r.drawText(x + 12, y, trick_name((Trick)i),
-               got ? kGreen : kGrayDark, 1);
+    bool starred = got && any_perf && (Trick)i == fav;
+    char buf[40];
+    std::snprintf(buf, sizeof(buf), "%s %s%s",
+                  starred ? "*" : " ",
+                  trick_name((Trick)i),
+                  starred ? " (favorite)" : "");
+    r.drawText(x + 12, y, buf, got ? kGreen : kGrayDark, 1);
     y += 10;
+  }
+  // Vocabulary
+  uint8_t voc = game.vocab_learned();
+  if (voc) {
+    y += 4;
+    r.drawText(x, y, "Words     :", kWhite, 1); y += 10;
+    for (int i = 0; i < (int)Word::COUNT; ++i) {
+      bool got = (voc & (1u << i)) != 0;
+      r.drawText(x + 12, y, word_name((Word)i),
+                 got ? kPink : kGrayDark, 1);
+      y += 10;
+    }
   }
 }
 
