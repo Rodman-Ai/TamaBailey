@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 9;
+constexpr uint16_t kSaveVersion  = 10;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -98,6 +98,8 @@ struct SaveData {
   uint32_t daily_quest_awarded_day;        // last day_index we awarded quest biscuits
   // ---- v9 additions (Round 3 Phase 3) ----
   uint32_t best_friend_hash;               // 0 = no bond; else hash of paired bailey
+  // ---- v10 additions ----
+  uint32_t last_gift_received_day;         // today_day_index of last redeemed gift; 1/day cap
 };
 #pragma pack(pop)
 

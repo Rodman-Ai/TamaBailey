@@ -235,6 +235,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     daily_quest_awarded_day_ = s.daily_quest_awarded_day;
     // v9 fields
     best_friend_hash_        = s.best_friend_hash;
+    // v10 fields
+    last_gift_received_day_  = s.last_gift_received_day;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1232,6 +1234,8 @@ void Game::force_save(Storage& storage) {
   s.daily_quest_awarded_day = daily_quest_awarded_day_;
   // v9 additions
   s.best_friend_hash        = best_friend_hash_;
+  // v10 additions
+  s.last_gift_received_day  = last_gift_received_day_;
 
   storage.save(s);
   dirty_ = false;
@@ -1834,6 +1838,72 @@ bool Game::apply_sync_code(const char* code) {
   for (int i = 0; i < 7; ++i) hash = (hash ^ buf[i]) * 2654435761u;
   best_friend_hash_ = hash == 0 ? 0x9E3779B9u : hash;
   unlock_achievement(AchievementId::Pawmates);
+  dirty_ = true;
+  return true;
+}
+
+// ---- Round 3 Phase 3C: Gift treats ----
+
+// Code format: 9 characters
+//   "GIFT" + tier_digit + 3 hex anti-replay seed + 1 hex checksum
+// Example: "GIFT13A7F2". Tier 0/1/2 = biscuit/bacon/steak.
+// The hex chars use 0-9A-F. Checksum is the XOR of the 4 payload nibbles
+// then ANDed with 0xF, displayed as a single hex digit. Anyone with the
+// 5-char tail can validate without a roundtrip.
+namespace {
+inline char hex_digit(uint8_t v) {
+  v &= 0xF;
+  return v < 10 ? (char)('0' + v) : (char)('A' + v - 10);
+}
+inline int hex_value(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  return -1;
+}
+}  // namespace
+
+bool Game::generate_gift_code(uint8_t tier, char* out_buf, int buf_len) {
+  if (tier >= (uint8_t)TreatTier::COUNT) return false;
+  if (treats_[tier] == 0) return false;          // need one to give one
+  if (!out_buf || buf_len < 10) return false;
+  uint32_t seed = rng_next() & 0xFFF;            // 3 hex digits of entropy
+  uint8_t tnib = (uint8_t)(tier & 0xF);
+  uint8_t n1   = (uint8_t)((seed >> 8) & 0xF);
+  uint8_t n2   = (uint8_t)((seed >> 4) & 0xF);
+  uint8_t n3   = (uint8_t)(seed & 0xF);
+  uint8_t crc  = (uint8_t)(tnib ^ n1 ^ n2 ^ n3);
+  out_buf[0] = 'G';
+  out_buf[1] = 'I';
+  out_buf[2] = 'F';
+  out_buf[3] = 'T';
+  out_buf[4] = hex_digit(tnib);
+  out_buf[5] = hex_digit(n1);
+  out_buf[6] = hex_digit(n2);
+  out_buf[7] = hex_digit(n3);
+  out_buf[8] = hex_digit(crc);
+  out_buf[9] = '\0';
+  return true;
+}
+
+bool Game::apply_gift_code(const char* code) {
+  if (!code) return false;
+  if (code[0] != 'G' || code[1] != 'I' || code[2] != 'F' || code[3] != 'T') return false;
+  int t = hex_value(code[4]);
+  int a = hex_value(code[5]);
+  int b = hex_value(code[6]);
+  int c = hex_value(code[7]);
+  int crc_in = hex_value(code[8]);
+  if (t < 0 || a < 0 || b < 0 || c < 0 || crc_in < 0) return false;
+  if (t >= (int)TreatTier::COUNT) return false;
+  uint8_t crc = (uint8_t)((t ^ a ^ b ^ c) & 0xF);
+  if (crc != (uint8_t)crc_in) return false;
+  // One redeemed gift per local day. If we have no clock yet, fall
+  // through (allow). today_day_index_ == 0 means "no clock yet".
+  if (today_day_index_ != 0 &&
+      last_gift_received_day_ == today_day_index_) return false;
+  treats_[t]++;
+  if (today_day_index_ != 0) last_gift_received_day_ = today_day_index_;
   dirty_ = true;
   return true;
 }

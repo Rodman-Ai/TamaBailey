@@ -236,6 +236,18 @@ class Game {
   // Round 3 Phase 3: Best-friend bond (paired via sync code).
   uint32_t best_friend_hash() const { return best_friend_hash_; }
 
+  // Round 3 Phase 3C: Tamagotchi-Connect-style treat gifting.
+  // Writes a 9-char "GIFTXXXXX" code into a caller-owned buffer (>=10
+  // chars). Returns false if `tier` is invalid or there are no treats
+  // of that tier to gift (the give-side must own at least one).
+  // Generating a code does NOT decrement the inventory; that happens
+  // when the RECEIVER applies the code. Players are on the honor
+  // system for the giver to also use their own treat.
+  bool generate_gift_code(uint8_t tier, char* out_buf, int buf_len);
+  // Redeems a gift code. One redeem per local day allowed; returns
+  // false if the code is malformed or today's quota is already used.
+  bool apply_gift_code(const char* code);
+
   // Round 3 Phase 3A: Achievement showcase. Returns the achievement id
   // of the i-th (0..2) MOST RECENTLY EARNED unlocked achievement, or
   // -1 if fewer than i+1 are unlocked. We auto-pick by enum-id order
@@ -451,6 +463,9 @@ class Game {
 
   // Best-friend bond: 32-bit hash of the last sync code consumed.
   uint32_t best_friend_hash_ = 0;
+
+  // Gift treats: today_day_index of last redeemed gift. 0 = never.
+  uint32_t last_gift_received_day_ = 0;
 
   // Treat recipe combo: bitmask of tiers eaten in the last 60s.
   // Transient: not persisted across save/load.

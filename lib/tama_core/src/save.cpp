@@ -77,6 +77,10 @@ bool save_validate_and_migrate(SaveData& s) {
     // v8 -> v9: no bonded best friend yet.
     s.best_friend_hash = 0;
   }
+  if (s.version < 10) {
+    // v9 -> v10: no gifts redeemed yet.
+    s.last_gift_received_day = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
