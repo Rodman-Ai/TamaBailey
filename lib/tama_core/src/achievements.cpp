@@ -31,6 +31,8 @@ const Entry kEntries[kAchievementCount] = {
   /* WishGranter       */ {"Wish Granter",   "Fulfilled 5 of Bailey's wishes"},
   /* BiscuitTycoon     */ {"Biscuit Tycoon", "Earned 50 biscuits"},
   /* SeasonalGreetings */ {"Season's Best",  "Visited on a holiday"},
+  /* PlayDate          */ {"Play Date",      "Had a friend over to play"},
+  /* Socialite         */ {"Socialite",      "Played with all four friends"},
 };
 }  // namespace
 

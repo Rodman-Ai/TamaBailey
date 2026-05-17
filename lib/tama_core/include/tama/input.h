@@ -35,6 +35,12 @@ enum class Input : uint8_t {
   VoiceJump        = 24,
   Bedtime          = 25,  // manual tuck-in (sets well_tucked_in_today)
   MenuCursorNext   = 26,  // move action-tab cursor down
+  // Friends visit (named dogs play with Bailey)
+  PlayWithFriend         = 27,  // random friend
+  PlayWithFriendOllie    = 28,
+  PlayWithFriendMitchell = 29,
+  PlayWithFriendEnzo     = 30,
+  PlayWithFriendLincoln  = 31,
 };
 
 }  // namespace tama

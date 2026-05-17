@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 3;
+constexpr uint16_t kSaveVersion  = 4;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -88,6 +88,8 @@ struct SaveData {
   uint8_t  mood_history[7];                // last 7 days' average happiness
   uint8_t  mood_history_head;              // write index
   uint8_t  _pad3[3];
+  // ---- v4 additions ----
+  uint32_t friend_visits[4];               // Ollie/Mitchell/Enzo/Lincoln
 };
 #pragma pack(pop)
 

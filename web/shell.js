@@ -16,6 +16,12 @@
     TakePhoto: 12, MicTrigger: 13,
     Walk: 14, TreatGive: 15, Brush: 16, CycleToy: 17,
     CycleAge: 18, ImuFlick: 19,
+    VoiceSit: 20, VoiceCome: 21, VoiceHighFive: 22,
+    VoiceRollOver: 23, VoiceJump: 24,
+    Bedtime: 25, MenuCursorNext: 26,
+    PlayWithFriend: 27,
+    PlayWithFriendOllie: 28, PlayWithFriendMitchell: 29,
+    PlayWithFriendEnzo: 30, PlayWithFriendLincoln: 31,
   };
 
   // ---- Web Audio ----

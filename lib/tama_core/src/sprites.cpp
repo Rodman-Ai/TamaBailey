@@ -37,6 +37,7 @@ constexpr uint8_t DG = 14;  // dark gray
 constexpr uint8_t LG = 15;  // light gray
 
 uint8_t  g_pet[4][(int)PetPose::COUNT][W * H];  // stage x pose x pixels
+uint8_t  g_friend[(int)Friend::COUNT][(int)PetPose::COUNT][W * H];
 uint8_t  g_food[A * A];
 uint8_t  g_food_empty[A * A];
 uint8_t  g_ball[A * A];
@@ -382,6 +383,94 @@ void draw_accessory_heart() {
   }
 }
 
+// Per-friend overlays applied AFTER draw_bailey paints the base body.
+// Each overlay only modifies pixels that already belong to the body
+// (so silhouette + outline stay intact).
+static void overlay_brindle(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Ollie: diagonal dark-brown stripes on body pixels.
+  for (int y = 0; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+      uint8_t c = buf[y * W + x];
+      if (c != BD && c != HL) continue;
+      if (((x + y) & 7) < 2) buf[y * W + x] = OL;   // every ~7th diag = stripe
+    }
+  }
+}
+
+static void overlay_tan_points(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Enzo: classic rott tan markings on legs + a tan eyebrow patch.
+  // Replace WH (leg paws) with HL (tan), and stamp tan brows above the
+  // eye band.
+  for (int y = H * 7 / 10; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+      uint8_t c = buf[y * W + x];
+      if (c == WH) buf[y * W + x] = HL;
+    }
+  }
+  // Tan brow stripes near where draw_bailey put the bandit mask.
+  const int cx = W / 2;
+  const int hy = H / 2 + 6 - 12 + 2 - 3;  // matches the brow line in draw_bailey
+  for (int dx = -5; dx <= -3; ++dx) buf[hy * W + (cx - 8 + dx + 4)] = HL;
+  for (int dx =  3; dx <=  5; ++dx) buf[hy * W + (cx - 8 + dx + 4)] = HL;
+}
+
+static void overlay_long_fur(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Lincoln: add a soft fluff ring around the existing outline by
+  // dropping a sparse OL halo just outside the silhouette.
+  uint8_t tmp[W * H];
+  std::memcpy(tmp, buf, W * H);
+  for (int y = 1; y < H - 1; ++y) {
+    for (int x = 1; x < W - 1; ++x) {
+      if (tmp[y * W + x] != TR) continue;
+      // Adjacent to outline AND every 3rd-pixel sparse pattern.
+      bool touch = (tmp[(y - 1) * W + x] == OL ||
+                    tmp[(y + 1) * W + x] == OL ||
+                    tmp[y * W + (x - 1)] == OL ||
+                    tmp[y * W + (x + 1)] == OL);
+      if (touch && ((x + y * 3) % 4) == 0) buf[y * W + x] = OL;
+    }
+  }
+}
+
+void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
+  float scale = friend_size_scale(f);
+  // Body / highlight color choices per friend.
+  uint8_t body, hi;
+  switch (f) {
+    case Friend::Ollie:    body = BD; hi = HL; break;
+    case Friend::Mitchell: body = WH; hi = GR; break;   // little fluffy white
+    case Friend::Enzo:     body = DG; hi = OL; break;   // near-black rott
+    case Friend::Lincoln:  body = YL; hi = OR; break;   // golden tones
+    default:               body = BD; hi = HL; break;
+  }
+
+  // Map PetPose -> the same BehaviorMode + flags draw_pose would pick.
+  int  lift     = (pose == PetPose::IdleB || pose == PetPose::Playing) ? 1 : 0;
+  bool eyes_sh  = (pose == PetPose::Sleep);
+  bool tongue   = (pose == PetPose::Playing || pose == PetPose::Pant);
+  bool sad      = (pose == PetPose::Sad);
+  BehaviorMode mode =
+      (pose == PetPose::Sit)  ? BM_Sit  :
+      (pose == PetPose::Bark) ? BM_Bark :
+      (pose == PetPose::Pant) ? BM_Pant :
+                                BM_Default;
+
+  if (pose == PetPose::Gone) {
+    // Friends don't get a tombstone -- fall back to a calm Idle pose.
+    draw_bailey(buf, 0, false, false, false, scale, body, hi, BM_Default);
+  } else {
+    draw_bailey(buf, lift, eyes_sh, tongue, sad, scale, body, hi, mode);
+  }
+
+  switch (f) {
+    case Friend::Ollie:    overlay_brindle(buf, W, H); break;
+    case Friend::Enzo:     overlay_tan_points(buf, W, H); break;
+    case Friend::Lincoln:  overlay_long_fur(buf, W, H); break;
+    case Friend::Mitchell: /* no overlay; the body color does the work */ break;
+    default: break;
+  }
+}
+
 void draw_pose(uint8_t* buf, PetPose pose, float size_scale) {
   switch (pose) {
     case PetPose::IdleA:   draw_bailey(buf, 0, false, false, false, size_scale); break;
@@ -438,6 +527,13 @@ void sprites_init() {
     draw_pose(g_pet[3][p], PetPose::Gone, 1.0f);
   }
 
+  // Friend sprites (Ollie/Mitchell/Enzo/Lincoln) -- all poses.
+  for (int fi = 0; fi < (int)Friend::COUNT; ++fi) {
+    for (int p = 0; p < (int)PetPose::COUNT; ++p) {
+      draw_friend_pose(g_friend[fi][p], (Friend)fi, (PetPose)p);
+    }
+  }
+
   draw_accessory_food();
   draw_accessory_food_empty();
   draw_accessory_ball();
@@ -453,6 +549,14 @@ const uint8_t* pet_sprite(LifeStage stage, PetPose pose) {
   if (s < 0 || s > 3) s = 0;
   if (p < 0 || p >= (int)PetPose::COUNT) p = 0;
   return g_pet[s][p];
+}
+
+const uint8_t* friend_sprite(Friend f, PetPose pose) {
+  int fi = (int)f;
+  int p  = (int)pose;
+  if (fi < 0 || fi >= (int)Friend::COUNT) fi = 0;
+  if (p  < 0 || p  >= (int)PetPose::COUNT) p = 0;
+  return g_friend[fi][p];
 }
 
 const uint8_t* food_bowl_sprite()       { return g_food; }

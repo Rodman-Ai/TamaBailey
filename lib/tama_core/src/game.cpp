@@ -227,6 +227,7 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     total_steps_               = s.total_steps;
     for (int i = 0; i < 7; ++i) mood_history_[i] = s.mood_history[i];
     mood_history_head_         = s.mood_history_head;
+    for (int i = 0; i < 4; ++i) friend_visits_[i] = s.friend_visits[i];
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -314,15 +315,16 @@ void Game::apply_input(Input in) {
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
-      // 11 rows; A executes, B moves cursor down. C falls through.
+      // 12 rows; A executes, B moves cursor down. C falls through.
       if (in == Input::Feed) {
-        static const Input kActions[11] = {
+        static const Input kActions[12] = {
           Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
           Input::CycleToy, Input::Bedtime,
           Input::VoiceSit, Input::VoiceCome, Input::VoiceHighFive,
           Input::VoiceRollOver, Input::VoiceJump,
+          Input::PlayWithFriend,
         };
-        Input chosen = kActions[actions_cursor_ % 11];
+        Input chosen = kActions[actions_cursor_ % 12];
         // Close the menu before dispatching so the action plays
         // unobscured.
         menu_open_ = false;
@@ -330,7 +332,7 @@ void Game::apply_input(Input in) {
         return;
       }
       if (in == Input::Play) {
-        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 11);
+        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 12);
         return;
       }
     }
@@ -644,9 +646,39 @@ void Game::apply_input(Input in) {
     }
     case Input::MenuCursorNext:
       if (menu_open_ && menu_tab_ == MenuTab::Actions) {
-        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 11);
+        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 12);
       }
       break;
+    case Input::PlayWithFriend:
+    case Input::PlayWithFriendOllie:
+    case Input::PlayWithFriendMitchell:
+    case Input::PlayWithFriendEnzo:
+    case Input::PlayWithFriendLincoln: {
+      Friend f;
+      if (in == Input::PlayWithFriend) {
+        // Hash now -> pick one of the four friends.
+        uint32_t r = (uint32_t)last_tick_ms_ * 2654435761u;
+        f = (Friend)((r >> 8) % (int)Friend::COUNT);
+      } else {
+        f = (Friend)((int)in - (int)Input::PlayWithFriendOllie);
+      }
+      npc_visit_kind_ = (uint8_t)((int)f + 1);
+      npc_visit_ms_   = last_tick_ms_;
+      // Count the visit + unlock socialite achievements.
+      friend_visits_[(int)f]++;
+      unlock_achievement(AchievementId::PlayDate);
+      bool met_all = true;
+      for (int i = 0; i < (int)Friend::COUNT; ++i)
+        if (friend_visits_[i] == 0) { met_all = false; break; }
+      if (met_all) unlock_achievement(AchievementId::Socialite);
+      // Pet animation pulse + clip
+      pet_.current_action    = Action::Pet;
+      pet_.action_started_ms = last_tick_ms_;
+      pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness + 8);
+      play_clip(ClipId::Wuff);
+      dirty_ = true;
+      break;
+    }
     case Input::MicTrigger:
       // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
       unlock_achievement(AchievementId::CalledByName);
@@ -972,6 +1004,7 @@ void Game::force_save(Storage& storage) {
   s.total_steps             = total_steps_;
   for (int i = 0; i < 7; ++i) s.mood_history[i] = mood_history_[i];
   s.mood_history_head       = mood_history_head_;
+  for (int i = 0; i < 4; ++i) s.friend_visits[i] = friend_visits_[i];
 
   storage.save(s);
   dirty_ = false;
@@ -1176,7 +1209,7 @@ void Game::update_walk(uint32_t now_ms) {
         npc_visit_ms_   = now_ms;
         dirty_ = true;
       }
-    } else if (now_ms - npc_visit_ms_ > 4000) {
+    } else if (now_ms - npc_visit_ms_ > kFriendVisitMs) {
       npc_visit_kind_ = 0;
       npc_visit_ms_   = 0;
       dirty_ = true;

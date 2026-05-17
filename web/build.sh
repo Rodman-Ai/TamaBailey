@@ -20,6 +20,7 @@ EMCC=${EMCC:-emcc}
   "$CORE/src/audio_clips.cpp" \
   "$CORE/src/clock.cpp" \
   "$CORE/src/font_6x8.cpp" \
+  "$CORE/src/friends.cpp" \
   "$CORE/src/game.cpp" \
   "$CORE/src/save.cpp" \
   "$CORE/src/sprites.cpp" \

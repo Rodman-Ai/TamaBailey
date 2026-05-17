@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "tama/friends.h"
 #include "tama/pet.h"
 
 namespace tama {
@@ -29,6 +30,9 @@ void sprites_init();
 
 // Get the 48x48 indexed-color buffer for a given pet pose & life stage.
 const uint8_t* pet_sprite(LifeStage stage, PetPose pose);
+
+// Get the 48x48 indexed-color buffer for one of Bailey's friends.
+const uint8_t* friend_sprite(Friend f, PetPose pose);
 
 // Small accessories drawn next to / above the pet.
 const uint8_t* food_bowl_sprite();        // 16x16 (full of kibble)

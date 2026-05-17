@@ -928,21 +928,21 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 }
 
 void draw_menu_actions(Renderer& r, const Game& game) {
-  static const char* const kRows[11] = {
+  static const char* const kRows[12] = {
     "Go for a walk", "Play fetch", "Give treat", "Brush",
     "Switch toy", "Bedtime",
     "Sit", "Come", "High five", "Roll over", "Jump",
+    "Play with a friend",
   };
   int x = 14;
   int y = 14 + kStatsBarH + 20;
   r.drawText(x, y, "ACTIONS", kYellow, 1); y += 12;
-  uint8_t cur = game.actions_cursor() % 11;
-  // Show 8 rows centered on the cursor.
+  uint8_t cur = game.actions_cursor() % 12;
   int start = (cur > 4) ? (cur - 4) : 0;
-  if (start > 3) start = 3;   // clamp so we don't run past the end
+  if (start > 4) start = 4;   // clamp so we don't run past the end
   for (int i = 0; i < 8; ++i) {
     int idx = start + i;
-    if (idx >= 11) break;
+    if (idx >= 12) break;
     bool sel = (idx == cur);
     if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
     char buf[40];
@@ -1134,19 +1134,37 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   // play area for 4 s.
   if (game.npc_visit_kind() != 0) {
     uint32_t elapsed = now_ms - game.npc_visit_ms();
-    if (elapsed < 4000) {
-      int x = -20 + (int)((kScreenW + 40) * elapsed / 4000);
-      int y = kScreenH - kStatusH - 18;
-      uint16_t cols[4] = {kBrown, kGrayDark, kBrownLight, kGray};
-      uint16_t c = cols[(game.npc_visit_kind() - 1) % 4];
-      // tiny dog: body + head + ear + legs
-      r.fillRect(x, y, 14, 8, c);
-      r.fillRect(x - 4, y - 4, 6, 6, c);   // head
-      r.fillRect(x - 6, y - 2, 2, 5, c);   // ear
-      r.fillRect(x + 1, y + 8, 2, 4, c);   // leg
-      r.fillRect(x + 10, y + 8, 2, 4, c);  // leg
-      r.fillRect(x - 7, y - 3, 1, 1, kBlack); // nose dot
-      // Greet prompt
+    if (elapsed < kFriendVisitMs) {
+      Friend f = (Friend)((game.npc_visit_kind() - 1) % (int)Friend::COUNT);
+      // Slide in from the left over the first 800 ms, settle, slide out
+      // over the last 800 ms.
+      int slide_x;
+      if (elapsed < 800)                       slide_x = -kPetDrawW + (int)(kPetDrawW * elapsed / 800);
+      else if (elapsed > kFriendVisitMs - 800) {
+        uint32_t left = kFriendVisitMs - elapsed;
+        slide_x = -(int)(kPetDrawW * (800 - left) / 800);
+      } else                                   slide_x = 0;
+      int fx = slide_x + 4;
+      int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
+      // Alternate idle frames so the friend looks alive.
+      PetPose fpose = ((now_ms / 350) & 1) ? PetPose::IdleB : PetPose::IdleA;
+      r.drawSprite(fx, fy, kPetW, kPetH,
+                   friend_sprite(f, fpose), kSpritePalette, kPetScale);
+      // Name label for the first 2 s.
+      if (elapsed < 2000) {
+        const char* name = friend_name(f);
+        int tw = text_width(name, 1);
+        r.fillRect(fx + (kPetDrawW - tw) / 2 - 2, fy - 12, tw + 4, 10, kBlack);
+        r.drawText(fx + (kPetDrawW - tw) / 2, fy - 11, name, kYellow, 1);
+      }
+      // Periodic heart between the two dogs.
+      if (((now_ms / 600) & 1) && elapsed > 500 && elapsed < kFriendVisitMs - 500) {
+        int hx = (fx + kPetDrawW + kPetX) / 2;
+        int hy = kPetY + 18 - (int)((now_ms / 30) % 24);
+        r.fillRect(hx,     hy,     3, 2, kHeartRed);
+        r.fillRect(hx - 1, hy + 1, 5, 2, kHeartRed);
+        r.fillRect(hx,     hy + 3, 3, 1, kHeartRed);
+      }
       r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
     }
   }

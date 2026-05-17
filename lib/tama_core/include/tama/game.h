@@ -5,6 +5,7 @@
 #include "tama/achievements.h"
 #include "tama/audio.h"
 #include "tama/clock.h"
+#include "tama/friends.h"
 #include "tama/input.h"
 #include "tama/pet.h"
 #include "tama/renderer.h"
@@ -50,6 +51,10 @@ constexpr uint64_t kSeniorLoopMs              = (uint64_t)96 * 3600 * 1000; // a
 
 // How long the MovingOut / Magic transition plays before the restart fires.
 constexpr uint32_t kTransitionMs              = 5000;
+
+// How long a friend visits when invited. Random ambient visits use this
+// same value (longer than the prior 4 s silhouette cameo).
+constexpr uint32_t kFriendVisitMs             = 12000;
 
 constexpr uint32_t kEnergyCostPlay   = 10;
 constexpr uint32_t kActionEatBoost   = 30;
@@ -222,6 +227,10 @@ class Game {
   // 0 = none, else (1+(int)VoiceX - (int)VoiceSit).
   uint8_t voice_trick_kind()   const { return voice_trick_kind_; }
   uint32_t voice_trick_started_ms() const { return voice_trick_started_ms_; }
+  uint32_t friend_visits(Friend f) const {
+    int i = (int)f; if (i < 0 || i >= (int)Friend::COUNT) return 0;
+    return friend_visits_[i];
+  }
 
   // Round 2 Phase 2 helpers
   bool buy_item(uint8_t shop_index);   // returns true on success
@@ -332,6 +341,7 @@ class Game {
   uint8_t  actions_cursor_            = 0;
   uint8_t  voice_trick_kind_          = 0;
   uint32_t voice_trick_started_ms_    = 0;
+  uint32_t friend_visits_[(int)Friend::COUNT] = {0,0,0,0};
   // Round 2 Phase 3 transient state
   uint32_t today_day_index_           = 0;
   uint32_t today_happiness_sum_       = 0;

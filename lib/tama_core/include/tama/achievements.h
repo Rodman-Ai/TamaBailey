@@ -32,9 +32,11 @@ enum class AchievementId : uint8_t {
   WishGranter       = 22,  // fulfilled 5 wishes
   BiscuitTycoon     = 23,  // 50 biscuits earned lifetime
   SeasonalGreetings = 24,  // visited on any holiday
+  PlayDate          = 25,  // first time a named friend visited
+  Socialite         = 26,  // hosted all four friends at least once
 };
 
-constexpr int kAchievementCount = 25;
+constexpr int kAchievementCount = 27;
 static_assert(kAchievementCount <= 32, "bitmask is 32 bits");
 
 const char* achievement_name(AchievementId id);

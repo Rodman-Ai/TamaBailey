@@ -49,6 +49,10 @@ bool save_validate_and_migrate(SaveData& s) {
     s.mood_history_head              = 0;
     std::memset(s._pad3, 0, sizeof(s._pad3));
   }
+  if (s.version < 4) {
+    // v3 -> v4: zero friend_visits_[].
+    for (int i = 0; i < 4; ++i) s.friend_visits[i] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
