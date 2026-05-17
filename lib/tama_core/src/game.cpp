@@ -202,7 +202,7 @@ void Game::apply_input(Input in) {
   // selector, long-press is escape.
   if (menu_open_ && (in == Input::Feed || in == Input::Play || in == Input::Clean)) {
     int t = (int)menu_tab_ + 1;
-    if (t > (int)MenuTab::Sync) t = 0;
+    if (t > (int)MenuTab::Memorial) t = 0;
     menu_tab_ = (MenuTab)t;
     return;
   }
@@ -336,7 +336,7 @@ void Game::apply_input(Input in) {
     case Input::MenuNext:
       if (menu_open_) {
         int t = (int)menu_tab_ + 1;
-        if (t > (int)MenuTab::Sync) t = 0;
+        if (t > (int)MenuTab::Memorial) t = 0;
         menu_tab_ = (MenuTab)t;
       }
       break;
@@ -373,6 +373,11 @@ void Game::apply_input(Input in) {
       // Core just records the achievement.
       unlock_achievement(AchievementId::PhotoFan);
       dirty_ = true;
+      break;
+    case Input::MicTrigger:
+      // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
+      unlock_achievement(AchievementId::CalledByName);
+      apply_input(Input::PetTap);  // chain to the pet logic
       break;
     case Input::Restart:
       // Handled above when stage == Gone

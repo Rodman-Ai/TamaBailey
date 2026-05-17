@@ -155,6 +155,28 @@ TamaBailey/
 └── docs/
 ```
 
+## What's in (Phase 3)
+
+- **Personality traits** -- Bailey gets a random trait at hatch
+  (Playful / Lazy / Clever / Loyal / Shy). Each tweaks gameplay in
+  small ways: Playful loses happiness 20% faster but gains 1 extra
+  per Play, Lazy gains rest 20% faster but loses food 20% faster,
+  Clever learns tricks 2x faster.
+- **Memorial wall** -- when Bailey passes, a record (peak stage,
+  lifespan, badges earned) is added to a ring buffer of up to 5
+  past lives. View them in the new MEM tab in the status menu.
+- **Multi-generation inheritance** -- when you start a fresh puppy,
+  there's a 50% chance to inherit the previous Bailey's personality
+  trait. Unlocks the HonoredAncestor badge.
+- **Photo mode** -- the *Take photo* button on the web grabs the
+  current canvas as a PNG download (`bailey-<timestamp>.png`).
+- **Microphone reactions** -- click *Enable mic* to give the browser
+  permission; loud sounds (clap, bark, "Bailey!") trigger a pet
+  action and unlock CalledByName.
+- **Friend visit URLs** -- *Share Bailey* in the web UI copies a
+  `?bailey=<code>` URL. Open it in another browser to watch your
+  friend's Bailey in read-only spectator mode (banner explains).
+
 ## What's in (Phase 2)
 
 - **Fetch mini-game** -- when Bailey is an Adult or older and not sick,

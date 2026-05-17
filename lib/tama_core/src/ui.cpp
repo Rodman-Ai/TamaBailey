@@ -316,18 +316,40 @@ void draw_footer(Renderer& r, const Pet& pet, uint16_t streak_days) {
 }
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
-  const char* labels[4] = {"STATS", "BADGES", "OPTIONS", "SYNC"};
-  int x = 14;
+  const char* labels[5] = {"STATS", "BADGES", "OPTIONS", "SYNC", "MEM"};
+  int x = 10;
   int y = 14 + kStatsBarH;
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 5; ++i) {
     bool active = (int)game.menu_tab() == i;
     uint16_t bg = active ? kYellow : kGrayDark;
     uint16_t fg = active ? kBlack  : kGrayLight;
-    int w = text_width(labels[i], 1) + 8;
+    int w = text_width(labels[i], 1) + 6;
     r.fillRect(x, y, w, 12, bg);
     r.drawRect(x, y, w, 12, kYellow);
-    r.drawText(x + 4, y + 2, labels[i], fg, 1);
+    r.drawText(x + 3, y + 2, labels[i], fg, 1);
     x += w + 2;
+  }
+}
+
+void draw_menu_memorial(Renderer& r, const Game& game) {
+  int x = 22;
+  int y = 14 + kStatsBarH + 22;
+  r.drawText(x, y, "MEMORIAL WALL", kYellow, 1); y += 12;
+  uint8_t n = game.memorial_count();
+  if (n == 0) {
+    r.drawText(x, y, "No past Baileys yet.", kGray, 1);
+    return;
+  }
+  char buf[40];
+  const char* stage_str[] = {"Puppy","Adult","Senior","Gone"};
+  for (uint8_t i = 0; i < n && i < 5; ++i) {
+    const auto& e = game.memorial_entry(i);
+    const char* stage = (e.peak_stage <= 3) ? stage_str[e.peak_stage] : "?";
+    int badges = __builtin_popcount(e.achievements_mask);
+    std::snprintf(buf, sizeof(buf), "#%u  %s  %lum  %dB",
+                  i + 1, stage, (unsigned long)e.age_minutes, badges);
+    r.drawText(x, y, buf, kWhite, 1);
+    y += 10;
   }
 }
 
@@ -547,6 +569,7 @@ void draw_menu_overlay(Renderer& r, const Game& game) {
     case Game::MenuTab::Achievements: draw_menu_achievements(r, game); break;
     case Game::MenuTab::Settings:     draw_menu_options(r, game); break;
     case Game::MenuTab::Sync:         draw_menu_sync(r, game); break;
+    case Game::MenuTab::Memorial:     draw_menu_memorial(r, game); break;
   }
 
   r.drawText(14, kScreenH - kStatusH - 14, "Long-press: close  |  short: next tab",

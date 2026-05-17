@@ -19,6 +19,7 @@ enum class Input : uint8_t {
   CycleCoat        = 10,
   CycleAccessory   = 11,
   TakePhoto        = 12,  // Phase 3
+  MicTrigger       = 13,  // Phase 3: a loud sound was heard
 };
 
 }  // namespace tama

@@ -12,6 +12,8 @@
   const INPUT = {
     None: 0, Feed: 1, Play: 2, Clean: 3,
     MenuToggle: 4, PetTap: 5, Restart: 6, Stroke: 7, MenuNext: 8,
+    CycleScene: 9, CycleCoat: 10, CycleAccessory: 11,
+    TakePhoto: 12, MicTrigger: 13,
   };
 
   // ---- Web Audio ----
@@ -162,6 +164,50 @@
   canvas.addEventListener('pointerup', ev => {
     dragging = false;
     try { canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
+  });
+
+  // ---- Microphone reactions (optional, user must grant permission) ----
+  let micEnabled = false;
+  let lastMicTrigger = 0;
+  async function startMic() {
+    if (micEnabled) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ac = ensureAudio(); if (!ac) return;
+      const src = ac.createMediaStreamSource(stream);
+      const analyzer = ac.createAnalyser();
+      analyzer.fftSize = 512;
+      src.connect(analyzer);
+      const data = new Uint8Array(analyzer.frequencyBinCount);
+      micEnabled = true;
+      function tick() {
+        if (!micEnabled) return;
+        analyzer.getByteTimeDomainData(data);
+        let max = 0;
+        for (let i = 0; i < data.length; ++i) {
+          const v = Math.abs(data[i] - 128);
+          if (v > max) max = v;
+        }
+        const now = performance.now();
+        if (max > 60 && now - lastMicTrigger > 1500) {
+          send(INPUT.MicTrigger);
+          lastMicTrigger = now;
+        }
+        requestAnimationFrame(tick);
+      }
+      tick();
+    } catch (e) {
+      console.warn("Mic access denied:", e);
+      micEnabled = false;
+    }
+  }
+
+  window.addEventListener('load', () => {
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) micBtn.addEventListener('click', () => {
+      startMic();
+      micBtn.textContent = micEnabled ? 'Mic on' : 'Enable mic';
+    });
   });
 
   // ---- Sync code share/paste UI ----

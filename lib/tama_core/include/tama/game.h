@@ -147,7 +147,9 @@ class Game {
   const char* clock_string() const { return clock_str_; }
 
   // --- Settings menus interact via these ---
-  enum class MenuTab : uint8_t { Stats = 0, Achievements = 1, Settings = 2, Sync = 3 };
+  enum class MenuTab : uint8_t { Stats = 0, Achievements = 1, Settings = 2, Sync = 3, Memorial = 4 };
+  uint8_t memorial_count() const { return memorial_count_; }
+  const SaveData::MemorialEntry& memorial_entry(uint8_t idx) const { return memorial_[idx % 5]; }
   MenuTab menu_tab() const { return menu_tab_; }
   void    set_menu_tab(MenuTab t) { menu_tab_ = t; }
 
