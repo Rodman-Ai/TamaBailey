@@ -31,51 +31,81 @@ static const char* const kFamilyNames[8] = {
   "OBriens", "Yamamotos", "Schmidts", "Akinyemis"
 };
 
-// Round 4: per-mood phrase banks (5 each). Picked by a rotating
-// index derived from today_day_index + simulated minute, so the
-// footer rotates throughout the day and each new day starts at a
-// fresh offset.
-static const char* const kHappyBank[5] = {
+// Round 4 + Round 5: per-mood phrase banks (10 each). Index rotates
+// as `(today_day_index + minute) % 10` so the footer changes every
+// minute and each day starts at a different offset. With the 2-line
+// 20-char-wrap footer, phrases up to ~40 chars wrap cleanly.
+static const char* const kHappyBank[10] = {
   "Bailey is happy!",
   "Bailey wags his tail.",
   "Bailey is having a great day!",
   "Bailey's nose is wiggling.",
   "Bailey is in a good mood.",
+  "Bailey did a zoomie!",
+  "Bailey snorts happily",
+  "Bailey grins at you",
+  "Bailey thumps the floor",
+  "Bailey is feeling fine",
 };
-static const char* const kHungryBank[5] = {
+static const char* const kHungryBank[10] = {
   "Bailey is hungry",
   "Bailey's tummy rumbles",
   "Bailey could really eat",
   "Bailey eyes the food bowl",
   "Bailey wants a snack",
+  "Bailey sniffs the air",
+  "Bailey paws the bowl",
+  "Bailey eyes your snack",
+  "Bailey is starving",
+  "Bailey wants a treat",
 };
-static const char* const kSadBank[5] = {
+static const char* const kSadBank[10] = {
   "Bailey feels sad",
   "Bailey looks gloomy",
   "Bailey misses you",
   "Bailey needs cheering up",
   "Bailey is sulking",
+  "Bailey hides his face",
+  "Bailey huddles in a ball",
+  "Bailey wants attention",
+  "Bailey lets out a sigh",
+  "Bailey misses the park",
 };
-static const char* const kDirtyBank[5] = {
+static const char* const kDirtyBank[10] = {
   "Bailey needs a bath",
   "Bailey is muddy!",
   "Bailey smells funky",
   "Bailey's coat is grubby",
   "Bailey wants a wash",
+  "Bailey rolled in dirt",
+  "Bailey's paws are mucky",
+  "Bailey shakes off dust",
+  "Bailey wants a scrub",
+  "Bailey needs a brush",
 };
-static const char* const kSleepingBank[5] = {
+static const char* const kSleepingBank[10] = {
   "Zzz... napping",
   "Bailey is dreaming",
   "Bailey is fast asleep",
   "Bailey is curled up",
   "Bailey snoozes peacefully",
+  "Bailey is out cold",
+  "Bailey twitches a paw",
+  "Bailey dreams of bones",
+  "Bailey snorts softly",
+  "Bailey is napping deep",
 };
-static const char* const kNeutralBank[5] = {
+static const char* const kNeutralBank[10] = {
   "How is Bailey today?",
   "Bailey looks around",
   "Bailey is just chillin'",
   "Bailey ponders life",
   "Bailey is taking it easy",
+  "Bailey lies in a sunbeam",
+  "Bailey watches a fly",
+  "Bailey is just being",
+  "Bailey listens to the wind",
+  "Bailey waits politely",
 };
 
 // Weather-themed overrides for the Happy bank. Picked when weather
@@ -102,10 +132,16 @@ static const char* sleeping_for_weather(Weather w) {
   return nullptr;
 }
 
-// Round 4 Phase 3: thought-bubble phrase bank. Picked by day_index
-// and the current 30-second window so two consecutive ticks return
-// the same string.
-static const char* const kThoughts[8] = {
+// Round 4 Phase 3 + Round 5: thought-bubble phrase bank. Picked by
+// day_index and the current 30-second window so two consecutive ticks
+// return the same string. User-requested phrases land at the head.
+static const char* const kThoughts[16] = {
+  "thinking about chicken",
+  "thinking about salmon",
+  "thinking about fetch",
+  "thinking about pee",
+  "thinking about toys",
+  "dreaming of a nice walk",
   "thinking of bones...",
   "remembering a friend",
   "wondering about treats",
@@ -114,6 +150,8 @@ static const char* const kThoughts[8] = {
   "dreaming of belly rubs",
   "planning a zoomie",
   "missing the park",
+  "counting birds",
+  "remembering puppy days",
 };
 
 const char* mood_text_variant(const Game& game) {
@@ -135,16 +173,16 @@ const char* mood_text_variant(const Game& game) {
     uint32_t cycle = game.last_tick_ms() % 30000;
     if (cycle < 3000) {
       uint32_t idx = (game.today_day_index() + game.last_tick_ms() / 30000)
-                     % 8;
+                     % 16;
       return kThoughts[idx];
     }
   }
 
   // Rotation index: minute-of-game-time + day-of-year. Without a
   // synced clock, today_day_index_ stays 0, but the minute term still
-  // rotates so the bank cycles.
+  // rotates so the bank cycles. Mod 10 = bank size.
   uint32_t minute = game.last_tick_ms() / 60000u;
-  uint32_t idx    = (game.today_day_index() + minute) % 5;
+  uint32_t idx    = (game.today_day_index() + minute) % 10;
 
   // Weather-flavored picks on even minutes (so the basic bank still
   // shows up half the time).
@@ -1129,13 +1167,44 @@ void draw_footer(Renderer& r, const Game& game) {
       msg = body;
     }
   }
-  // Custom-formatted strings (msg_buf) render at scale 1 to fit; the
-  // mood-text fast path keeps scale 2. Longer prefixed strings also
-  // fall through to scale 1.
-  int scale = (msg == msg_buf) ? 1 : 2;
-  int tw = text_width(msg, scale);
-  int tx = (kScreenW - tw) / 2;
-  r.drawText(tx, y0 + (scale == 2 ? 8 : 12), msg, kWhite, scale);
+  // Round 5: 2-line footer with word-wrap at 20 chars per line.
+  // Always render at scale 1 so longer phrases fit. We find the last
+  // space at-or-before column 20; if there's no space, hard-break.
+  // Single-line messages render centered on a single midline; longer
+  // messages split into two centered lines.
+  constexpr int kMaxLineChars = 20;
+  int msg_len = 0;
+  while (msg[msg_len] != '\0' && msg_len < 47) ++msg_len;
+  if (msg_len <= kMaxLineChars) {
+    // Fits on one line, centered around the midline.
+    int tw = text_width(msg, 1);
+    int tx = (kScreenW - tw) / 2;
+    r.drawText(tx, y0 + 8, msg, kWhite, 1);
+  } else {
+    // Find the split point: last space in [0, kMaxLineChars], else
+    // hard-break at kMaxLineChars.
+    int split = kMaxLineChars;
+    for (int i = kMaxLineChars; i > 0; --i) {
+      if (msg[i] == ' ') { split = i; break; }
+    }
+    // Copy the two halves (we own msg_buf if we wrote it, but msg
+    // may also point to a bank string -- copy into stack buffers).
+    char line1[24], line2[24];
+    int l1 = split;
+    if (l1 > 23) l1 = 23;
+    for (int i = 0; i < l1; ++i) line1[i] = msg[i];
+    line1[l1] = '\0';
+    int start2 = split;
+    while (msg[start2] == ' ') ++start2;
+    int l2 = msg_len - start2;
+    if (l2 > 23) l2 = 23;
+    for (int i = 0; i < l2; ++i) line2[i] = msg[start2 + i];
+    line2[l2] = '\0';
+    int tw1 = text_width(line1, 1);
+    int tw2 = text_width(line2, 1);
+    r.drawText((kScreenW - tw1) / 2, y0 + 4,  line1, kWhite, 1);
+    r.drawText((kScreenW - tw2) / 2, y0 + 14, line2, kWhite, 1);
+  }
 
   char info[40];
   uint32_t age_min = (uint32_t)(pet.age_ms / 60000ULL);
@@ -1873,10 +1942,14 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   draw_footer(r, game);
 
-  // Round 4: hardware init status chip in the bottom-left. Tiny
-  // scale-1 text so it doesn't compete with the mood footer. Only
-  // shown when at least one subsystem has reported a status (so the
-  // web build, which never sets either, doesn't get the chip).
+  // Round 4: hardware init status chip in the bottom-left. Gated
+  // behind BAILEY_DEBUG_HW_HUD so the default build hides it; flip
+  // `-D BAILEY_DEBUG_HW_HUD=1` in platformio.ini build_flags to
+  // re-enable for troubleshooting.
+#ifndef BAILEY_DEBUG_HW_HUD
+#define BAILEY_DEBUG_HW_HUD 0
+#endif
+#if BAILEY_DEBUG_HW_HUD
   if (game.hw_imu_status() != Game::HwUnknown ||
       game.hw_audio_status() != Game::HwUnknown) {
     auto status_str = [](uint8_t s) -> const char* {
@@ -1895,6 +1968,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     r.drawText(x + gap + 24, y, status_str(game.hw_audio_status()),
                status_col(game.hw_audio_status()), 1);
   }
+#endif
 
   // Mode-specific overlays
   if (game.mode() == GameMode::Walking)
