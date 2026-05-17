@@ -35,7 +35,8 @@ constexpr uint32_t kBaseMsPerCleanlinessPoint =  14400;
 constexpr uint32_t kBaseMsPerEnergyRegen      =   3000;
 constexpr uint64_t kHealthyForAdult           = (uint64_t)24 * 60 * 1000;
 constexpr uint64_t kHealthyForSenior          = (uint64_t)96 * 60 * 1000;
-constexpr uint64_t kNeglectForDeath           = (uint64_t)60 * 1000;
+constexpr uint64_t kNeglectForMoveOut         = (uint64_t)60 * 1000;       // 60 s
+constexpr uint64_t kSeniorLoopMs              = (uint64_t)96 * 60 * 1000;  // another 96 min as senior
 #else
 constexpr uint32_t kBaseMsPerHungerPoint      = 432000;
 constexpr uint32_t kBaseMsPerHappinessPoint   = 648000;
@@ -43,8 +44,12 @@ constexpr uint32_t kBaseMsPerCleanlinessPoint = 864000;
 constexpr uint32_t kBaseMsPerEnergyRegen      = 180000;
 constexpr uint64_t kHealthyForAdult           = (uint64_t)24 * 3600 * 1000;
 constexpr uint64_t kHealthyForSenior          = (uint64_t)96 * 3600 * 1000;
-constexpr uint64_t kNeglectForDeath           = (uint64_t)60 * 60 * 1000;
+constexpr uint64_t kNeglectForMoveOut         = (uint64_t)60 * 60 * 1000;  // 60 min
+constexpr uint64_t kSeniorLoopMs              = (uint64_t)96 * 3600 * 1000; // another 96 h
 #endif
+
+// How long the MovingOut / Magic transition plays before the restart fires.
+constexpr uint32_t kTransitionMs              = 5000;
 
 constexpr uint32_t kEnergyCostPlay   = 10;
 constexpr uint32_t kActionEatBoost   = 30;
@@ -182,6 +187,8 @@ class Game {
   uint8_t   mood_history(uint8_t day_back) const;  // 0=yesterday .. 6=7 days ago
   bool      is_birthday()    const { return is_birthday_today_; }
   bool      tucked_in()      const { return well_tucked_in_today_ != 0; }
+  uint32_t  transition_started_ms() const { return transition_started_ms_; }
+  uint8_t   move_out_family_idx()   const { return move_out_family_idx_; }
   uint8_t   shop_cursor()    const { return shop_cursor_; }
   uint8_t   npc_visit_kind() const { return npc_visit_kind_; }
   uint32_t  npc_visit_ms()   const { return npc_visit_ms_; }
@@ -250,6 +257,9 @@ class Game {
   void fulfill_wish_if_matches(Wish what);
   void roll_over_day_if_needed(uint64_t now_unix_ms);
   void perform_random_trick();
+  // Death-removal helpers
+  void enter_transition(Mood m);   // sets mood + stamps transition_started_ms_
+  void restart_pet(bool magic);    // resets pet, preserves achievements / biscuits / etc
 
   Pet      pet_;
   Settings settings_;
@@ -315,6 +325,12 @@ class Game {
   uint32_t today_happiness_sum_       = 0;
   uint16_t today_samples_             = 0;
   uint16_t today_actions_             = 0;
+  // Death-removal: timestamp when MovingOut / Magic transition started.
+  uint32_t transition_started_ms_     = 0;
+  uint8_t  move_out_family_idx_       = 0;   // which surname to show
+  bool     in_transition() const {
+    return pet_.mood == Mood::MovingOut || pet_.mood == Mood::Magic;
+  }
 
   float    daylight_         = 1.0f;
   char     clock_str_[16]    = {0};

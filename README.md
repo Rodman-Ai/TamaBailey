@@ -42,42 +42,39 @@ verified from Waveshare's own demo sketches at
 | Long-press (~0.8 s) any button | Toggle **status menu**                 |
 | Tap pet (touch / canvas click) | **Pet** Bailey (+5 play, 12 s cooldown) |
 | Tap stats bar                  | Toggle status menu                     |
-| `R` (web)                      | Restart when Bailey is gone            |
 
 - Four stats (food / play / bath / rest) decay over real time.
 - Rest regenerates while Bailey isn't actively playing.
-- Mood is driven by the stats: happy, hungry, dirty, sleeping, sad, gone.
+- Mood is driven by the stats: happy, hungry, dirty, sleeping, sad.
 - Keep all stats >= 30 for 24 h to evolve Puppy -> Adult, 96 h -> Senior.
-- Neglect all stats to 0 for 60 minutes and Bailey is gone. Long-press
-  any button to hatch a fresh puppy.
+- **Bailey can never die.** Two narrative loops replace death:
+  - **Neglect** (all stats 0 for ~60 min) -> Bailey moves in with a
+    different family. A new puppy hatches automatically. Achievements,
+    biscuits, inventory, and settings carry over.
+  - **Old age** (~96 h healthy as Senior) -> Bailey magically transforms
+    back into a puppy. Same progression carries over.
 
 For testing, build with `-D BAILEY_FAST_DECAY=1` (or use the
 `esp32-s3-lcd-1_54-fast` PIO env) to collapse the 12 h / 24 h timers
 into 12 min / 24 min.
 
-## Build and flash (device)
+## Flash it to the board (USB-C)
+
+Full step-by-step in **[`docs/FLASHING.md`](docs/FLASHING.md)** -- cable
+gotchas, BOOT+RESET dance, NVS-wipe, expected serial output. Short
+version:
 
 ```sh
-# Install PlatformIO CLI
-pip install platformio
-
-# Compile and flash (classic Tamagotchi pace)
-pio run -e esp32-s3-lcd-1_54 -t upload
-
-# Serial monitor
-pio device monitor
-
-# Demo build with fast stat decay
-pio run -e esp32-s3-lcd-1_54-fast -t upload
+pip install --upgrade platformio
+pio run -e esp32-s3-lcd-1_54 -t upload     # build + flash over USB-C
+pio device monitor                          # watch serial @ 115200
 ```
 
-### Download mode
+The companion **[`docs/CODE_REVIEW.md`](docs/CODE_REVIEW.md)** lists
+what's known to be stubbed (device audio, device touch) and what's
+ready to run.
 
-The ESP32-S3 auto-resets into the bootloader over USB CDC. If a flash
-fails: hold **BOOT**, tap **RESET**, release **BOOT**, then re-run the
-upload.
-
-### Wi-Fi credentials (not used in MVP, but wired up)
+### Wi-Fi credentials (optional -- enables real-world clock + streaks)
 
 ```sh
 cp include/secrets.h.example include/secrets.h

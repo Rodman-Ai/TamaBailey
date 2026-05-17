@@ -22,16 +22,25 @@ constexpr int kPetX = (kScreenW - kPetDrawW) / 2;
 constexpr int kPetY = kStatsBarH + 8;
 constexpr int kAccessoryScale = 2;
 
+// Surname pool for the move-out narrative beat -- cosmetic only,
+// picked by Game::move_out_family_idx().
+static const char* const kFamilyNames[8] = {
+  "Nakamuras", "Patels", "Kowalskis", "Diazes",
+  "OBriens", "Yamamotos", "Schmidts", "Akinyemis"
+};
+
 const char* mood_text(Mood m) {
   switch (m) {
-    case Mood::Happy:    return "Bailey is happy!";
-    case Mood::Hungry:   return "Bailey is hungry";
-    case Mood::Sad:      return "Bailey feels sad";
-    case Mood::Dirty:    return "Bailey needs a bath";
-    case Mood::Sleeping: return "Zzz... napping";
-    case Mood::Gone:     return "Hold a button to start over";
+    case Mood::Happy:     return "Bailey is happy!";
+    case Mood::Hungry:    return "Bailey is hungry";
+    case Mood::Sad:       return "Bailey feels sad";
+    case Mood::Dirty:     return "Bailey needs a bath";
+    case Mood::Sleeping:  return "Zzz... napping";
+    case Mood::MovingOut: return "Bailey moved in with...";  // family name appended later
+    case Mood::Magic:     return "Bailey is young again!";
+    case Mood::Gone:      // legacy, should not render
     case Mood::Neutral:
-    default:             return "How is Bailey today?";
+    default:              return "How is Bailey today?";
   }
 }
 
@@ -189,9 +198,11 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms) {
     case Action::Pet:   pose = PetPose::IdleB;   break;
     case Action::None:
       switch (pet.mood) {
-        case Mood::Sleeping: pose = PetPose::Sleep; break;
-        case Mood::Sad:      pose = PetPose::Sad;   break;
-        case Mood::Gone:     pose = PetPose::Gone;  break;
+        case Mood::Sleeping:  pose = PetPose::Sleep; break;
+        case Mood::Sad:       pose = PetPose::Sad;   break;
+        case Mood::MovingOut: pose = PetPose::IdleB; break;  // happy walking off
+        case Mood::Magic:     pose = PetPose::IdleA; break;  // calm transformation
+        case Mood::Gone:      pose = PetPose::IdleA; break;  // legacy fallback
         default:
           pose = ((now_ms / kIdleFrameMs) & 1) ? PetPose::IdleB : PetPose::IdleA;
           break;
@@ -199,8 +210,32 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms) {
       break;
   }
 
+  // For MovingOut, slide Bailey off the right edge based on elapsed time.
+  int draw_x = kPetX;
+  if (pet.mood == Mood::MovingOut) {
+    // The full transition is ~5s; slide over that interval.
+    // We don't have direct access to transition_started_ms_ here, so use
+    // age_ms low bits + now_ms parity for a deterministic position --
+    // simpler: cosine-style cycle via now_ms gives a smooth slide.
+    uint32_t cycle = now_ms % 5000;
+    int max_dx = (kScreenW - kPetX);
+    draw_x = kPetX + (int)(cycle * max_dx / 5000);
+  }
+
   const uint8_t* sprite = pet_sprite(pet.stage, pose);
-  r.drawSprite(kPetX, kPetY, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
+  r.drawSprite(draw_x, kPetY, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
+
+  // Magic transition: scatter twinkles over the pet.
+  if (pet.mood == Mood::Magic) {
+    uint32_t seed = 0xBABE;
+    for (int i = 0; i < 12; ++i) {
+      seed = seed * 1664525u + 1013904223u + now_ms / 100;
+      int sx = kPetX + (int)((seed >> 4) % kPetDrawW);
+      int sy = kPetY + (int)((seed >> 12) % kPetDrawH);
+      r.fillRect(sx, sy, 2, 2, kYellow);
+      r.fillRect(sx - 1, sy + 1, 1, 1, kWhite);
+    }
+  }
 
   switch (pet.current_action) {
     case Action::Eat:
@@ -298,20 +333,33 @@ void draw_scene_detail(Renderer& r, uint8_t scene_id, float daylight) {
   }
 }
 
-void draw_footer(Renderer& r, const Pet& pet, uint16_t streak_days) {
+void draw_footer(Renderer& r, const Game& game) {
+  const Pet& pet = game.pet();
   int y0 = kScreenH - kStatusH;
   r.fillRect(0, y0, kScreenW, kStatusH, kGrayDark);
   r.drawHLine(0, y0, kScreenW, kGrayLight);
 
-  const char* msg = mood_text(pet.mood);
-  int tw = text_width(msg, 2);
+  // MovingOut footer renders as "Bailey moved in with the <Family>."
+  char msg_buf[48];
+  const char* msg;
+  if (pet.mood == Mood::MovingOut) {
+    int idx = game.move_out_family_idx() & 7;
+    std::snprintf(msg_buf, sizeof(msg_buf), "Moved in w/ the %s", kFamilyNames[idx]);
+    msg = msg_buf;
+  } else {
+    msg = mood_text(pet.mood);
+  }
+  // Use scale 1 for the MovingOut/Magic message so the longer string fits.
+  int scale = (pet.mood == Mood::MovingOut) ? 1 : 2;
+  int tw = text_width(msg, scale);
   int tx = (kScreenW - tw) / 2;
-  r.drawText(tx, y0 + 8, msg, kWhite, 2);
+  r.drawText(tx, y0 + (scale == 2 ? 8 : 12), msg, kWhite, scale);
 
   char info[40];
   uint32_t age_min = (uint32_t)(pet.age_ms / 60000ULL);
   std::snprintf(info, sizeof(info), "%s  %lum  S%u",
-                stage_text(pet.stage), (unsigned long)age_min, (unsigned)streak_days);
+                stage_text(pet.stage), (unsigned long)age_min,
+                (unsigned)game.streak_days());
   r.drawText(kScreenW - text_width(info, 1) - 4, y0 + kStatusH - 10, info, kGrayLight, 1);
 }
 
@@ -722,8 +770,12 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   draw_stats_bar(r, pet, game.clock_string());
 
   draw_pet_sprite(r, pet, now_ms);
-  draw_coat_accents(r, game.coat_pattern());
-  draw_accessory_overlay(r, game.accessory_id());
+  // Skip coat / accessory overlays during MovingOut (Bailey is sliding
+  // off; the fixed-position overlays would be left behind).
+  if (pet.mood != Mood::MovingOut) {
+    draw_coat_accents(r, game.coat_pattern());
+    draw_accessory_overlay(r, game.accessory_id());
+  }
   draw_weather(r, (uint8_t)game.weather(), now_ms);
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
@@ -767,7 +819,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     }
   }
 
-  draw_footer(r, pet, game.streak_days());
+  draw_footer(r, game);
 
   // Mode-specific overlays
   if (game.mode() == GameMode::Walking)

@@ -316,40 +316,17 @@ void Game::apply_input(Input in) {
     return;
   }
 
-  if (pet_.stage == LifeStage::Gone) {
-    if (in == Input::Restart || in == Input::MenuToggle) {
-#if BAILEY_MEMORIAL_WALL
-      // Record memorial before reset.
-      SaveData::MemorialEntry m{};
-      m.coat              = coat_pattern_;
-      m.trait             = personality_trait_;
-      m.peak_stage        = (uint8_t)LifeStage::Gone;  // best-effort
-      m.age_minutes       = (uint32_t)(pet_.age_ms / 60000ULL);
-      m.achievements_mask = achievements_;
-      memorial_[memorial_head_] = m;
-      memorial_head_ = (uint8_t)((memorial_head_ + 1) % 5);
-      if (memorial_count_ < 5) memorial_count_++;
-#endif
+  // While a MovingOut / Magic transition is playing, user inputs are
+  // suppressed so the animation can finish unmolested. The transition
+  // auto-completes from tick().
+  if (in_transition()) {
+    return;
+  }
 
-      // Reset pet but keep settings and achievements and inherit one trait.
-      uint8_t parent_trait = personality_trait_;
-      pet_   = Pet{};
-      coat_pattern_ = 0;
-      accessory_id_ = 0;
-      sickness_     = 0;
-      pet_.stats    = Stats{};
-      // 50% chance to inherit parent's trait, else roll a new one.
-      uint32_t r = (uint32_t)last_tick_ms_ * 1103515245u + 12345u;
-      if (parent_trait != 0 && (r & 1)) {
-        personality_trait_ = parent_trait;
-        inherited_trait_   = parent_trait;
-        unlock_achievement(AchievementId::HonoredAncestor);
-      } else {
-        personality_trait_ = (uint8_t)(1 + (r % 5));
-        inherited_trait_   = 0;
-      }
-      dirty_ = true;
-    }
+  // Manual Restart (debug only): instantly restart the pet without a
+  // transition. Hidden from the UI but still accepted from the queue.
+  if (in == Input::Restart) {
+    restart_pet(false);
     return;
   }
 
@@ -580,7 +557,7 @@ void Game::apply_input(Input in) {
 }
 
 void Game::apply_decay(uint32_t dt_ms) {
-  if (pet_.stage == LifeStage::Gone) return;
+  if (in_transition()) return;
 
   // Decay multiplier from settings (decay_mult / 10).
   uint32_t mult_num = settings_.decay_mult == 0 ? 10 : settings_.decay_mult;
@@ -647,7 +624,7 @@ void Game::apply_decay(uint32_t dt_ms) {
 }
 
 void Game::update_mood() {
-  if (pet_.stage == LifeStage::Gone) { pet_.mood = Mood::Gone; return; }
+  if (in_transition()) return;  // keep the transition mood pinned
   if (pet_.stats.energy < 20)        { pet_.mood = Mood::Sleeping; return; }
   if (pet_.stats.any_zero())         { pet_.mood = Mood::Sad; return; }
   if (pet_.stats.cleanliness < 30)   { pet_.mood = Mood::Dirty; return; }
@@ -657,10 +634,8 @@ void Game::update_mood() {
 }
 
 void Game::update_evolution(uint32_t dt_ms) {
-  if (pet_.stage == LifeStage::Gone) {
-    pet_.neglect_streak_ms += dt_ms;
-    return;
-  }
+  // No-op during transitions; tick() finishes them.
+  if (in_transition()) return;
 
   if (pet_.stats.all_above(30)) {
     pet_.healthy_streak_ms += dt_ms;
@@ -677,7 +652,6 @@ void Game::update_evolution(uint32_t dt_ms) {
     pet_.stage = LifeStage::Adult;
     play_clip(ClipId::Fanfare);
     unlock_achievement(AchievementId::EvolvedToAdult);
-    // Prompt the player to pick a coat pattern on first Adult evolution.
     if (coat_pattern_ == 0) {
       mode_ = GameMode::PickingCoat;
       mode_started_ms_ = last_tick_ms_;
@@ -691,12 +665,16 @@ void Game::update_evolution(uint32_t dt_ms) {
     dirty_ = true;
   }
 
-  if (pet_.neglect_streak_ms >= kNeglectForDeath) {
-    pet_.stage = LifeStage::Gone;
-    pet_.mood  = Mood::Gone;
-    pet_.healthy_streak_ms = 0;
+  // Death replaced with two narrative loops:
+  //   - Sustained neglect: Bailey moves in with a different family.
+  //   - Long healthy life as Senior: Bailey magically returns to puppyhood.
+  if (pet_.neglect_streak_ms >= kNeglectForMoveOut) {
     play_clip(ClipId::Sad);
-    dirty_ = true;
+    enter_transition(Mood::MovingOut);
+  } else if (pet_.stage == LifeStage::Senior &&
+             pet_.healthy_streak_ms >= kHealthyForSenior + kSeniorLoopMs) {
+    play_clip(ClipId::Fanfare);
+    enter_transition(Mood::Magic);
   }
 }
 
@@ -717,7 +695,7 @@ void Game::update_daylight(uint32_t now_ms) {
 
     // Auto-sleep at night (energy drains fast at night, encouraging rest)
     if (settings_.auto_sleep && (lt.hour >= 22 || lt.hour < 6) &&
-        pet_.stats.energy > 30 && pet_.stage != LifeStage::Gone) {
+        pet_.stats.energy > 30 && !in_transition()) {
       // Gentle nudge: don't suddenly knock them out, but let energy fall.
     }
   } else {
@@ -776,7 +754,7 @@ void Game::tick(uint32_t now_ms) {
     apply_input(in);
   }
 
-  if (pet_.stage != LifeStage::Gone) pet_.age_ms += dt;
+  if (!in_transition()) pet_.age_ms += dt;
 
   apply_decay(dt);
   update_evolution(dt);
@@ -820,6 +798,12 @@ void Game::tick(uint32_t now_ms) {
       default: break;
     }
     if (elapsed > dur) pet_.current_action = Action::None;
+  }
+
+  // Finish MovingOut / Magic transitions once the dwell time elapses.
+  if (in_transition() && (now_ms - transition_started_ms_) >= kTransitionMs) {
+    bool magic = (pet_.mood == Mood::Magic);
+    restart_pet(magic);
   }
 }
 
@@ -959,7 +943,7 @@ void Game::update_weather(uint64_t now_unix_ms) {
 }
 
 void Game::update_sickness(uint32_t dt_ms) {
-  if (pet_.stage == LifeStage::Gone) { sickness_ = 0; return; }
+  if (in_transition()) { sickness_ = 0; return; }
   // Sick when both food and bath stay low for a sustained period.
   bool danger = pet_.stats.hunger < 20 && pet_.stats.cleanliness < 20;
   if (danger) {
@@ -990,7 +974,7 @@ void Game::try_cure_sickness() {
 }
 
 void Game::update_tricks() {
-  if (pet_.stage == LifeStage::Gone) return;
+  if (in_transition()) return;
   uint64_t age = pet_.age_ms;
   uint8_t before = tricks_learned_;
   // Clever personality halves trick thresholds.
@@ -1046,7 +1030,7 @@ void Game::fulfill_wish_if_matches(Wish what) {
 }
 
 void Game::update_wish(uint32_t now_ms) {
-  if (pet_.stage == LifeStage::Gone) { wish_ = 0; return; }
+  if (in_transition()) { wish_ = 0; return; }
 #if BAILEY_FAST_DECAY
   constexpr uint64_t kWishIntervalMs = 60ULL * 1000;   // 1 min in fast mode
 #else
@@ -1071,7 +1055,7 @@ void Game::update_wish(uint32_t now_ms) {
 
 void Game::update_walk(uint32_t now_ms) {
   // NPC visitor tick: rare random cameo with auto-leave after 4s.
-  if (pet_.stage != LifeStage::Gone && mode_ == GameMode::Idle) {
+  if (!in_transition() && mode_ == GameMode::Idle) {
     if (npc_visit_kind_ == 0) {
       uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
 #if BAILEY_FAST_DECAY
@@ -1149,6 +1133,63 @@ void Game::update_bedtime(uint64_t now_unix_ms) {
   }
 }
 
+// Death-removal helpers ----------------------------------------------------
+
+void Game::enter_transition(Mood m) {
+  pet_.mood              = m;
+  transition_started_ms_ = last_tick_ms_;
+  // Pick which family Bailey moves to (cosmetic only).
+  uint32_t h = (uint32_t)(pet_.age_ms ^ ((uint64_t)last_tick_ms_ << 16));
+  move_out_family_idx_   = (uint8_t)((h * 2654435761u) >> 29);  // 0..7
+  // Reset the streak counters so the new puppy doesn't immediately
+  // re-trigger another transition.
+  pet_.neglect_streak_ms = 0;
+  pet_.healthy_streak_ms = 0;
+  dirty_ = true;
+}
+
+void Game::restart_pet(bool magic) {
+#if BAILEY_MEMORIAL_WALL
+  // Memorial wall (gated off by default) keeps a record of past Baileys.
+  SaveData::MemorialEntry m{};
+  m.coat              = coat_pattern_;
+  m.trait             = personality_trait_;
+  m.peak_stage        = (uint8_t)pet_.stage;
+  m.age_minutes       = (uint32_t)(pet_.age_ms / 60000ULL);
+  m.achievements_mask = achievements_;
+  memorial_[memorial_head_] = m;
+  memorial_head_ = (uint8_t)((memorial_head_ + 1) % 5);
+  if (memorial_count_ < 5) memorial_count_++;
+#endif
+
+  uint8_t parent_trait = personality_trait_;
+  pet_   = Pet{};
+  pet_.stats = Stats{};
+  // Settings, achievements, biscuits, toys, treats, vocab, etc. all
+  // intentionally KEPT -- only the pet itself resets.
+  sickness_ = 0;
+  // Magic loop keeps the same coat/personality; move-out picks fresh.
+  if (magic) {
+    inherited_trait_ = personality_trait_;
+  } else {
+    coat_pattern_ = 0;
+    accessory_id_ = 0;
+    // 50% chance to inherit parent's trait, else roll a new one.
+    uint32_t r = (uint32_t)last_tick_ms_ * 1103515245u + 12345u;
+    if (parent_trait != 0 && (r & 1)) {
+      personality_trait_ = parent_trait;
+      inherited_trait_   = parent_trait;
+      unlock_achievement(AchievementId::HonoredAncestor);
+    } else {
+      personality_trait_ = (uint8_t)(1 + (r % 5));
+      inherited_trait_   = 0;
+    }
+  }
+  transition_started_ms_ = 0;
+  move_out_family_idx_   = 0;
+  dirty_ = true;
+}
+
 Trick Game::favorite_trick() const {
   uint16_t best = 0;
   int best_i = 0;
@@ -1207,7 +1248,7 @@ void Game::perform_random_trick() {
 }
 
 void Game::update_vocab() {
-  if (pet_.stage == LifeStage::Gone) return;
+  if (in_transition()) return;
   // Vocab learned at same age thresholds as tricks, but offset by trick index.
   uint64_t age = pet_.age_ms;
   uint8_t before = vocab_learned_;
