@@ -66,13 +66,18 @@ bool es8311_init() {
   // ADC settings (unused by us but configured to a sane default).
   reg_write(0x14, 0x1A);
 
-  // DAC volume + unmute. 0xBF ~= -8 dB (volume range 0xFF..0x00 = mute..0 dB).
-  reg_write(0x32, 0xBF);
+  // DAC volume + unmute. 0x90 ~= -3 dB (was 0xBF ~= -8 dB which
+  // combined with settings.volume = 70 and the per-sample /100 scale
+  // left peaks around -11 dB -- too quiet to hear over board noise).
+  reg_write(0x32, 0x90);
   reg_write(0x37, 0x00);
 
   // DAC route to output stage.
   reg_write(0x44, 0x08);
   reg_write(0x45, 0x00);
+
+  // Let the codec settle before the first I2S write races in.
+  delay(50);
 
   Serial.println("[audio] ES8311 init OK");
   return true;
@@ -149,17 +154,22 @@ void play_pcm(const int16_t* src, int n_src, uint8_t volume) {
 
 const char* clip_name(tama::ClipId c) {
   switch (c) {
-    case tama::ClipId::Yip:     return "Yip";
-    case tama::ClipId::Wuff:    return "Wuff";
-    case tama::ClipId::Splash:  return "Splash";
-    case tama::ClipId::Heart:   return "Heart";
-    case tama::ClipId::Snore:   return "Snore";
-    case tama::ClipId::Whimper: return "Whimper";
-    case tama::ClipId::Sneeze:  return "Sneeze";
-    case tama::ClipId::Fanfare: return "Fanfare";
-    case tama::ClipId::Achieve: return "Achieve";
-    case tama::ClipId::Sad:     return "Sad";
-    default:                    return "?";
+    case tama::ClipId::Yip:       return "Yip";
+    case tama::ClipId::Wuff:      return "Wuff";
+    case tama::ClipId::Splash:    return "Splash";
+    case tama::ClipId::Heart:     return "Heart";
+    case tama::ClipId::Snore:     return "Snore";
+    case tama::ClipId::Whimper:   return "Whimper";
+    case tama::ClipId::Sneeze:    return "Sneeze";
+    case tama::ClipId::Fanfare:   return "Fanfare";
+    case tama::ClipId::Achieve:   return "Achieve";
+    case tama::ClipId::Sad:       return "Sad";
+    case tama::ClipId::Birds:     return "Birds";
+    case tama::ClipId::Waves:     return "Waves";
+    case tama::ClipId::Wind:      return "Wind";
+    case tama::ClipId::Thunder:   return "Thunder";
+    case tama::ClipId::SnoreLoud: return "SnoreLoud";
+    default:                      return "?";
   }
 }
 

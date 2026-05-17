@@ -28,16 +28,39 @@
   };
 
   // ---- Web Audio ----
+  // Chrome / Edge / Safari construct AudioContext in the `suspended`
+  // state per the autoplay policy and require an explicit `resume()`
+  // (within a user gesture) before any buffer-source `start()` actually
+  // produces sound. ensureAudio is called from button-down handlers
+  // so it IS in a user-gesture window -- we just have to call resume.
   let audioCtx = null;
+  let audioUnlocked = false;
   function ensureAudio() {
-    if (audioCtx) return audioCtx;
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    catch (e) { return null; }
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { return null; }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      // Fire-and-forget; resolves async but the next playPcm() call
+      // (~a frame later) lands on a running context.
+      audioCtx.resume().then(() => { audioUnlocked = true; }).catch(() => {});
+    } else if (audioCtx) {
+      audioUnlocked = true;
+    }
     return audioCtx;
   }
   function playPcm(ptr, n, sr, vol) {
     const ac = ensureAudio();
     if (!ac) return;
+    // Belt + suspenders: if a non-gesture path (frame loop, mic-trigger
+    // chain) reaches us before the user clicked anything, try resume
+    // once more. Will fail silently if no gesture has happened yet.
+    if (ac.state === 'suspended') {
+      ac.resume().catch(() => {});
+      // Drop this clip; src.start() on a still-suspended context is a
+      // no-op and would leak a buffer.
+      return;
+    }
     const int16 = new Int16Array(Module.HEAP16.buffer, ptr, n);
     const buf = ac.createBuffer(1, n, sr);
     const ch = buf.getChannelData(0);
@@ -47,6 +70,24 @@
     const gain = ac.createGain();
     gain.gain.value = Math.max(0, Math.min(1, vol / 100));
     src.connect(gain).connect(ac.destination);
+    src.start();
+  }
+  // Synthesizes a short "ping" so the user gets immediate audible
+  // feedback the moment audio unlocks. Used by both the implicit
+  // first-press unlock and the explicit "Enable sound" button.
+  function playUnlockPing() {
+    const ac = ensureAudio();
+    if (!ac || ac.state === 'suspended') return;
+    const dur = 0.18;
+    const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; ++i) {
+      const t = i / ac.sampleRate;
+      ch[i] = Math.sin(2 * Math.PI * 880 * t) * Math.exp(-t * 8) * 0.4;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.connect(ac.destination);
     src.start();
   }
 
@@ -95,7 +136,12 @@
     let longTimer = null;
     function down(ev) {
       ev.preventDefault();
+      const wasUnlocked = audioUnlocked;
       ensureAudio();
+      // First press also fires a tiny ping so the user knows audio
+      // just unlocked. ensureAudio's resume() is async, so wait a
+      // frame for the context to actually be running before pinging.
+      if (!wasUnlocked) setTimeout(playUnlockPing, 150);
       btn.classList.add('held');
       longTimer = setTimeout(() => { send(INPUT.MenuToggle); longTimer = null; }, 800);
     }
@@ -413,5 +459,13 @@
       alert(ok ? "Bailey restored!" : "That code doesn't look right -- try again?");
     });
     if (albumBtn) albumBtn.addEventListener('click', showAlbum);
+    const soundBtn = document.getElementById('soundBtn');
+    if (soundBtn) soundBtn.addEventListener('click', () => {
+      ensureAudio();
+      setTimeout(() => {
+        playUnlockPing();
+        soundBtn.textContent = audioUnlocked ? 'Sound on' : 'Tap again to enable';
+      }, 150);
+    });
   });
 })();
