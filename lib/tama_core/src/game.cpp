@@ -231,6 +231,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v7 fields
     bones_collected_  = s.bones_collected;
     walk_today_steps_ = s.walk_today_steps;
+    // v8 fields
+    daily_quest_awarded_day_ = s.daily_quest_awarded_day;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -444,6 +446,7 @@ void Game::apply_input(Input in) {
     case Input::Feed: {
       uint32_t boost = kActionEatBoost;
       if (well_tucked_in_today_) boost *= 2;  // bedtime routine bonus
+      if (horoscope_id() == 2) boost += 10;   // HUNGRY: bigger feed boost
       pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + boost);
       pet_.current_action = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
@@ -462,8 +465,10 @@ void Game::apply_input(Input in) {
       }
       // While in a fetch flow, button is treated as the "catch" press.
       if (mode_ == GameMode::FetchCatching) {
-        // Hit -- award full happiness + skill increment
-        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPlayBoost);
+        // Hit -- award full happiness + skill increment.
+        uint32_t play_boost = kActionPlayBoost;
+        if (horoscope_id() == 0) play_boost += 10;   // PLAYFUL: bigger boost
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + play_boost);
         pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
         fetch_catches_++;
         last_fetch_result_   = 1;
@@ -478,7 +483,9 @@ void Game::apply_input(Input in) {
       }
       // Puppy or sick: skip the fetch flow, do classic Play.
       if (pet_.stage == LifeStage::Puppy || sickness_ != 0) {
-        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPlayBoost);
+        uint32_t play_boost = kActionPlayBoost;
+        if (horoscope_id() == 0) play_boost += 10;
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + play_boost);
         pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
         pet_.current_action  = Action::Play;
         pet_.action_started_ms = last_tick_ms_;
@@ -543,9 +550,10 @@ void Game::apply_input(Input in) {
         walk_today_steps_++;
         pet_.stats.energy = clamp_stat((int)pet_.stats.energy - 1);
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
-        // 1/8 chance to find an item per step.
+        // 1/8 chance to find an item per step (1/4 on CURIOUS horoscope days).
         uint32_t r = (last_tick_ms_ + (uint32_t)total_steps_) * 2654435761u;
-        if ((r & 7) == 0) {
+        uint32_t find_mask = (horoscope_id() == 3) ? 3u : 7u;
+        if ((r & find_mask) == 0) {
           int kind = (r >> 3) % 3;
           if (kind == 0) {
             bones_collected_++;                         // collectible bone
@@ -866,6 +874,8 @@ void Game::apply_decay(uint32_t dt_ms) {
   // Decay multiplier from settings (decay_mult / 10).
   uint32_t mult_num = settings_.decay_mult == 0 ? 10 : settings_.decay_mult;
   if (sleeping) mult_num = (mult_num + 1) / 2;        // half-speed decay
+  // Horoscope SLEEPY: 25 % slower decay on top.
+  if (horoscope_id() == 1) mult_num = (mult_num * 3 + 3) / 4;
   // Slower-decay multiplier means MORE ms per point.
   auto scaled = [&](uint32_t base) {
     // dt_ms_effective = dt_ms * (10 / mult); applied as accumulator divisor.
@@ -1097,6 +1107,7 @@ void Game::tick(uint32_t now_ms) {
     update_weather(u);
     update_birthday(u);
     update_bedtime(u);
+    update_daily_quest(u);
     roll_over_day_if_needed(u);
   }
 
@@ -1193,6 +1204,8 @@ void Game::force_save(Storage& storage) {
   s.bones_collected  = bones_collected_;
   s.walk_today_steps = walk_today_steps_;
   s._pad7            = 0;
+  // v8 additions
+  s.daily_quest_awarded_day = daily_quest_awarded_day_;
 
   storage.save(s);
   dirty_ = false;
@@ -1340,6 +1353,8 @@ void Game::choose_coat(uint8_t id) {
 // ===== Round 2 systems =====
 
 void Game::grant_biscuits(uint32_t n) {
+  // Horoscope LUCKY: +50 % biscuit grants (round up so a +1 stays +1 too).
+  if (horoscope_id() == 4) n = (n * 3 + 1) / 2;
   uint32_t before = biscuits_;
   biscuits_ += n;
   if (before < 50 && biscuits_ >= 50) unlock_achievement(AchievementId::BiscuitTycoon);
@@ -1787,6 +1802,68 @@ bool Game::apply_sync_code(const char* code) {
   inherited_trait_       = (uint8_t)((buf[6] >> 4) & 0x0F);
   dirty_ = true;
   return true;
+}
+
+// ---- Round 3 Phase 1C: Daily quest + Pet horoscope ----
+
+uint8_t Game::daily_quest_id() const {
+  if (today_day_index_ == 0) return 0;     // no synced clock yet
+  return (uint8_t)(today_day_index_ % 2);  // 0 = walk, 1 = happiness
+}
+
+uint32_t Game::daily_quest_progress() const {
+  switch (daily_quest_id()) {
+    case 0: return walk_today_steps_;
+    case 1: return pet_.stats.happiness;
+    default: return 0;
+  }
+}
+
+uint32_t Game::daily_quest_goal() const {
+  switch (daily_quest_id()) {
+    case 0: return 30;
+    case 1: return 90;
+    default: return 0;
+  }
+}
+
+const char* Game::daily_quest_text() const {
+  switch (daily_quest_id()) {
+    case 0: return "Walk 30 steps today";
+    case 1: return "Reach happiness 90";
+    default: return "";
+  }
+}
+
+bool Game::daily_quest_awarded_today() const {
+  return today_day_index_ != 0 &&
+         daily_quest_awarded_day_ == today_day_index_;
+}
+
+void Game::update_daily_quest(uint64_t now_unix_ms) {
+  (void)now_unix_ms;
+  if (today_day_index_ == 0) return;
+  if (daily_quest_awarded_today()) return;
+  if (!daily_quest_complete()) return;
+  grant_biscuits(5);
+  daily_quest_awarded_day_ = today_day_index_;
+  dirty_ = true;
+}
+
+uint8_t Game::horoscope_id() const {
+  if (today_day_index_ == 0) return 0;
+  return (uint8_t)(today_day_index_ % 5);
+}
+
+const char* Game::horoscope_text() const {
+  switch (horoscope_id()) {
+    case 0: return "PLAYFUL";   // +happy on play
+    case 1: return "SLEEPY";    // slower decay
+    case 2: return "HUNGRY";    // +hunger on feed
+    case 3: return "CURIOUS";   // better walk-finds
+    case 4: return "LUCKY";     // +biscuit grants
+    default: return "";
+  }
 }
 
 }  // namespace tama

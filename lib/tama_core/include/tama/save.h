@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 7;
+constexpr uint16_t kSaveVersion  = 8;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -94,6 +94,8 @@ struct SaveData {
   uint32_t bones_collected;                // bone collectibles found on walks
   uint16_t walk_today_steps;               // steps taken today (resets at midnight)
   uint16_t _pad7;
+  // ---- v8 additions (Round 3 Phase 1C) ----
+  uint32_t daily_quest_awarded_day;        // last day_index we awarded quest biscuits
 };
 #pragma pack(pop)
 

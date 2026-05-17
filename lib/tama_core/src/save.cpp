@@ -69,6 +69,10 @@ bool save_validate_and_migrate(SaveData& s) {
     s.walk_today_steps  = 0;
     s._pad7             = 0;
   }
+  if (s.version < 8) {
+    // v7 -> v8: zero the daily-quest reward tracker.
+    s.daily_quest_awarded_day = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

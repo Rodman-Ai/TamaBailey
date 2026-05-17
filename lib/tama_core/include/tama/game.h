@@ -224,6 +224,19 @@ class Game {
   // 0 = no recent find, 1 = bone, 2 = toy unlocked, 3 = treat (biscuit-flavored)
   uint8_t   last_walk_find_kind() const { return last_walk_find_kind_; }
   uint32_t  last_walk_find_ms()   const { return last_walk_find_ms_; }
+
+  // Round 3 Phase 1C: daily quest + pet horoscope.
+  // Quest types rotate by today_day_index_ % 2.
+  // Returns 0 when no synced clock (so UI can hide the quest line).
+  uint8_t   daily_quest_id()        const;
+  uint32_t  daily_quest_progress()  const;
+  uint32_t  daily_quest_goal()      const;
+  const char* daily_quest_text()    const;
+  bool      daily_quest_complete()  const { return daily_quest_progress() >= daily_quest_goal(); }
+  bool      daily_quest_awarded_today() const;
+  // Horoscope: 0..4 picked from today_day_index_ % 5. Returns 0 when no clock.
+  uint8_t   horoscope_id()    const;
+  const char* horoscope_text() const;
   // Manually override the weather (e.g. from a wttr.in fetch on the web).
   void      set_weather(Weather w) { weather_ = (uint8_t)w; dirty_ = true; }
 
@@ -414,6 +427,10 @@ class Game {
                                       // schedule + horoscope hooks; transient
   bool     have_local_hour_     = false;
   bool     is_sleep_hour() const;
+
+  // Daily quest: which day_index we last awarded biscuits for. Persisted.
+  uint32_t daily_quest_awarded_day_ = 0;
+  void update_daily_quest(uint64_t now_unix_ms);
 };
 
 }  // namespace tama

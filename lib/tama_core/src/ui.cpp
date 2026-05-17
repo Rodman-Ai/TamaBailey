@@ -866,6 +866,23 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   int y = 14 + kStatsBarH + 18;
   char buf[40];
 
+  // Round 3: daily quest line (only if a synced clock has set a day index).
+  if (game.daily_quest_goal() > 0) {
+    const char* check = game.daily_quest_awarded_today() ? " (done!)" :
+                        (game.daily_quest_complete()    ? " (claim)"  : "");
+    std::snprintf(buf, sizeof(buf), "Quest : %s %u/%u%s",
+                  game.daily_quest_text(),
+                  (unsigned)game.daily_quest_progress(),
+                  (unsigned)game.daily_quest_goal(), check);
+    r.drawText(x, y, buf,
+               game.daily_quest_awarded_today() ? kGreen : kYellow, 1);
+    y += 12;
+  }
+  if (game.horoscope_text()[0] != '\0') {
+    std::snprintf(buf, sizeof(buf), "Today : %s", game.horoscope_text());
+    r.drawText(x, y, buf, kPink, 1); y += 12;
+  }
+
   std::snprintf(buf, sizeof(buf), "Stage : %s", stage_text(pet.stage));
   r.drawText(x, y, buf, kWhite, 1); y += 12;
 
