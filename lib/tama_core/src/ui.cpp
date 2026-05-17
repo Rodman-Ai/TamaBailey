@@ -100,6 +100,19 @@ void draw_stats_bar(Renderer& r, const Pet& pet, const char* clock_str) {
   }
 }
 
+// Round 3 Phase 3A: 3 mini-badges for the most-recently unlocked
+// achievements, painted in the top-left corner of the stats bar.
+// Rendered after draw_stats_bar so the badges sit on top of nothing.
+void draw_achievement_showcase(Renderer& r, const Game& game) {
+  for (int i = 0; i < 3; ++i) {
+    int id = game.latest_achievement(i);
+    if (id < 0) break;
+    int bx = 2 + i * 8;
+    r.fillRect(bx, 2, 6, 6, kYellow);
+    r.drawRect(bx, 2, 6, 6, kGrayDark);
+  }
+}
+
 // Background tint depending on time of day.
 void draw_background(Renderer& r, float daylight) {
   uint16_t sky_day   = kSky;
@@ -1319,6 +1332,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   r.fillRect(0, 0, kScreenW, kStatsBarH, kGrayDark);
   r.drawHLine(0, kStatsBarH, kScreenW, kGrayLight);
   draw_stats_bar(r, pet, game.clock_string());
+  draw_achievement_showcase(r, game);
 
   // Draw any visiting friends FIRST so Bailey draws on top of them --
   // his silhouette (especially the left-side hind leg) stays whole even

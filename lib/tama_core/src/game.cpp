@@ -1838,6 +1838,20 @@ bool Game::apply_sync_code(const char* code) {
   return true;
 }
 
+int Game::latest_achievement(int idx) const {
+  // Walk achievement bits from highest to lowest. Append-only IDs
+  // mean higher = added later = "more recent" in roster terms.
+  if (idx < 0) return -1;
+  int seen = 0;
+  for (int i = kAchievementCount - 1; i >= 0; --i) {
+    if (is_unlocked(achievements_, (AchievementId)i)) {
+      if (seen == idx) return i;
+      ++seen;
+    }
+  }
+  return -1;
+}
+
 // ---- Round 3 Phase 1C: Daily quest + Pet horoscope ----
 
 uint8_t Game::daily_quest_id() const {

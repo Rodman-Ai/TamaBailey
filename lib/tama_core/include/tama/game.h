@@ -236,6 +236,12 @@ class Game {
   // Round 3 Phase 3: Best-friend bond (paired via sync code).
   uint32_t best_friend_hash() const { return best_friend_hash_; }
 
+  // Round 3 Phase 3A: Achievement showcase. Returns the achievement id
+  // of the i-th (0..2) MOST RECENTLY EARNED unlocked achievement, or
+  // -1 if fewer than i+1 are unlocked. We auto-pick by enum-id order
+  // (highest = most recent) since Round 2/3 IDs were appended.
+  int latest_achievement(int idx) const;
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
