@@ -350,6 +350,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v38 fields
     rhythm_high_score_       = s.rhythm_high_score;
     apples_bobbed_           = s.apples_bobbed;
+    // v39 fields
+    painting_grid_           = s.painting_grid;
+    painting_cursor_         = s.painting_cursor;
+    paintings_completed_     = s.paintings_completed;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1339,6 +1343,35 @@ void Game::apply_input(Input in) {
       dirty_ = true;
       break;
     }
+    case Input::PaintCellCycle: {
+      // Round 6 Phase 6N: cycle the 4-color palette (0..3) at the
+      // current cursor cell. Completion = every cell non-zero.
+      uint8_t idx = painting_cursor_ % 16;
+      uint8_t shift = idx * 2;
+      uint8_t cur = (uint8_t)((painting_grid_ >> shift) & 0x3);
+      uint8_t next = (uint8_t)((cur + 1) % 4);
+      painting_grid_ = (painting_grid_ & ~((uint32_t)0x3u << shift)) |
+                       ((uint32_t)next << shift);
+      // Detect "every cell painted" (no zero pair across the 32 bits).
+      bool complete = true;
+      for (int i = 0; i < 16; ++i) {
+        if (((painting_grid_ >> (i * 2)) & 0x3) == 0) {
+          complete = false; break;
+        }
+      }
+      if (complete && paintings_completed_ < 255) {
+        paintings_completed_++;
+        painting_grid_ = 0;          // reset canvas for next picture
+        painting_cursor_ = 0;
+      }
+      dirty_ = true;
+      break;
+    }
+    case Input::PaintCursorNext: {
+      painting_cursor_ = (uint8_t)((painting_cursor_ + 1) % 16);
+      dirty_ = true;
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1910,6 +1943,11 @@ void Game::force_save(Storage& storage) {
   // v38 additions
   s.rhythm_high_score           = rhythm_high_score_;
   s.apples_bobbed               = apples_bobbed_;
+  // v39 additions
+  s.painting_grid               = painting_grid_;
+  s.painting_cursor             = painting_cursor_;
+  s.paintings_completed         = paintings_completed_;
+  s._pad39                      = 0;
 
   storage.save(s);
   dirty_ = false;

@@ -564,6 +564,15 @@ class Game {
   // into a compact alphanumeric path). Returns a static-buffer ptr.
   const char* share_url_path() const;
 
+  // Round 6 Phase 6N: painting mini-game (4x4 grid, 4 colors).
+  // Color values: 0 empty / 1 red / 2 blue / 3 yellow.
+  uint8_t  painting_cell_color(uint8_t idx) const {
+    if (idx >= 16) return 0;
+    return (uint8_t)((painting_grid_ >> (idx * 2)) & 0x3);
+  }
+  uint8_t  painting_cursor()       const { return painting_cursor_; }
+  uint8_t  paintings_completed()   const { return paintings_completed_; }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -1019,6 +1028,11 @@ class Game {
   // Transient rhythm-tap session counters (5 s window).
   uint32_t rhythm_started_ms_ = 0;
   uint16_t rhythm_count_      = 0;
+
+  // Round 6 Phase 6N: painting mini-game (persisted v39).
+  uint32_t painting_grid_       = 0;
+  uint8_t  painting_cursor_     = 0;
+  uint8_t  paintings_completed_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

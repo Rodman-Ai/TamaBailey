@@ -259,6 +259,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.rhythm_high_score = 0;
     s.apples_bobbed     = 0;
   }
+  if (s.version < 39) {
+    // v38 -> v39: empty canvas, cursor at 0, no completed paintings.
+    s.painting_grid         = 0;
+    s.painting_cursor       = 0;
+    s.paintings_completed   = 0;
+    s._pad39                = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

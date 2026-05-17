@@ -1574,6 +1574,12 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.apples_bobbed());
     r.drawText(x, y, buf, kOrange, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6N: paintings completed.
+  if (game.paintings_completed() > 0) {
+    std::snprintf(buf, sizeof(buf), "Paintings: %u",
+                  (unsigned)game.paintings_completed());
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());

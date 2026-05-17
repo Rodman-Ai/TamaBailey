@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 38;
+constexpr uint16_t kSaveVersion  = 39;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -225,6 +225,11 @@ struct SaveData {
   // ---- v38 additions (Round 6 Phase 6M: more rhythm games) ----
   uint16_t rhythm_high_score;              // best taps in 5 s rhythm-dance run
   uint16_t apples_bobbed;                  // lifetime apple-bobbing taps
+  // ---- v39 additions (Round 6 Phase 6N: painting mini-game) ----
+  uint32_t painting_grid;                  // 4x4 cells x 2 bits per cell -> 32 bits
+  uint8_t  painting_cursor;                // 0..15 cell index
+  uint8_t  paintings_completed;            // lifetime "paint all 16 cells" runs (saturates)
+  uint16_t _pad39;
 };
 #pragma pack(pop)
 

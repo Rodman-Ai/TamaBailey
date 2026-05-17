@@ -66,6 +66,9 @@ enum class Input : uint8_t {
   // Round 6 Phase 6M: 2 more rhythm-tap mini-games.
   RhythmTap              = 50,  // 4-button beat tap (always available)
   AppleBob               = 51,  // Halloween-only apple-bobbing tap
+  // Round 6 Phase 6N: painting / drawing mini-game.
+  PaintCellCycle         = 52,  // cycle color at the current cursor cell
+  PaintCursorNext        = 53,  // advance the painting cursor 0..15
 };
 
 }  // namespace tama
