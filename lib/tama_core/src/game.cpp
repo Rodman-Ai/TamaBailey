@@ -714,6 +714,13 @@ void Game::apply_input(Input in) {
       settings_._pad |= (uint8_t)(1u << next);
       if (settings_._pad == 0xFF)
         unlock_achievement(AchievementId::ScenicTour);
+      // Round 3: ambient sound cue per scene. Indoor scenes stay silent.
+      switch (next) {
+        case 1: case 2: case 6: play_clip(ClipId::Birds); break;  // outdoor
+        case 3: play_clip(ClipId::Waves); break;                  // beach
+        case 7: play_clip(ClipId::Wind);  break;                  // snow
+        default: break;                                            // indoor
+      }
       dirty_ = true;
       break;
     }

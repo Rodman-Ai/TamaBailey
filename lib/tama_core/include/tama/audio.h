@@ -15,7 +15,11 @@ enum class ClipId : uint8_t {
   Fanfare   = 7,  // evolution
   Achieve   = 8,  // achievement unlocked
   Sad       = 9,  // gone
-  COUNT     = 10,
+  // Round 3 ambient cues -- triggered on CycleScene to flavor the scene.
+  Birds     = 10, // outdoor scene chirp
+  Waves     = 11, // beach scene ripple
+  Wind      = 12, // snow scene gust
+  COUNT     = 13,
 };
 
 class Speaker {

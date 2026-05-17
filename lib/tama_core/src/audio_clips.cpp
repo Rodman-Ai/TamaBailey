@@ -186,6 +186,30 @@ void build_sad() {
   g_clips[(int)ClipId::Sad] = c;
 }
 
+// Outdoor chirp: two upward sine pips at bird-call pitch.
+void build_birds() {
+  Clip c = make(380);
+  add_sine(c, 2200.0f, 0.35f, 0,   90, 0.02f, 0.4f);
+  add_sine(c, 2600.0f, 0.30f, 110, 70, 0.02f, 0.4f);
+  add_sine(c, 1900.0f, 0.30f, 220, 90, 0.02f, 0.4f);
+  g_clips[(int)ClipId::Birds] = c;
+}
+
+// Beach wave: low whoosh built from noise + slow sine dip.
+void build_waves() {
+  Clip c = make(700);
+  add_noise(c, 0.18f, 0,   500, 0.15f, 0.5f);
+  add_sine (c, 180.0f, 0.25f, 50, 600,  0.1f, 0.6f);
+  g_clips[(int)ClipId::Waves] = c;
+}
+
+// Snow scene gust: filtered noise with a wide envelope.
+void build_wind() {
+  Clip c = make(800);
+  add_noise(c, 0.22f, 0, 800, 0.2f, 0.7f);
+  g_clips[(int)ClipId::Wind] = c;
+}
+
 }  // namespace
 
 void audio_init() {
@@ -201,6 +225,9 @@ void audio_init() {
   build_fanfare();
   build_achieve();
   build_sad();
+  build_birds();
+  build_waves();
+  build_wind();
 }
 
 const int16_t* pcm_clip(ClipId clip, int& num_samples) {
