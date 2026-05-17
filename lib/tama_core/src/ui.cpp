@@ -102,6 +102,20 @@ static const char* sleeping_for_weather(Weather w) {
   return nullptr;
 }
 
+// Round 4 Phase 3: thought-bubble phrase bank. Picked by day_index
+// and the current 30-second window so two consecutive ticks return
+// the same string.
+static const char* const kThoughts[8] = {
+  "thinking of bones...",
+  "remembering a friend",
+  "wondering about treats",
+  "watching a butterfly",
+  "listening for footsteps",
+  "dreaming of belly rubs",
+  "planning a zoomie",
+  "missing the park",
+};
+
 const char* mood_text_variant(const Game& game) {
   const Mood m = game.pet().mood;
   // MovingOut and Magic are special-cased in draw_footer; if we get
@@ -109,6 +123,22 @@ const char* mood_text_variant(const Game& game) {
   if (m == Mood::MovingOut) return "Bailey moved in with...";
   if (m == Mood::Magic)     return "Bailey is young again!";
   if (m == Mood::Gone)      return "How is Bailey today?";
+
+  // Round 4 Phase 3: birthday overrides every other mood line.
+  if (game.is_birthday()) return "Happy birthday, Bailey!";
+
+  // Round 4 Phase 3: random thought bubble for 3 s every 30 s in
+  // idle. Skipped when the urgent moods (Sad/Hungry/Dirty) are on
+  // so emergencies still surface.
+  if (game.pet().current_action == Action::None &&
+      m != Mood::Sad && m != Mood::Hungry && m != Mood::Dirty) {
+    uint32_t cycle = game.last_tick_ms() % 30000;
+    if (cycle < 3000) {
+      uint32_t idx = (game.today_day_index() + game.last_tick_ms() / 30000)
+                     % 8;
+      return kThoughts[idx];
+    }
+  }
 
   // Rotation index: minute-of-game-time + day-of-year. Without a
   // synced clock, today_day_index_ stays 0, but the minute term still
@@ -468,6 +498,13 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
       uint32_t cycle = now_ms % 10000;
       if (cycle < 1500) {
         draw_x += ((cycle / 80) & 1) ? -2 : 2;
+      }
+      // Round 4 Phase 3: wet-fur drip behind Bailey while he walks.
+      // 1-2 px blue dot drawn at the floor at his previous x position.
+      if (game.ambient_x_offset() != 0 && ((now_ms / 200) & 3) == 0) {
+        int drip_x = draw_x + (game.ambient_x_offset() > 0 ? -4 : kPetDrawW + 2);
+        int drip_y = kPetY + kPetDrawH - 4;
+        r.fillRect(drip_x, drip_y, 1, 2, kBlue);
       }
     }
     // Voice-trick "Come": slide Bailey 18 px toward the center over the
@@ -1210,6 +1247,22 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   if (game.stories_heard() > 0) {
     std::snprintf(buf, sizeof(buf), "Stories: %u", (unsigned)game.stories_heard());
     r.drawText(x, y, buf, kGrayLight, 1); y += kInfoStep;
+  }
+  // Round 4 Phase 3: tomorrow's weather forecast.
+  {
+    auto wname = [](Weather w) -> const char* {
+      switch (w) {
+        case Weather::Sunny:  return "SUNNY";
+        case Weather::Cloudy: return "CLOUDY";
+        case Weather::Rain:   return "RAIN";
+        case Weather::Snow:   return "SNOW";
+        case Weather::Fog:    return "FOG";
+        default:              return "?";
+      }
+    };
+    std::snprintf(buf, sizeof(buf), "Today: %s  Tmrw: %s",
+                  wname(game.weather()), wname(game.tomorrow_weather()));
+    r.drawText(x, y, buf, kSky, 1); y += kInfoStep;
   }
   y += 2;
 

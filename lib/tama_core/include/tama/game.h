@@ -248,7 +248,12 @@ class Game {
   uint8_t  hide_seek_last_outcome() const { return hide_seek_last_outcome_; }
   uint32_t hide_seek_last_ms()      const { return hide_seek_last_ms_; }
   bool     hide_seek_active() const {
-    return last_tick_ms_ - hide_seek_last_ms_ < 3000;
+    // Latent fix: also require an outcome to have actually been set,
+    // otherwise the 3-s window is "active" at game start (when
+    // last_tick_ms_ > 0 and hide_seek_last_ms_ is still 0) and the
+    // footer renders the default "Not there!" message spuriously.
+    return hide_seek_last_outcome_ != 0 &&
+           last_tick_ms_ - hide_seek_last_ms_ < 3000;
   }
 
   // Round 3 Phase 3F: Walk dig mini-game.
@@ -287,6 +292,8 @@ class Game {
   uint32_t  today_day_index() const { return today_day_index_; }
   uint8_t   current_hour()    const { return current_hour_; }
   bool      have_local_hour() const { return have_local_hour_; }
+  // Round 4 Phase 3: tomorrow's deterministic weather forecast.
+  Weather   tomorrow_weather() const;
 
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
@@ -557,6 +564,9 @@ class Game {
   uint32_t last_weather_change_ms_  = 0;
   uint32_t last_lightning_ms_       = 0;
   uint32_t last_snore_ms_           = 0;
+  // Once-per-Christmas auto-scene flag (transient): which day_index
+  // we last auto-switched to Snow Park.
+  uint32_t last_xmas_auto_scene_day_ = 0;
 };
 
 }  // namespace tama

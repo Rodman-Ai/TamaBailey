@@ -1447,6 +1447,19 @@ void Game::maybe_trigger_lightning(uint32_t now_ms) {
   }
 }
 
+Weather Game::tomorrow_weather() const {
+  // Same 32-bucket distribution as update_weather, but rolled for
+  // today_day_index_ + 1.
+  if (today_day_index_ == 0) return Weather::Sunny;
+  uint32_t r = (today_day_index_ + 1) * 2654435761u;
+  uint8_t roll = (uint8_t)(r % 32);
+  if      (roll < 14) return Weather::Sunny;
+  else if (roll < 20) return Weather::Cloudy;
+  else if (roll < 25) return Weather::Rain;
+  else if (roll < 29) return Weather::Snow;
+  else                return Weather::Fog;
+}
+
 void Game::maybe_trigger_snore(uint32_t now_ms) {
   // Round 4: periodic SnoreLoud clip while pet is Sleeping. Every 6 s.
   if (pet_.mood != Mood::Sleeping) return;
@@ -1656,6 +1669,17 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   if (halloween || christmas || stpatrick) {
     unlock_achievement(AchievementId::SeasonalGreetings);
     if (christmas) weather_ = (uint8_t)Weather::Snow;
+  }
+  // Round 4: on Christmas, auto-switch to Snow Park scene once per
+  // day. Player can CycleScene afterward and we won't undo their pick.
+  if (christmas) {
+    uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if (last_xmas_auto_scene_day_ != day) {
+      last_xmas_auto_scene_day_ = day;
+      settings_.scene_id = 7;
+      scene_id_          = 7;
+      dirty_             = true;
+    }
   }
 }
 
