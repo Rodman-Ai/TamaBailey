@@ -324,28 +324,62 @@ void Game::apply_input(Input in) {
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
-      // 12 rows; A executes, B moves cursor down. C falls through.
-      if (in == Input::Feed) {
-        static const Input kActions[12] = {
-          Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
-          Input::CycleToy, Input::Bedtime,
-          Input::VoiceSit, Input::VoiceCome, Input::VoiceHighFive,
-          Input::VoiceRollOver, Input::VoiceJump,
-          Input::PlayWithFriend,
-        };
-        Input chosen = kActions[actions_cursor_ % 12];
-        // Close the menu before dispatching so the action plays
-        // unobscured.
-        menu_open_ = false;
-        apply_input(chosen);
-        return;
-      }
-      if (in == Input::Play) {
-        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 12);
-        return;
+      // Main menu has 8 rows; tricks submenu has 6 rows (5 tricks +
+      // <Back). A executes / opens submenu / returns; B moves cursor.
+      // C falls through to cycle tabs.
+      if (actions_submenu_ == 0) {
+        // Index 6 is "Tricks >" -- opens the submenu instead of
+        // dispatching.
+        if (in == Input::Feed) {
+          if (actions_cursor_ == 6) {
+            actions_submenu_ = 1;
+            actions_cursor_  = 0;
+            return;
+          }
+          static const Input kMain[8] = {
+            Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
+            Input::CycleToy, Input::Bedtime,
+            Input::None,   // Tricks > (handled above)
+            Input::PlayWithFriend,
+          };
+          Input chosen = kMain[actions_cursor_ % 8];
+          if (chosen != Input::None) {
+            menu_open_ = false;
+            apply_input(chosen);
+          }
+          return;
+        }
+        if (in == Input::Play) {
+          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 8);
+          return;
+        }
+      } else {
+        // Tricks submenu: 5 tricks + <Back. <Back is index 5.
+        if (in == Input::Feed) {
+          if (actions_cursor_ == 5) {
+            actions_submenu_ = 0;
+            actions_cursor_  = 6;   // land on the Tricks row of main
+            return;
+          }
+          static const Input kTricks[5] = {
+            Input::VoiceSit, Input::VoiceCome, Input::VoiceHighFive,
+            Input::VoiceRollOver, Input::VoiceJump,
+          };
+          Input chosen = kTricks[actions_cursor_ % 5];
+          menu_open_       = false;
+          actions_submenu_ = 0;     // reset for next open
+          apply_input(chosen);
+          return;
+        }
+        if (in == Input::Play) {
+          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 6);
+          return;
+        }
       }
     }
     menu_tab_ = next_menu_tab(menu_tab_);
+    actions_submenu_ = 0;
+    actions_cursor_  = 0;
     return;
   }
 
@@ -543,13 +577,13 @@ void Game::apply_input(Input in) {
       if (menu_open_) menu_tab_ = next_menu_tab(menu_tab_);
       break;
     case Input::CycleScene: {
-      uint8_t next = (uint8_t)((settings_.scene_id + 1) % 3);
+      uint8_t next = (uint8_t)((settings_.scene_id + 1) % 8);
       settings_.scene_id = next;
       scene_id_ = next;
       // Track scenic-tour achievement via a side bitmask in settings._pad.
-      // (Cheap: reuse byte; bit 0 = visited #0, etc.)
+      // 8 scenes => 8-bit mask (full uint8_t).
       settings_._pad |= (uint8_t)(1u << next);
-      if ((settings_._pad & 0x07) == 0x07)
+      if (settings_._pad == 0xFF)
         unlock_achievement(AchievementId::ScenicTour);
       dirty_ = true;
       break;
@@ -655,7 +689,8 @@ void Game::apply_input(Input in) {
     }
     case Input::MenuCursorNext:
       if (menu_open_ && menu_tab_ == MenuTab::Actions) {
-        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 12);
+        int n = (actions_submenu_ == 1) ? 6 : 8;
+        actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % n);
       }
       break;
     case Input::PlayWithFriend:

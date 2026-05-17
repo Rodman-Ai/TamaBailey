@@ -37,7 +37,7 @@ float friend_size_scale(Friend f) {
     case Friend::Enzo:     return 1.00f;
     case Friend::Lincoln:  return 1.20f;
     case Friend::Ruben:    return 1.10f;
-    case Friend::Francie:  return 0.80f;
+    case Friend::Francie:  return 0.50f;
     case Friend::Bomi:     return 1.00f;
     case Friend::Noshy:    return 0.90f;
     default:               return 1.0f;

@@ -625,6 +625,129 @@ void draw_scene_detail(Renderer& r, uint8_t scene_id, float daylight) {
       r.fillRect(183, floor_y - 14, 4, 14, kBrownDark);
       break;
     }
+    case 3: {  // Beach: sand band, ocean, sun, palm tree
+      uint16_t sand   = mix(rgb(120, 90, 50), rgb(240, 215, 150), daylight);
+      uint16_t ocean  = mix(rgb(10, 30, 90),  rgb(70, 150, 220),  daylight);
+      uint16_t foam   = mix(rgb(200, 220, 230), kWhite,            daylight);
+      // Ocean horizon strip
+      r.fillRect(0, floor_y - 22, kScreenW, 10, ocean);
+      r.drawHLine(0, floor_y - 12, kScreenW, foam);
+      // Sand floor band
+      r.fillRect(0, floor_y - 2, kScreenW, kScreenH - floor_y - kStatusH + 2, sand);
+      // Sun
+      uint16_t sun = mix(rgb(245, 180, 80), kYellow, daylight);
+      r.fillRect(184, kStatsBarH + 10, 14, 14, sun);
+      // Palm tree (trunk + 4 fronds)
+      uint16_t trunk = mix(rgb(60, 35, 10), rgb(120, 75, 30), daylight);
+      uint16_t frond = mix(rgb(20, 90, 30), kGreen, daylight);
+      r.fillRect(28, floor_y - 36, 4, 36, trunk);
+      r.fillRect(16, floor_y - 38, 12, 3, frond);
+      r.fillRect(30, floor_y - 38, 14, 3, frond);
+      r.fillRect(20, floor_y - 42, 8, 3, frond);
+      r.fillRect(30, floor_y - 42, 10, 3, frond);
+      break;
+    }
+    case 4: {  // Bedroom: bed + pillow + nightstand + lamp
+      uint16_t floor = mix(rgb(80, 50, 30), rgb(170, 130, 90), daylight);
+      r.fillRect(0, floor_y - 2, kScreenW, kScreenH - floor_y - kStatusH + 2, floor);
+      // Bed (right side)
+      uint16_t blanket = mix(rgb(60, 30, 80), rgb(160, 110, 200), daylight);
+      uint16_t pillow  = mix(rgb(180, 180, 200), kWhite,           daylight);
+      r.fillRect(140, floor_y - 22, 92, 22, blanket);
+      r.fillRect(146, floor_y - 26, 24, 8, pillow);
+      // Bed frame
+      uint16_t frame = mix(rgb(40, 25, 10), rgb(120, 80, 40), daylight);
+      r.drawHLine(140, floor_y - 22, 92, frame);
+      r.drawVLine(140, floor_y - 22, 22, frame);
+      // Nightstand (left)
+      r.fillRect(12, floor_y - 16, 22, 16, frame);
+      // Lamp on nightstand
+      uint16_t lamp = mix(rgb(120, 100, 30), kYellow, daylight);
+      r.fillRect(20, floor_y - 26, 6, 10, lamp);
+      r.fillRect(17, floor_y - 30, 12, 4, lamp);
+      break;
+    }
+    case 5: {  // Kitchen: tile floor + fridge + food bag
+      // Checker tile floor
+      uint16_t tileA = mix(rgb(150, 150, 160), rgb(210, 210, 220), daylight);
+      uint16_t tileB = mix(rgb(120, 120, 130), rgb(180, 180, 190), daylight);
+      for (int y = floor_y - 2; y < kScreenH - kStatusH; y += 6) {
+        for (int x = 0; x < kScreenW; x += 16) {
+          r.fillRect(x,      y, 8, 6, tileA);
+          r.fillRect(x + 8,  y, 8, 6, tileB);
+        }
+      }
+      // Fridge (left)
+      uint16_t fridge = mix(rgb(170, 170, 180), kWhite, daylight);
+      uint16_t handle = mix(rgb(60, 60, 65), rgb(140, 140, 150), daylight);
+      r.fillRect(8, kStatsBarH + 8, 36, floor_y - kStatsBarH - 8, fridge);
+      r.drawRect(8, kStatsBarH + 8, 36, floor_y - kStatsBarH - 8, handle);
+      r.drawHLine(8, kStatsBarH + 38, 36, handle);
+      r.fillRect(38, kStatsBarH + 20, 3, 12, handle);
+      r.fillRect(38, kStatsBarH + 46, 3, 12, handle);
+      // Dog food bag (right)
+      uint16_t bag = mix(rgb(90, 60, 20), rgb(190, 130, 50), daylight);
+      r.fillRect(196, floor_y - 28, 28, 28, bag);
+      r.drawText(199, floor_y - 22, "BAILEY", kWhite, 1);
+      r.drawText(202, floor_y - 12, "FOOD",  kWhite, 1);
+      break;
+    }
+    case 6: {  // Forest: trees + ferns
+      uint16_t moss  = mix(rgb(20, 60, 30), rgb(60, 130, 60), daylight);
+      r.fillRect(0, floor_y - 2, kScreenW, kScreenH - floor_y - kStatusH + 2, moss);
+      uint16_t trunk = mix(rgb(40, 25, 10), rgb(100, 70, 35), daylight);
+      uint16_t leaf  = mix(rgb(10, 70, 20), rgb(50, 140, 50), daylight);
+      // Three trees of varying height
+      int trees_x[3]   = {10, 110, 200};
+      int trees_h[3]   = {62, 72, 56};
+      for (int i = 0; i < 3; ++i) {
+        int tx = trees_x[i];
+        int th = trees_h[i];
+        r.fillRect(tx, floor_y - th, 6, th, trunk);
+        // Canopy (overlapping ellipses)
+        r.fillRect(tx - 12, floor_y - th - 4, 30, 18, leaf);
+        r.fillRect(tx - 8,  floor_y - th - 12, 22, 14, leaf);
+      }
+      // Ferns at floor
+      for (int x = 16; x < kScreenW; x += 36) {
+        r.fillRect(x, floor_y - 6, 3, 6, leaf);
+        r.fillRect(x - 4, floor_y - 4, 3, 4, leaf);
+        r.fillRect(x + 4, floor_y - 4, 3, 4, leaf);
+      }
+      break;
+    }
+    case 7: {  // Snow park: snow + bare trees + snowman
+      uint16_t snow = mix(rgb(170, 180, 200), kWhite, daylight);
+      r.fillRect(0, floor_y - 2, kScreenW, kScreenH - floor_y - kStatusH + 2, snow);
+      uint16_t trunk = mix(rgb(30, 20, 15), rgb(80, 60, 40), daylight);
+      // Two bare trees
+      const int bare_x[2] = {30, 180};
+      for (int b = 0; b < 2; ++b) {
+        int tx = bare_x[b];
+        r.fillRect(tx, floor_y - 38, 4, 38, trunk);
+        // Branches
+        r.fillRect(tx - 8, floor_y - 30, 8, 2, trunk);
+        r.fillRect(tx + 4, floor_y - 26, 10, 2, trunk);
+        r.fillRect(tx - 6, floor_y - 22, 6, 2, trunk);
+        r.fillRect(tx + 4, floor_y - 18, 8, 2, trunk);
+      }
+      // Snowman: two stacked white circles + dot eyes + carrot nose
+      int sx = 120, sy = floor_y - 22;
+      r.fillRect(sx - 6, sy,      12, 10, kWhite);     // body
+      r.drawRect(sx - 6, sy,      12, 10, kGrayDark);
+      r.fillRect(sx - 4, sy - 8,   8,  8, kWhite);     // head
+      r.drawRect(sx - 4, sy - 8,   8,  8, kGrayDark);
+      r.drawPixel(sx - 2, sy - 6,  kBlack);
+      r.drawPixel(sx + 1, sy - 6,  kBlack);
+      r.fillRect(sx,     sy - 4,   2,  1, kOrange);
+      // Snowflakes drifting
+      for (int i = 0; i < 12; ++i) {
+        int fx = (i * 23) % kScreenW;
+        int fy = (kStatsBarH + 4) + (i * 11) % (floor_y - kStatsBarH - 10);
+        r.drawPixel(fx, fy, kWhite);
+      }
+      break;
+    }
     case 0:
     default: {  // Living room: couch + window
       uint16_t couch = mix(rgb(40, 60, 90), rgb(120, 160, 220), daylight);
@@ -932,25 +1055,32 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 }
 
 void draw_menu_actions(Renderer& r, const Game& game) {
-  static const char* const kRows[12] = {
+  static const char* const kMain[8] = {
     "Go for a walk", "Play fetch", "Give treat", "Brush",
-    "Switch toy", "Bedtime",
-    "Sit", "Come", "High five", "Roll over", "Jump",
+    "Switch toy", "Bedtime", "Tricks >",
     "Play with a friend",
   };
+  static const char* const kTricks[6] = {
+    "Sit", "Come", "High five", "Roll over", "Jump", "< Back",
+  };
+  bool tricks_view = (game.actions_submenu() == 1);
+  const char* const* rows = tricks_view ? kTricks : kMain;
+  int n_rows              = tricks_view ? 6 : 8;
+  const char* header      = tricks_view ? "TRICKS" : "ACTIONS";
+
   int x = 14;
   int y = 14 + kStatsBarH + 20;
-  r.drawText(x, y, "ACTIONS", kYellow, 1); y += 12;
-  uint8_t cur = game.actions_cursor() % 12;
-  int start = (cur > 4) ? (cur - 4) : 0;
-  if (start > 4) start = 4;   // clamp so we don't run past the end
+  r.drawText(x, y, header, kYellow, 1); y += 12;
+  uint8_t cur = game.actions_cursor() % n_rows;
+  int start  = (cur > 4) ? (cur - 4) : 0;
+  if (start > n_rows - 8) start = (n_rows > 8) ? (n_rows - 8) : 0;
   for (int i = 0; i < 8; ++i) {
     int idx = start + i;
-    if (idx >= 12) break;
+    if (idx >= n_rows) break;
     bool sel = (idx == cur);
     if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
     char buf[40];
-    std::snprintf(buf, sizeof(buf), "%c %s", sel ? '>' : ' ', kRows[idx]);
+    std::snprintf(buf, sizeof(buf), "%c %s", sel ? '>' : ' ', rows[idx]);
     r.drawText(x, y, buf, sel ? kYellow : kWhite, 1);
     y += 10;
   }

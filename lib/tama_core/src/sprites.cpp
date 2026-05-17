@@ -162,11 +162,18 @@ void draw_bailey(uint8_t* buf,
   const int body_ry = (int)(12 * size_scale);
   const int head_r  = (int)(11 * size_scale);
 
-  // Tail (curls behind right hip) -- body color with a white tip.
+  // Tail curls UP and over Bailey's back -- x grows fast at first then
+  // plateaus, y goes steadily up. This keeps the tip (including the
+  // last 3 white px) within the 48x48 buffer regardless of tail_length;
+  // straight diagonal paths used to run off-screen for the longer
+  // Adult/Senior tail and silently clipped the entire white tip.
   const int tail_len = (int)(tail_length * size_scale);
   for (int i = 0; i < tail_len; ++i) {
-    int tx = cx + body_rx - 4 + i;
-    int ty = cy - 2 - i / 2;
+    float t = (float)(i + 1) / (float)tail_len;
+    int dx = (int)(8.0f * t * (2.0f - t));    // 0..8, eases out
+    int dy = -(int)((float)tail_len * 0.85f * t);
+    int tx = cx + body_rx - 4 + dx;
+    int ty = cy - 2 + dy;
     uint8_t c = (i >= tail_len - 3) ? WH : body_color;
     pset(buf, W, H, tx,     ty, c);
     pset(buf, W, H, tx + 1, ty, c);
@@ -589,8 +596,8 @@ static BaileyConfig bailey_config_for_stage(int stage) {
   // stage: 0=Puppy, 1=Adult, 2=Senior, 3=legacy Gone
   switch (stage) {
     case 0:  return BaileyConfig{13,  0, 14};
-    case 1:  return BaileyConfig{ 9, -2, 18};
-    case 2:  return BaileyConfig{ 9, -2, 18};
+    case 1:  return BaileyConfig{ 6, -2, 18};
+    case 2:  return BaileyConfig{ 6, -2, 18};
     default: return BaileyConfig{13,  0, 14};
   }
 }
