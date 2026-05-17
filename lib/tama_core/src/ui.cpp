@@ -7,6 +7,7 @@
 #include "tama/achievements.h"
 #include "tama/colors.h"
 #include "tama/font_6x8.h"
+#include "tama/friends.h"
 #include "tama/game.h"
 #include "tama/sprites.h"
 
@@ -772,17 +773,31 @@ void draw_footer(Renderer& r, const Game& game) {
   r.drawHLine(0, y0, kScreenW, kGrayLight);
 
   // MovingOut footer renders as "Bailey moved in with the <Family>."
+  // Active visits override the mood text with "<Name> is visiting" /
+  // "<Name1> and <Name2> are visiting".
   char msg_buf[48];
   const char* msg;
+  uint8_t v0 = game.npc_visit_kind(0);
+  uint8_t v1 = game.npc_visit_kind(1);
   if (pet.mood == Mood::MovingOut) {
     int idx = game.move_out_family_idx() & 7;
     std::snprintf(msg_buf, sizeof(msg_buf), "Moved in w/ the %s", kFamilyNames[idx]);
     msg = msg_buf;
+  } else if (v0 != 0 && v1 != 0) {
+    std::snprintf(msg_buf, sizeof(msg_buf), "%s and %s are visiting",
+                  friend_name((Friend)(v0 - 1)),
+                  friend_name((Friend)(v1 - 1)));
+    msg = msg_buf;
+  } else if (v0 != 0) {
+    std::snprintf(msg_buf, sizeof(msg_buf), "%s is visiting",
+                  friend_name((Friend)(v0 - 1)));
+    msg = msg_buf;
   } else {
     msg = mood_text(pet.mood);
   }
-  // Use scale 1 for the MovingOut/Magic message so the longer string fits.
-  int scale = (pet.mood == Mood::MovingOut) ? 1 : 2;
+  // Custom-formatted strings (msg_buf) render at scale 1 to fit; the
+  // mood-text fast path keeps scale 2.
+  int scale = (msg == msg_buf) ? 1 : 2;
   int tw = text_width(msg, scale);
   int tx = (kScreenW - tw) / 2;
   r.drawText(tx, y0 + (scale == 2 ? 8 : 12), msg, kWhite, scale);

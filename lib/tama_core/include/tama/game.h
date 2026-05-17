@@ -53,8 +53,9 @@ constexpr uint64_t kSeniorLoopMs              = (uint64_t)96 * 3600 * 1000; // a
 constexpr uint32_t kTransitionMs              = 5000;
 
 // How long a friend visits when invited. Random ambient visits use this
-// same value (longer than the prior 4 s silhouette cameo).
-constexpr uint32_t kFriendVisitMs             = 12000;
+// same value. Tripled from 12 s so visits feel like an event, not a
+// drive-by.
+constexpr uint32_t kFriendVisitMs             = 36000;
 
 // Maximum number of friend dogs that can be visiting Bailey at once.
 constexpr int      kMaxVisitors               = 2;
@@ -287,6 +288,10 @@ class Game {
   void fulfill_wish_if_matches(Wish what);
   void roll_over_day_if_needed(uint64_t now_unix_ms);
   void perform_random_trick();
+  // xorshift32; seeded in init() and stepped per draw. Used for ambient
+  // friend-visit spawns where a previous hash-of-now scheme produced a
+  // visible bias (the same friend would keep showing up).
+  uint32_t rng_next();
   // Death-removal helpers
   void enter_transition(Mood m);   // sets mood + stamps transition_started_ms_
   void restart_pet(bool magic);    // resets pet, preserves achievements / biscuits / etc
@@ -384,6 +389,9 @@ class Game {
   uint8_t  queued_tail_      = 0;
 
   char     sync_code_buf_[16] = {0};
+
+  // xorshift32 state for ambient spawn rolls; seeded in init().
+  uint32_t rng_state_         = 0;
 };
 
 }  // namespace tama

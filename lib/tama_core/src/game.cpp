@@ -247,6 +247,22 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
 
   last_tick_ms_ = now_ms;
   last_save_ms_ = now_ms;
+
+  // Seed the ambient-spawn RNG. Mix now_ms through Knuth's multiplicative
+  // hash and the golden-ratio constant so two start-ups a few ms apart
+  // diverge quickly. Guarantee non-zero (xorshift32 sticks at 0).
+  rng_state_ = ((uint32_t)now_ms * 2654435761u) ^ 0x9E3779B9u;
+  if (rng_state_ == 0) rng_state_ = 0x9E3779B9u;
+}
+
+uint32_t Game::rng_next() {
+  uint32_t x = rng_state_;
+  if (x == 0) x = 0x9E3779B9u;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  rng_state_ = x;
+  return x;
 }
 
 void Game::apply_offline_catchup(uint64_t now_unix_ms) {
@@ -1320,19 +1336,27 @@ void Game::update_walk(uint32_t now_ms) {
     dirty_ = true;
   }
 
-  // Rare ambient visit: only spawns when slot 0 is free (we don't fire
-  // two random visitors at once). Player-invited visits can still fill
-  // slot 1.
+  // Rare ambient visit: spawns when slot 0 is free. ~50% of those
+  // spawns ALSO bring a different second friend (if slot 1 is free).
+  // Player-invited visits still fill slot 1 the same way as before.
   if (!in_transition() && mode_ == GameMode::Idle && npc_visit_kind_ == 0) {
-    uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
 #if BAILEY_FAST_DECAY
     constexpr uint32_t kInvProb = 60;        // very dense in fast mode
 #else
     constexpr uint32_t kInvProb = 3000;      // ~once / ~50 s at 60fps
 #endif
-    if ((r % kInvProb) == 0) {
-      npc_visit_kind_ = (uint8_t)(1 + ((r >> 8) % (int)Friend::COUNT));
+    if ((rng_next() % kInvProb) == 0) {
+      int friend_a = (int)(rng_next() % (int)Friend::COUNT);
+      npc_visit_kind_ = (uint8_t)(friend_a + 1);
       npc_visit_ms_   = now_ms;
+      // Half the time, bring a second different friend along, but only
+      // if slot 1 isn't already taken by a player-invite.
+      if (npc_visit_kind2_ == 0 && (rng_next() & 1u)) {
+        int friend_b = (int)(rng_next() % (uint32_t)((int)Friend::COUNT - 1));
+        if (friend_b >= friend_a) friend_b++;   // uniform over the other 7
+        npc_visit_kind2_ = (uint8_t)(friend_b + 1);
+        npc_visit_ms2_   = now_ms;
+      }
       dirty_ = true;
     }
   }
