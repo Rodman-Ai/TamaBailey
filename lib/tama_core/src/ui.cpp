@@ -1132,41 +1132,53 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   // NPC visitor: a small silhouette dog walks across the bottom of the
   // play area for 4 s.
-  if (game.npc_visit_kind() != 0) {
-    uint32_t elapsed = now_ms - game.npc_visit_ms();
-    if (elapsed < kFriendVisitMs) {
-      Friend f = (Friend)((game.npc_visit_kind() - 1) % (int)Friend::COUNT);
-      // Slide in from the left over the first 800 ms, settle, slide out
-      // over the last 800 ms.
-      int slide_x;
-      if (elapsed < 800)                       slide_x = -kPetDrawW + (int)(kPetDrawW * elapsed / 800);
-      else if (elapsed > kFriendVisitMs - 800) {
-        uint32_t left = kFriendVisitMs - elapsed;
-        slide_x = -(int)(kPetDrawW * (800 - left) / 800);
-      } else                                   slide_x = 0;
-      int fx = slide_x + 4;
-      int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
-      // Alternate idle frames so the friend looks alive.
-      PetPose fpose = ((now_ms / 350) & 1) ? PetPose::IdleB : PetPose::IdleA;
-      r.drawSprite(fx, fy, kPetW, kPetH,
-                   friend_sprite(f, fpose), kSpritePalette, kPetScale);
-      // Name label for the first 2 s.
-      if (elapsed < 2000) {
-        const char* name = friend_name(f);
-        int tw = text_width(name, 1);
-        r.fillRect(fx + (kPetDrawW - tw) / 2 - 2, fy - 12, tw + 4, 10, kBlack);
-        r.drawText(fx + (kPetDrawW - tw) / 2, fy - 11, name, kYellow, 1);
-      }
-      // Periodic heart between the two dogs.
-      if (((now_ms / 600) & 1) && elapsed > 500 && elapsed < kFriendVisitMs - 500) {
-        int hx = (fx + kPetDrawW + kPetX) / 2;
-        int hy = kPetY + 18 - (int)((now_ms / 30) % 24);
-        r.fillRect(hx,     hy,     3, 2, kHeartRed);
-        r.fillRect(hx - 1, hy + 1, 5, 2, kHeartRed);
-        r.fillRect(hx,     hy + 3, 3, 1, kHeartRed);
-      }
-      r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
+  bool any_visitor = false;
+  for (int slot = 0; slot < kMaxVisitors; ++slot) {
+    if (game.npc_visit_kind(slot) == 0) continue;
+    uint32_t elapsed = now_ms - game.npc_visit_ms(slot);
+    if (elapsed >= kFriendVisitMs) continue;
+    any_visitor = true;
+    Friend f = (Friend)((game.npc_visit_kind(slot) - 1) % (int)Friend::COUNT);
+    // Slot 0 slides in from the LEFT and parks at the left edge.
+    // Slot 1 slides in from the RIGHT and parks at the right edge.
+    int parked_x = (slot == 0) ? 4 : (kScreenW - kPetDrawW - 4);
+    int off_x    = (slot == 0) ? -kPetDrawW : kScreenW;
+    int fx;
+    if (elapsed < 800) {
+      float u = (float)elapsed / 800.0f;
+      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));   // ease-out
+    } else if (elapsed > kFriendVisitMs - 800) {
+      float u = (float)(kFriendVisitMs - elapsed) / 800.0f;
+      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));
+    } else {
+      fx = parked_x;
     }
+    int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
+    PetPose fpose = ((now_ms / 350 + slot) & 1) ? PetPose::IdleB : PetPose::IdleA;
+    r.drawSprite(fx, fy, kPetW, kPetH,
+                 friend_sprite(f, fpose), kSpritePalette, kPetScale);
+    // Per-slot name label for the first 2 s.
+    if (elapsed < 2000) {
+      const char* name = friend_name(f);
+      int tw = text_width(name, 1);
+      int lx = fx + (kPetDrawW - tw) / 2;
+      if (lx < 2) lx = 2;
+      if (lx + tw + 4 > kScreenW) lx = kScreenW - tw - 4;
+      r.fillRect(lx - 2, fy - 12, tw + 4, 10, kBlack);
+      r.drawText(lx, fy - 11, name, kYellow, 1);
+    }
+    // Heart between Bailey and the friend.
+    if (((now_ms / 600 + slot) & 1) && elapsed > 500 && elapsed < kFriendVisitMs - 500) {
+      int hx = (slot == 0) ? ((fx + kPetDrawW + kPetX) / 2)
+                           : ((fx + kPetX + kPetDrawW) / 2);
+      int hy = kPetY + 18 - (int)((now_ms / 30) % 24);
+      r.fillRect(hx,     hy,     3, 2, kHeartRed);
+      r.fillRect(hx - 1, hy + 1, 5, 2, kHeartRed);
+      r.fillRect(hx,     hy + 3, 3, 1, kHeartRed);
+    }
+  }
+  if (any_visitor) {
+    r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
   }
 
   draw_footer(r, game);

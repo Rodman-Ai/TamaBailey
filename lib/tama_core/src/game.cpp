@@ -227,7 +227,7 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     total_steps_               = s.total_steps;
     for (int i = 0; i < 7; ++i) mood_history_[i] = s.mood_history[i];
     mood_history_head_         = s.mood_history_head;
-    for (int i = 0; i < 4; ++i) friend_visits_[i] = s.friend_visits[i];
+    for (int i = 0; i < (int)Friend::COUNT; ++i) friend_visits_[i] = s.friend_visits[i];
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -293,15 +293,24 @@ void Game::apply_input(Input in) {
   // While the menu is open, short button presses cycle tabs instead of
   // performing actions on Bailey -- single mental model: button is a
   // selector, long-press is escape.
-  // NPC visitor: any action-class input greets the visitor (side-effect)
-  // and grants a small bonus. Doesn't replace the normal action.
-  if (npc_visit_kind_ != 0 &&
+  // NPC visitor: any action-class input greets the first visitor (slot 0).
+  // Grants a small bonus + clears slot 0. With two friends present, the
+  // second action greets the now-promoted-to-slot-0 visitor.
+  if ((npc_visit_kind_ != 0 || npc_visit_kind2_ != 0) &&
       (in == Input::Feed || in == Input::Play || in == Input::Clean ||
        in == Input::PetTap || in == Input::Walk || in == Input::Brush)) {
     pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 5);
     biscuits_ += 1;
-    npc_visit_kind_ = 0;
-    npc_visit_ms_ = 0;
+    if (npc_visit_kind_ != 0) {
+      // Promote slot 1 -> slot 0 (if present) so the next greet hits it.
+      npc_visit_kind_ = npc_visit_kind2_;
+      npc_visit_ms_   = npc_visit_ms2_;
+      npc_visit_kind2_ = 0;
+      npc_visit_ms2_   = 0;
+    } else {
+      npc_visit_kind2_ = 0;
+      npc_visit_ms2_   = 0;
+    }
     dirty_ = true;
     // Fall through so the actual action also runs.
   }
@@ -653,24 +662,54 @@ void Game::apply_input(Input in) {
     case Input::PlayWithFriendOllie:
     case Input::PlayWithFriendMitchell:
     case Input::PlayWithFriendEnzo:
-    case Input::PlayWithFriendLincoln: {
+    case Input::PlayWithFriendLincoln:
+    case Input::PlayWithFriendRuben: {
       Friend f;
       if (in == Input::PlayWithFriend) {
-        // Hash now -> pick one of the four friends.
+        // Hash now -> pick one of the five friends.
         uint32_t r = (uint32_t)last_tick_ms_ * 2654435761u;
         f = (Friend)((r >> 8) % (int)Friend::COUNT);
       } else {
         f = (Friend)((int)in - (int)Input::PlayWithFriendOllie);
       }
-      npc_visit_kind_ = (uint8_t)((int)f + 1);
-      npc_visit_ms_   = last_tick_ms_;
-      // Count the visit + unlock socialite achievements.
-      friend_visits_[(int)f]++;
-      unlock_achievement(AchievementId::PlayDate);
-      bool met_all = true;
-      for (int i = 0; i < (int)Friend::COUNT; ++i)
-        if (friend_visits_[i] == 0) { met_all = false; break; }
-      if (met_all) unlock_achievement(AchievementId::Socialite);
+      uint8_t want = (uint8_t)((int)f + 1);
+      // Slot allocation policy:
+      //   1. If friend already in a slot -> refresh that slot.
+      //   2. Else if an empty slot exists -> fill it.
+      //   3. Else (both filled) -> replace the OLDER slot.
+      bool refreshed = false;
+      if (npc_visit_kind_ == want) {
+        npc_visit_ms_   = last_tick_ms_;
+        refreshed = true;
+      } else if (npc_visit_kind2_ == want) {
+        npc_visit_ms2_  = last_tick_ms_;
+        refreshed = true;
+      }
+      if (!refreshed) {
+        if (npc_visit_kind_ == 0) {
+          npc_visit_kind_ = want;
+          npc_visit_ms_   = last_tick_ms_;
+        } else if (npc_visit_kind2_ == 0) {
+          npc_visit_kind2_ = want;
+          npc_visit_ms2_   = last_tick_ms_;
+        } else {
+          // Replace the older slot.
+          if (npc_visit_ms_ <= npc_visit_ms2_) {
+            npc_visit_kind_ = want;
+            npc_visit_ms_   = last_tick_ms_;
+          } else {
+            npc_visit_kind2_ = want;
+            npc_visit_ms2_   = last_tick_ms_;
+          }
+        }
+        // Only count + award on a fresh arrival, not a refresh.
+        friend_visits_[(int)f]++;
+        unlock_achievement(AchievementId::PlayDate);
+        bool met_all = true;
+        for (int i = 0; i < (int)Friend::COUNT; ++i)
+          if (friend_visits_[i] == 0) { met_all = false; break; }
+        if (met_all) unlock_achievement(AchievementId::Socialite);
+      }
       // Pet animation pulse + clip
       pet_.current_action    = Action::Pet;
       pet_.action_started_ms = last_tick_ms_;
@@ -1004,7 +1043,7 @@ void Game::force_save(Storage& storage) {
   s.total_steps             = total_steps_;
   for (int i = 0; i < 7; ++i) s.mood_history[i] = mood_history_[i];
   s.mood_history_head       = mood_history_head_;
-  for (int i = 0; i < 4; ++i) s.friend_visits[i] = friend_visits_[i];
+  for (int i = 0; i < (int)Friend::COUNT; ++i) s.friend_visits[i] = friend_visits_[i];
 
   storage.save(s);
   dirty_ = false;
@@ -1195,23 +1234,35 @@ void Game::update_wish(uint32_t now_ms) {
 }
 
 void Game::update_walk(uint32_t now_ms) {
-  // NPC visitor tick: rare random cameo with auto-leave after 4s.
-  if (!in_transition() && mode_ == GameMode::Idle) {
-    if (npc_visit_kind_ == 0) {
-      uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
+  // Per-slot auto-leave once a friend's visit timer expires. Independent
+  // from the random ambient spawn below.
+  if (npc_visit_kind_ != 0 && now_ms - npc_visit_ms_ > kFriendVisitMs) {
+    // Promote slot 1 -> slot 0 if present so slot order stays compact.
+    npc_visit_kind_  = npc_visit_kind2_;
+    npc_visit_ms_    = npc_visit_ms2_;
+    npc_visit_kind2_ = 0;
+    npc_visit_ms2_   = 0;
+    dirty_ = true;
+  }
+  if (npc_visit_kind2_ != 0 && now_ms - npc_visit_ms2_ > kFriendVisitMs) {
+    npc_visit_kind2_ = 0;
+    npc_visit_ms2_   = 0;
+    dirty_ = true;
+  }
+
+  // Rare ambient visit: only spawns when slot 0 is free (we don't fire
+  // two random visitors at once). Player-invited visits can still fill
+  // slot 1.
+  if (!in_transition() && mode_ == GameMode::Idle && npc_visit_kind_ == 0) {
+    uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
 #if BAILEY_FAST_DECAY
-      constexpr uint32_t kInvProb = 200;       // dense in fast mode
+    constexpr uint32_t kInvProb = 200;       // dense in fast mode
 #else
-      constexpr uint32_t kInvProb = 10000;     // ~once / 3 min at 60fps
+    constexpr uint32_t kInvProb = 10000;     // ~once / 3 min at 60fps
 #endif
-      if ((r % kInvProb) == 0) {
-        npc_visit_kind_ = (uint8_t)(1 + ((r >> 8) % 4));
-        npc_visit_ms_   = now_ms;
-        dirty_ = true;
-      }
-    } else if (now_ms - npc_visit_ms_ > kFriendVisitMs) {
-      npc_visit_kind_ = 0;
-      npc_visit_ms_   = 0;
+    if ((r % kInvProb) == 0) {
+      npc_visit_kind_ = (uint8_t)(1 + ((r >> 8) % (int)Friend::COUNT));
+      npc_visit_ms_   = now_ms;
       dirty_ = true;
     }
   }

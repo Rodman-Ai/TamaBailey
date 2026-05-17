@@ -8,6 +8,7 @@ const char* friend_name(Friend f) {
     case Friend::Mitchell: return "Mitchell";
     case Friend::Enzo:     return "Enzo";
     case Friend::Lincoln:  return "Lincoln";
+    case Friend::Ruben:    return "Ruben";
     default:               return "?";
   }
 }
@@ -18,6 +19,7 @@ const char* friend_breed(Friend f) {
     case Friend::Mitchell: return "Havanese";
     case Friend::Enzo:     return "rottweiler";
     case Friend::Lincoln:  return "golden retriever";
+    case Friend::Ruben:    return "Portuguese water dog";
     default:               return "?";
   }
 }
@@ -28,6 +30,7 @@ float friend_size_scale(Friend f) {
     case Friend::Mitchell: return 0.70f;
     case Friend::Enzo:     return 1.00f;
     case Friend::Lincoln:  return 1.20f;
+    case Friend::Ruben:    return 1.10f;
     default:               return 1.0f;
   }
 }

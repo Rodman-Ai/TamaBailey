@@ -56,6 +56,9 @@ constexpr uint32_t kTransitionMs              = 5000;
 // same value (longer than the prior 4 s silhouette cameo).
 constexpr uint32_t kFriendVisitMs             = 12000;
 
+// Maximum number of friend dogs that can be visiting Bailey at once.
+constexpr int      kMaxVisitors               = 2;
+
 constexpr uint32_t kEnergyCostPlay   = 10;
 constexpr uint32_t kActionEatBoost   = 30;
 constexpr uint32_t kActionPlayBoost  = 30;
@@ -198,8 +201,14 @@ class Game {
   int16_t   ambient_x_offset()      const { return ambient_x_offset_; }
   uint32_t  ambient_started_ms()    const { return ambient_started_ms_; }
   uint8_t   shop_cursor()    const { return shop_cursor_; }
-  uint8_t   npc_visit_kind() const { return npc_visit_kind_; }
-  uint32_t  npc_visit_ms()   const { return npc_visit_ms_; }
+  uint8_t   npc_visit_kind(int slot = 0) const {
+    if (slot < 0 || slot >= kMaxVisitors) return 0;
+    return slot == 0 ? npc_visit_kind_ : npc_visit_kind2_;
+  }
+  uint32_t  npc_visit_ms(int slot = 0) const {
+    if (slot < 0 || slot >= kMaxVisitors) return 0;
+    return slot == 0 ? npc_visit_ms_ : npc_visit_ms2_;
+  }
   // Active holiday: 0 none, 1 birthday, 2 halloween, 3 christmas
   uint8_t   active_holiday() const { return active_holiday_; }
   // Manually override the weather (e.g. from a wttr.in fetch on the web).
@@ -334,14 +343,16 @@ class Game {
   bool     is_birthday_today_         = false;
   uint32_t last_wish_check_day_       = 0;
   // Round 2 Phase 2 transient state
-  uint32_t npc_visit_ms_              = 0;  // when current NPC visit started
-  uint8_t  npc_visit_kind_            = 0;  // 1..4 = visitor sprite kind, 0 = none
+  uint32_t npc_visit_ms_              = 0;  // slot 0: when current NPC visit started
+  uint8_t  npc_visit_kind_            = 0;  // slot 0: 1..N = friend_id+1, 0 = none
+  uint32_t npc_visit_ms2_             = 0;  // slot 1
+  uint8_t  npc_visit_kind2_           = 0;  // slot 1
   uint8_t  shop_cursor_               = 0;
   uint8_t  active_holiday_            = 0;
   uint8_t  actions_cursor_            = 0;
   uint8_t  voice_trick_kind_          = 0;
   uint32_t voice_trick_started_ms_    = 0;
-  uint32_t friend_visits_[(int)Friend::COUNT] = {0,0,0,0};
+  uint32_t friend_visits_[(int)Friend::COUNT] = {0,0,0,0,0};
   // Round 2 Phase 3 transient state
   uint32_t today_day_index_           = 0;
   uint32_t today_happiness_sum_       = 0;

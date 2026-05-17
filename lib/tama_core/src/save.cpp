@@ -50,8 +50,12 @@ bool save_validate_and_migrate(SaveData& s) {
     std::memset(s._pad3, 0, sizeof(s._pad3));
   }
   if (s.version < 4) {
-    // v3 -> v4: zero friend_visits_[].
+    // v3 -> v4: zero the original four friend_visits_[] slots.
     for (int i = 0; i < 4; ++i) s.friend_visits[i] = 0;
+  }
+  if (s.version < 5) {
+    // v4 -> v5: zero the new Ruben slot.
+    s.friend_visits[4] = 0;
   }
   s.version = kSaveVersion;
   return true;

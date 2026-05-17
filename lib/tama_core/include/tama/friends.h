@@ -11,7 +11,8 @@ enum class Friend : uint8_t {
   Mitchell = 1,   // Havanese, smaller than Bailey
   Enzo     = 2,   // rottweiler, same size as Bailey
   Lincoln  = 3,   // golden retriever, bigger than Bailey
-  COUNT    = 4,
+  Ruben    = 4,   // Portuguese water dog, slightly bigger than Bailey
+  COUNT    = 5,
 };
 
 const char* friend_name(Friend f);

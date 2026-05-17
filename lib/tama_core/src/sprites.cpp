@@ -414,6 +414,19 @@ static void overlay_tan_points(uint8_t* buf, int /*w*/, int /*h*/) {
   for (int dx =  3; dx <=  5; ++dx) buf[hy * W + (cx - 8 + dx + 4)] = HL;
 }
 
+static void overlay_curly_coat(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Ruben: tight curls -- flip ~25% of body pixels to outline color in
+  // a high-frequency checker pattern, suggesting curly fur without
+  // collapsing the silhouette.
+  for (int y = 0; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+      uint8_t c = buf[y * W + x];
+      if (c != BD && c != HL && c != DG && c != GR) continue;
+      if ((((x * 5) ^ (y * 3)) & 3) == 0) buf[y * W + x] = OL;
+    }
+  }
+}
+
 static void overlay_long_fur(uint8_t* buf, int /*w*/, int /*h*/) {
   // Lincoln: add a soft fluff ring around the existing outline by
   // dropping a sparse OL halo just outside the silhouette.
@@ -441,6 +454,7 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
     case Friend::Mitchell: body = WH; hi = GR; break;   // little fluffy white
     case Friend::Enzo:     body = DG; hi = OL; break;   // near-black rott
     case Friend::Lincoln:  body = YL; hi = OR; break;   // golden tones
+    case Friend::Ruben:    body = DG; hi = GR; break;   // PWD: dark with mid-gray highlight
     default:               body = BD; hi = HL; break;
   }
 
@@ -466,6 +480,7 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
     case Friend::Ollie:    overlay_brindle(buf, W, H); break;
     case Friend::Enzo:     overlay_tan_points(buf, W, H); break;
     case Friend::Lincoln:  overlay_long_fur(buf, W, H); break;
+    case Friend::Ruben:    overlay_curly_coat(buf, W, H); break;
     case Friend::Mitchell: /* no overlay; the body color does the work */ break;
     default: break;
   }

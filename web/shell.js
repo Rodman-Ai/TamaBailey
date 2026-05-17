@@ -22,6 +22,7 @@
     PlayWithFriend: 27,
     PlayWithFriendOllie: 28, PlayWithFriendMitchell: 29,
     PlayWithFriendEnzo: 30, PlayWithFriendLincoln: 31,
+    PlayWithFriendRuben: 32,
   };
 
   // ---- Web Audio ----

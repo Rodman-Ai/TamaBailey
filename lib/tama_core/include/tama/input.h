@@ -41,6 +41,7 @@ enum class Input : uint8_t {
   PlayWithFriendMitchell = 29,
   PlayWithFriendEnzo     = 30,
   PlayWithFriendLincoln  = 31,
+  PlayWithFriendRuben    = 32,
 };
 
 }  // namespace tama
