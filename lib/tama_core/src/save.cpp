@@ -102,6 +102,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.bath_toy_active = 0;
     s._pad14[0] = s._pad14[1] = 0;
   }
+  if (s.version < 15) {
+    // v14 -> v15: no hide & seek wins yet.
+    s.hide_seek_wins = 0;
+    s._pad15         = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

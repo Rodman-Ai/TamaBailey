@@ -241,6 +241,14 @@ class Game {
   // Round 3 Phase 3H: Bath toys.
   uint8_t  bath_toys_owned() const  { return bath_toys_owned_; }
   uint8_t  bath_toy_active() const  { return bath_toy_active_; }
+  // Round 3 Phase 3L: Hide & Seek.
+  uint16_t hide_seek_wins() const   { return hide_seek_wins_; }
+  // Last hide-seek outcome (0 none / 1 win / 2 peek / 3 miss) + when.
+  uint8_t  hide_seek_last_outcome() const { return hide_seek_last_outcome_; }
+  uint32_t hide_seek_last_ms()      const { return hide_seek_last_ms_; }
+  bool     hide_seek_active() const {
+    return last_tick_ms_ - hide_seek_last_ms_ < 3000;
+  }
 
   // Round 3 Phase 3F: Walk dig mini-game.
   uint16_t  dig_successes()      const { return dig_successes_; }
@@ -510,6 +518,12 @@ class Game {
   // active selection (0..3).
   uint8_t  bath_toys_owned_         = 0;
   uint8_t  bath_toy_active_         = 0;
+
+  // Hide & Seek: persistent win count + transient last-outcome state
+  // (1=win/2=peek/3=miss) for the 3 s flash overlay in the footer.
+  uint16_t hide_seek_wins_          = 0;
+  uint8_t  hide_seek_last_outcome_  = 0;
+  uint32_t hide_seek_last_ms_       = 0;
 };
 
 }  // namespace tama

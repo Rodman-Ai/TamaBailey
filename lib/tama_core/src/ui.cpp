@@ -851,6 +851,12 @@ void draw_footer(Renderer& r, const Game& game) {
     std::snprintf(msg_buf, sizeof(msg_buf), "%s is visiting",
                   friend_name((Friend)(v0 - 1)));
     msg = msg_buf;
+  } else if (game.hide_seek_active()) {
+    const char* h = game.hide_seek_last_outcome() == 1 ? "Found Bailey!"
+                  : game.hide_seek_last_outcome() == 2 ? "Just a peek..."
+                  :                                        "Not there!";
+    std::snprintf(msg_buf, sizeof(msg_buf), "%s", h);
+    msg = msg_buf;
   } else if (game.bedtime_story_active()) {
     std::snprintf(msg_buf, sizeof(msg_buf), "%s", game.bedtime_story_text());
     msg = msg_buf;

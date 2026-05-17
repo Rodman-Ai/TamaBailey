@@ -39,9 +39,10 @@ enum class AchievementId : uint8_t {
   Goodnight         = 28,  // 10 bedtime stories told
   MasterDigger      = 29,  // 10 successful walk-digs
   Showstopper       = 30,  // mastered any single trick (perf >= 10)
+  HideAndSeekChamp  = 31,  // won 5 rounds of hide & seek
 };
 
-constexpr int kAchievementCount = 31;
+constexpr int kAchievementCount = 32;
 static_assert(kAchievementCount <= 32, "bitmask is 32 bits");
 
 const char* achievement_name(AchievementId id);

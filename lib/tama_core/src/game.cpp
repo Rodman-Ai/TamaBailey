@@ -246,6 +246,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v14 fields
     bath_toys_owned_         = s.bath_toys_owned;
     bath_toy_active_         = s.bath_toy_active;
+    // v15 fields
+    hide_seek_wins_          = s.hide_seek_wins;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -923,6 +925,32 @@ void Game::apply_input(Input in) {
       }
       break;
     }
+    case Input::HideSeek: {
+      // Quick "where's Bailey?" surprise. Pure-luck distribution:
+      // 50 % win (+20 happiness, +1 lifetime win),
+      // 25 % peek (+5 happiness consolation),
+      // 25 % miss (-5 happiness).
+      uint8_t roll = (uint8_t)(rng_next() & 0x3);
+      if (roll < 2) {
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 20);
+        hide_seek_wins_++;
+        hide_seek_last_outcome_ = 1;
+        if (hide_seek_wins_ >= 5)
+          unlock_achievement(AchievementId::HideAndSeekChamp);
+        play_clip(ClipId::Wuff);
+      } else if (roll == 2) {
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 5);
+        hide_seek_last_outcome_ = 2;
+        play_clip(ClipId::Heart);
+      } else {
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness - 5);
+        hide_seek_last_outcome_ = 3;
+        play_clip(ClipId::Whimper);
+      }
+      hide_seek_last_ms_ = last_tick_ms_;
+      dirty_ = true;
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1305,6 +1333,9 @@ void Game::force_save(Storage& storage) {
   s.bath_toys_owned         = bath_toys_owned_;
   s.bath_toy_active         = bath_toy_active_;
   s._pad14[0] = s._pad14[1] = 0;
+  // v15 additions
+  s.hide_seek_wins          = hide_seek_wins_;
+  s._pad15                  = 0;
 
   storage.save(s);
   dirty_ = false;
