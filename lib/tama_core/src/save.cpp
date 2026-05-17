@@ -120,6 +120,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.birthday_day   = 13;
     s._pad17[0] = s._pad17[1] = 0;
   }
+  if (s.version < 18) {
+    // v17 -> v18: zero new decor + sticker state.
+    s.stickers_unlocked = 0;
+    s.wall_poster       = 0;
+    s._pad18[0] = s._pad18[1] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

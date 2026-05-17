@@ -1047,7 +1047,7 @@ void draw_scene_detail(Renderer& r, uint8_t scene_id, float daylight) {
       r.fillRect(30, floor_y - 42, 10, 3, frond);
       break;
     }
-    case 4: {  // Bedroom: bed + pillow + nightstand + lamp
+    case 4: {  // Bedroom: bed + pillow + nightstand + lamp + dog house
       uint16_t floor = mix(rgb(80, 50, 30), rgb(170, 130, 90), daylight);
       r.fillRect(0, floor_y - 2, kScreenW, kScreenH - floor_y - kStatusH + 2, floor);
       // Bed (right side)
@@ -1065,6 +1065,21 @@ void draw_scene_detail(Renderer& r, uint8_t scene_id, float daylight) {
       uint16_t lamp = mix(rgb(120, 100, 30), kYellow, daylight);
       r.fillRect(20, floor_y - 26, 6, 10, lamp);
       r.fillRect(17, floor_y - 30, 12, 4, lamp);
+      // Round 5 Phase A2: small red dog house in the bottom-left.
+      // 28 px wide, 18 tall, with a triangular roof + dark doorway arch.
+      uint16_t house_body = mix(rgb(110, 30, 25), kRed,   daylight);
+      uint16_t house_roof = mix(rgb(70,  20, 18), rgb(170, 70, 55), daylight);
+      r.fillRect(46, floor_y - 18, 28, 18, house_body);
+      // Triangular roof (4 rows widening then narrowing)
+      for (int row = 0; row < 6; ++row) {
+        int w  = 24 - row * 2;
+        int xs = 46 + 2 + row;
+        r.fillRect(xs, floor_y - 24 + row, w, 1, house_roof);
+      }
+      // Doorway arch
+      r.fillRect(56, floor_y - 12, 8, 12, rgb(20, 10, 8));
+      r.drawPixel(55, floor_y - 11, rgb(20, 10, 8));
+      r.drawPixel(64, floor_y - 11, rgb(20, 10, 8));
       break;
     }
     case 5: {  // Kitchen: tile floor + fridge + food bag
@@ -1799,10 +1814,59 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   draw_background(r, daylight);
   draw_scene_detail(r, game.settings().scene_id, daylight);
 
+  // Round 5 Phase A2: bedroom wall poster (only in scene 4). One of 4
+  // designs cycled via game.cycle_wall_poster(). Drawn above the bed.
+  if (game.settings().scene_id == 4) {
+    int px = 150, py = kStatsBarH + 14;
+    int pw = 60, ph = 36;
+    r.fillRect(px, py, pw, ph, mix(rgb(180, 160, 220), kWhite, daylight));
+    r.drawRect(px - 1, py - 1, pw + 2, ph + 2, mix(rgb(60, 40, 20), kBrownDark, daylight));
+    switch (game.wall_poster()) {
+      case 0: {  // Pet portrait (yellow circle = stand-in for Bailey)
+        r.fillRect(px + 22, py + 6, 16, 14, kYellow);
+        r.fillRect(px + 26, py + 22, 8, 6, kYellow);
+        r.drawText(px + 14, py + ph - 9, "GOOD DOG", kBrownDark, 1);
+        break;
+      }
+      case 1: {  // Paw print
+        r.fillRect(px + 26, py + 10, 8, 10, mix(rgb(60, 40, 20), kBrownDark, daylight));
+        r.fillRect(px + 20, py +  6, 4, 4, mix(rgb(60, 40, 20), kBrownDark, daylight));
+        r.fillRect(px + 28, py +  4, 4, 4, mix(rgb(60, 40, 20), kBrownDark, daylight));
+        r.fillRect(px + 36, py +  6, 4, 4, mix(rgb(60, 40, 20), kBrownDark, daylight));
+        break;
+      }
+      case 2: {
+        r.drawText(px + 8, py + 12, "I LOVE", kRed, 1);
+        r.drawText(px + 14, py + 22, "DOGS", kRed, 2);
+        break;
+      }
+      case 3:
+      default: {
+        r.drawText(px + 8, py + 12, "ADVENTURE", kBlue, 1);
+        r.drawText(px + 14, py + 22, "AWAITS!", kBlue, 1);
+        break;
+      }
+    }
+  }
+
   r.fillRect(0, 0, kScreenW, kStatsBarH, kGrayDark);
   r.drawHLine(0, kStatsBarH, kScreenW, kGrayLight);
   draw_stats_bar(r, pet, game.clock_string());
   draw_achievement_showcase(r, game);
+  // Round 5 Phase A2: sticker badges on the right edge under the stats
+  // bar. Up to 5 unlocked stickers as 6x6 colored dots.
+  {
+    uint8_t mask = game.stickers_unlocked();
+    static const uint16_t kColors[5] = {kBrownDark, kYellow, kWhite, kRed, kOrange};
+    int sy = kStatsBarH + 4;
+    for (int i = 0; i < 5; ++i) {
+      if ((mask >> i) & 1) {
+        int sx = kScreenW - 10;
+        r.fillRect(sx, sy + i * 8, 6, 6, kColors[i]);
+        r.drawRect(sx, sy + i * 8, 6, 6, kGrayDark);
+      }
+    }
+  }
 
   // Draw any visiting friends FIRST so Bailey draws on top of them --
   // his silhouette (especially the left-side hind leg) stays whole even

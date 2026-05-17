@@ -268,6 +268,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
                         ? s.birthday_month : 1;
     birthday_day_   = (s.birthday_day >= 1 && s.birthday_day <= 31)
                         ? s.birthday_day : 13;
+    // v18 fields
+    stickers_unlocked_ = s.stickers_unlocked & 0x1F;   // 5 bits
+    wall_poster_       = s.wall_poster & 0x3;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -338,8 +341,17 @@ void Game::unlock_achievement(AchievementId id) {
     biscuits_ += 2;
     if (biscuits_ >= 50) {
       // Set the bit directly (avoid recursion through unlock_achievement).
-      uint32_t b = achievement_bit(AchievementId::BiscuitTycoon);
+      uint64_t b = achievement_bit(AchievementId::BiscuitTycoon);
       if (!(achievements_ & b)) achievements_ |= b;
+    }
+    // Round 5 Phase A2: map specific achievements to sticker unlocks.
+    switch (id) {
+      case AchievementId::Petted100:    stickers_unlocked_ |= 0x01; break; // paw
+      case AchievementId::Streak7Days:  stickers_unlocked_ |= 0x02; break; // star
+      case AchievementId::FetchPro:     stickers_unlocked_ |= 0x04; break; // bone
+      case AchievementId::Showstopper:  stickers_unlocked_ |= 0x08; break; // heart
+      case AchievementId::MasterDigger: stickers_unlocked_ |= 0x10; break; // fire
+      default: break;
     }
     dirty_ = true;
   }
@@ -1378,6 +1390,10 @@ void Game::force_save(Storage& storage) {
   s.birthday_month          = birthday_month_;
   s.birthday_day            = birthday_day_;
   s._pad17[0] = s._pad17[1] = 0;
+  // v18 additions
+  s.stickers_unlocked       = stickers_unlocked_;
+  s.wall_poster             = wall_poster_;
+  s._pad18[0] = s._pad18[1] = 0;
 
   storage.save(s);
   dirty_ = false;

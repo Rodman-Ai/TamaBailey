@@ -312,6 +312,13 @@ class Game {
   void        set_pet_name(const char* name);
   void        set_birthday(uint8_t month, uint8_t day);
 
+  // Round 5 Phase A2: collectible stickers + wallpaper poster.
+  // Stickers: bit0=paw / bit1=star / bit2=bone / bit3=heart / bit4=fire.
+  // Auto-unlocked when the matching achievement fires.
+  uint8_t     stickers_unlocked() const { return stickers_unlocked_; }
+  uint8_t     wall_poster()       const { return wall_poster_; }
+  void        cycle_wall_poster()       { wall_poster_ = (wall_poster_ + 1) % 4; dirty_ = true; }
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -593,6 +600,10 @@ class Game {
   char     pet_name_[12]    = {'B', 'a', 'i', 'l', 'e', 'y', 0};
   uint8_t  birthday_month_  = 1;
   uint8_t  birthday_day_    = 13;
+
+  // Round 5 Phase A2: decor + sticker collection (persisted v18).
+  uint8_t  stickers_unlocked_ = 0;
+  uint8_t  wall_poster_       = 0;
 };
 
 }  // namespace tama

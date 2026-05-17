@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 17;
+constexpr uint16_t kSaveVersion  = 18;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -123,11 +123,15 @@ struct SaveData {
   // upper word zero-init's.
   uint32_t achievements_hi;
   uint32_t _pad16;
-  // ---- v17 additions (Round 5 Phase A: personalization) ----
+  // ---- v17 additions (Round 5 Phase A1: personalization) ----
   char     pet_name[12];                   // null-terminated, default "Bailey"
   uint8_t  birthday_month;                 // 1..12, default 1
   uint8_t  birthday_day;                   // 1..31, default 13
   uint8_t  _pad17[2];
+  // ---- v18 additions (Round 5 Phase A2: decor + stickers) ----
+  uint8_t  stickers_unlocked;              // bitmap: paw / star / bone / heart / fire
+  uint8_t  wall_poster;                    // 0..3 cycled in scene 4
+  uint8_t  _pad18[2];
 };
 #pragma pack(pop)
 
