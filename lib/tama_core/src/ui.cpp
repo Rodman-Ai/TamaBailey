@@ -461,6 +461,15 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
         draw_x += ((elapsed / 60) & 1) ? -2 : 2;
       }
     }
+    // Round 4: rain shake-off -- 1.5 s wet-fur jiggle every ~10 s
+    // while idle in Rain weather.
+    if (pet.current_action == Action::None &&
+        game.weather() == Weather::Rain) {
+      uint32_t cycle = now_ms % 10000;
+      if (cycle < 1500) {
+        draw_x += ((cycle / 80) & 1) ? -2 : 2;
+      }
+    }
     // Voice-trick "Come": slide Bailey 18 px toward the center over the
     // first half of the action, then back.
     if (pet.current_action == Action::Pet && game.voice_trick_kind() == 2) {
@@ -509,10 +518,15 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
                    16, 16, heart_sprite(), kSpritePalette, kAccessoryScale);
       break;
     case Action::None:
-      if (pet.mood == Mood::Sleeping)
-        r.drawSprite(draw_x + kPetDrawW - 40, kPetY - 8,
-                     16, 16, zzz_sprite(), kSpritePalette, kAccessoryScale);
-      else if (pet.mood == Mood::Dirty)
+      if (pet.mood == Mood::Sleeping) {
+        // Round 4: snore intensity -- the Z's pulse small/med/large
+        // on a slow 600ms cycle, drifting up slightly too.
+        int  zz_phase = (now_ms / 600) % 3;
+        int  zz_scale = kAccessoryScale + (zz_phase == 2 ? 1 : 0);
+        int  zz_dy    = (zz_phase == 0) ? 0 : (zz_phase == 1) ? -2 : -4;
+        r.drawSprite(draw_x + kPetDrawW - 40, kPetY - 8 + zz_dy,
+                     16, 16, zzz_sprite(), kSpritePalette, zz_scale);
+      } else if (pet.mood == Mood::Dirty)
         r.drawSprite(draw_x + kPetDrawW - 36, kPetY + kPetDrawH - 36,
                      16, 16, poop_sprite(), kSpritePalette, kAccessoryScale);
       break;
@@ -1730,6 +1744,62 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
   if (game.is_birthday()) draw_confetti(r, now_ms);
+
+  // Round 4 Phase 2B: weather/mood overlays painted ON TOP of Bailey
+  // and any visitor labels.
+  {
+    int head_x = kPetX + kPetDrawW / 2;
+    int head_y = kPetY - 6;
+    Weather w = game.weather();
+
+    // Pet umbrella during Rain (always visible when Rain active).
+    if (w == Weather::Rain) {
+      // Yellow dome (semicircle) + small pole.
+      for (int dx = -10; dx <= 10; ++dx) {
+        int h = (int)(8.0f * (1.0f - (dx * dx) / 100.0f));
+        for (int dy = 0; dy < h; ++dy)
+          r.drawPixel(head_x + dx, head_y - dy - 2, kYellow);
+      }
+      // Rim outline.
+      r.drawHLine(head_x - 10, head_y - 1, 21, kOrange);
+      // Pole.
+      for (int dy = 0; dy < 5; ++dy)
+        r.drawPixel(head_x, head_y + dy, kBrownDark);
+    }
+
+    // Snowflake on the nose every ~10 s for 1 s during Snow.
+    if (w == Weather::Snow) {
+      uint32_t phase = (now_ms / 1000) % 10;
+      if (phase == 0) {
+        int nx = kPetX + kPetDrawW / 2 - 8;     // a little left of center for Bailey's snout
+        int ny = kPetY + kPetDrawH / 2 - 4;
+        r.fillRect(nx, ny, 2, 2, kWhite);
+        r.drawPixel(nx - 1, ny, kSkyDeep);
+        r.drawPixel(nx + 2, ny + 1, kSkyDeep);
+      }
+    }
+
+    // Mood emoji bubble: every 5 s, hover above the head for 1 s.
+    if (pet.current_action == Action::None &&
+        ((now_ms / 1000) % 5) == 0) {
+      uint16_t col = kWhite;
+      const char* glyph = "";
+      switch (pet.mood) {
+        case Mood::Happy:    col = kHeartRed; glyph = "*"; break;  // heart proxy
+        case Mood::Sleeping: col = kGrayLight; glyph = "Z"; break;
+        case Mood::Hungry:   col = kOrange; glyph = "!"; break;
+        case Mood::Dirty:    col = kBrownDark; glyph = "~"; break;
+        case Mood::Sad:      col = kBlue; glyph = "."; break;
+        default: break;
+      }
+      if (glyph[0]) {
+        // Small bubble background.
+        r.fillRect(head_x + 6, head_y - 12, 10, 9, kWhite);
+        r.drawRect(head_x + 6, head_y - 12, 10, 9, kGrayDark);
+        r.drawText(head_x + 9, head_y - 10, glyph, col, 1);
+      }
+    }
+  }
 
   // Holiday-specific decor: Halloween pumpkin, Christmas wreath / lights.
   if (game.active_holiday() == 2) {

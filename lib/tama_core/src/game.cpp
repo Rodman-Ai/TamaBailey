@@ -1218,6 +1218,7 @@ void Game::tick(uint32_t now_ms) {
   update_vocab();
   update_ambient(now_ms);
   maybe_trigger_lightning(now_ms);
+  maybe_trigger_snore(now_ms);
 
   // Streak check + weather roll + birthday/bedtime whenever we have a
   // synced clock.
@@ -1444,6 +1445,14 @@ void Game::maybe_trigger_lightning(uint32_t now_ms) {
     last_lightning_ms_ = now_ms;
     play_clip(ClipId::Thunder);
   }
+}
+
+void Game::maybe_trigger_snore(uint32_t now_ms) {
+  // Round 4: periodic SnoreLoud clip while pet is Sleeping. Every 6 s.
+  if (pet_.mood != Mood::Sleeping) return;
+  if (now_ms - last_snore_ms_ < 6000) return;
+  last_snore_ms_ = now_ms;
+  play_clip(ClipId::SnoreLoud);
 }
 
 void Game::update_sickness(uint32_t dt_ms) {

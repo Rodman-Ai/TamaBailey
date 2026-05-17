@@ -319,6 +319,9 @@ class Game {
   // Returns true if a lightning bolt fires THIS tick (renderer paints
   // the flash; the audio cue is fired here).
   void      maybe_trigger_lightning(uint32_t now_ms);
+  // Round 4: periodic snore audio cue while pet is Sleeping (every 6 s).
+  void      maybe_trigger_snore(uint32_t now_ms);
+  uint32_t  last_snore_ms() const { return last_snore_ms_; }
 
   // Equip accessory (no-op if id not unlocked). 0 = unequip.
   void equip_accessory(uint8_t id);
@@ -553,6 +556,7 @@ class Game {
   uint8_t  prev_weather_            = 0;
   uint32_t last_weather_change_ms_  = 0;
   uint32_t last_lightning_ms_       = 0;
+  uint32_t last_snore_ms_           = 0;
 };
 
 }  // namespace tama
