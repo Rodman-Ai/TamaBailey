@@ -347,6 +347,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     snowball_hits_           = s.snowball_hits;
     petals_caught_           = s.petals_caught;
     grooming_score_          = s.grooming_score;
+    // v38 fields
+    rhythm_high_score_       = s.rhythm_high_score;
+    apples_bobbed_           = s.apples_bobbed;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1311,6 +1314,31 @@ void Game::apply_input(Input in) {
       dirty_ = true;
       break;
     }
+    case Input::RhythmTap: {
+      // Round 6 Phase 6M: 4-button rhythm dance -- always available.
+      // 5 s session; high score banks on every tap.
+      if (rhythm_started_ms_ == 0 ||
+          last_tick_ms_ - rhythm_started_ms_ >= 5000) {
+        rhythm_started_ms_ = last_tick_ms_;
+        rhythm_count_      = 0;
+      }
+      rhythm_count_++;
+      if (rhythm_count_ > rhythm_high_score_)
+        rhythm_high_score_ = rhythm_count_;
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
+      pet_.current_action = Action::Play;
+      pet_.action_started_ms = last_tick_ms_;
+      dirty_ = true;
+      break;
+    }
+    case Input::AppleBob: {
+      // Round 6 Phase 6M: Apple-bobbing -- Halloween-only tap.
+      if (active_holiday_ != 2) break;
+      if (apples_bobbed_ < 0xFFFF) apples_bobbed_++;
+      pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + 1);
+      dirty_ = true;
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1879,6 +1907,9 @@ void Game::force_save(Storage& storage) {
   s.petals_caught               = petals_caught_;
   s.grooming_score              = grooming_score_;
   s._pad37                      = 0;
+  // v38 additions
+  s.rhythm_high_score           = rhythm_high_score_;
+  s.apples_bobbed               = apples_bobbed_;
 
   storage.save(s);
   dirty_ = false;
@@ -3272,6 +3303,34 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6M: cross-platform share URL path. Encodes a 7-byte
+// payload (stage|coat<<4, accessory, personality|trait<<4, weather,
+// horoscope_id, sickness, hash low byte) as 12 alphanumeric chars.
+// Suitable as the URL fragment of a share link.
+const char* Game::share_url_path() const {
+  static const char kAlphabet[33] = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";  // 32 chars + NUL
+  static char buf[16];
+  uint8_t payload[7];
+  payload[0] = (uint8_t)((uint8_t)pet_.stage | (coat_pattern_ << 4));
+  payload[1] = accessory_id_;
+  payload[2] = (uint8_t)(personality_trait_ | (inherited_trait_ << 4));
+  payload[3] = weather_;
+  payload[4] = horoscope_id();
+  payload[5] = sickness_;
+  payload[6] = (uint8_t)(best_friend_hash_ & 0xFFu);
+  // Pack into base32: 7 bytes = 56 bits -> 12 chars (60 bits, last
+  // 4 padded with zero).
+  uint64_t bits = 0;
+  for (int i = 0; i < 7; ++i) bits = (bits << 8) | payload[i];
+  bits <<= 4;  // align to 60 bits
+  for (int i = 11; i >= 0; --i) {
+    buf[i] = kAlphabet[bits & 0x1F];
+    bits >>= 5;
+  }
+  buf[12] = '\0';
+  return buf;
 }
 
 // Round 6 Phase 6K: convenience setter for the wallpaper cycler.

@@ -1567,6 +1567,13 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.grooming_score());
     r.drawText(x, y, buf, kSky, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6M: rhythm + apple bobbing lifetime scores.
+  if (game.rhythm_high_score() > 0 || game.apples_bobbed() > 0) {
+    std::snprintf(buf, sizeof(buf), "Rhythm:%u Apples:%u",
+                  (unsigned)game.rhythm_high_score(),
+                  (unsigned)game.apples_bobbed());
+    r.drawText(x, y, buf, kOrange, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());

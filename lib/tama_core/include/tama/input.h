@@ -63,6 +63,9 @@ enum class Input : uint8_t {
   SnowballThrow          = 47,  // winter-scene snowball-fight tap
   PetalCatch             = 48,  // cherry-blossom-day petal catch tap
   GroomBrush             = 49,  // detailed grooming rhythm tap
+  // Round 6 Phase 6M: 2 more rhythm-tap mini-games.
+  RhythmTap              = 50,  // 4-button beat tap (always available)
+  AppleBob               = 51,  // Halloween-only apple-bobbing tap
 };
 
 }  // namespace tama

@@ -556,6 +556,14 @@ class Game {
   uint16_t petals_caught()   const { return petals_caught_; }
   uint16_t grooming_score()  const { return grooming_score_; }
 
+  // Round 6 Phase 6M: rhythm dance + apple bobbing.
+  uint16_t rhythm_high_score() const { return rhythm_high_score_; }
+  uint16_t rhythm_count()      const { return rhythm_count_; }
+  uint16_t apples_bobbed()     const { return apples_bobbed_; }
+  // Round 6 Phase 6M: cross-platform share URL (encodes core state
+  // into a compact alphanumeric path). Returns a static-buffer ptr.
+  const char* share_url_path() const;
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -1004,6 +1012,13 @@ class Game {
   uint16_t snowball_hits_  = 0;
   uint16_t petals_caught_  = 0;
   uint16_t grooming_score_ = 0;
+
+  // Round 6 Phase 6M: rhythm dance + apple bobbing (persisted v38).
+  uint16_t rhythm_high_score_ = 0;
+  uint16_t apples_bobbed_     = 0;
+  // Transient rhythm-tap session counters (5 s window).
+  uint32_t rhythm_started_ms_ = 0;
+  uint16_t rhythm_count_      = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

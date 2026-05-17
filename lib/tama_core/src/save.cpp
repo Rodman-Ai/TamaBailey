@@ -254,6 +254,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.grooming_score  = 0;
     s._pad37          = 0;
   }
+  if (s.version < 38) {
+    // v37 -> v38: zero the 2 new mini-game lifetime counters.
+    s.rhythm_high_score = 0;
+    s.apples_bobbed     = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
