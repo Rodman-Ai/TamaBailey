@@ -60,17 +60,38 @@ void EspTouch::poll(uint32_t now_ms, tama::Game& game) {
     last_x_ = x;
     last_y_ = y;
   } else if (!touching && was_touching_) {
-    // Touch UP -- decide if this was a tap.
-    uint32_t dt = now_ms - touch_start_ms_;
+    // Touch UP -- check for chrome-swipe first, then fall back to tap.
     int dx = last_x_ - touch_start_x_;
     int dy = last_y_ - touch_start_y_;
-    int dist2 = dx * dx + dy * dy;
-    if (dt <= kTapMaxMs && dist2 <= kTapMaxMovePx * kTapMaxMovePx) {
-      // Tap. Stats-bar takes priority (it covers some pet area at the top).
-      if (tama::point_on_stats_bar(last_x_, last_y_)) {
-        game.enqueue(tama::Input::MenuToggle);
-      } else if (tama::point_on_pet(last_x_, last_y_)) {
-        game.enqueue(tama::Input::PetTap);
+    int adx = dx < 0 ? -dx : dx;
+    int ady = dy < 0 ? -dy : dy;
+    constexpr int kSwipeMinPx  = 40;
+    constexpr int kTopBandPx   = 60;        // upper trigger band
+    constexpr int kBotBandPx   = 180;       // lower trigger band (y >= ...)
+    bool consumed = false;
+    if (ady >= kSwipeMinPx && ady > adx) {
+      bool top_band    = touch_start_y_ <  kTopBandPx;
+      bool bottom_band = touch_start_y_ >= kBotBandPx;
+      if (top_band && dy < 0) {
+        game.enqueue(tama::Input::HideChrome); consumed = true;
+      } else if (top_band && dy > 0) {
+        game.enqueue(tama::Input::ShowChrome); consumed = true;
+      } else if (bottom_band && dy > 0) {
+        game.enqueue(tama::Input::HideChrome); consumed = true;
+      } else if (bottom_band && dy < 0) {
+        game.enqueue(tama::Input::ShowChrome); consumed = true;
+      }
+    }
+    if (!consumed) {
+      uint32_t dt = now_ms - touch_start_ms_;
+      int dist2 = dx * dx + dy * dy;
+      if (dt <= kTapMaxMs && dist2 <= kTapMaxMovePx * kTapMaxMovePx) {
+        // Tap. Stats-bar takes priority (it covers some pet area at the top).
+        if (tama::point_on_stats_bar(last_x_, last_y_)) {
+          game.enqueue(tama::Input::MenuToggle);
+        } else if (tama::point_on_pet(last_x_, last_y_)) {
+          game.enqueue(tama::Input::PetTap);
+        }
       }
     }
   } else if (touching && was_touching_) {

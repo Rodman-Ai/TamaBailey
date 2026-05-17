@@ -25,6 +25,7 @@
     PlayWithFriendRuben: 32,
     PlayWithFriendFrancie: 33, PlayWithFriendBomi: 34, PlayWithFriendNoshy: 35,
     ImuShake: 36,
+    HideChrome: 54, ShowChrome: 55,
   };
 
   // ---- Web Audio ----
@@ -209,6 +210,11 @@
 
   // ---- Canvas touch / drag ----
   let dragging = false;
+  let swipeStartX = 0, swipeStartY = 0;
+  let tapFiredOnDown = false;
+  const kSwipeMinPx = 40;
+  const kTopBandPx  = 60;
+  const kBotBandPx  = 180;
   function nativePos(ev) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -219,8 +225,17 @@
   canvas.addEventListener('pointerdown', ev => {
     ensureAudio();
     const p = nativePos(ev);
-    if (p.y < 32)  { send(INPUT.MenuToggle); return; }
-    send(INPUT.PetTap);
+    swipeStartX = p.x;
+    swipeStartY = p.y;
+    tapFiredOnDown = false;
+    // Defer the tap/menu-toggle dispatch into the band that we won't
+    // confuse with a swipe trigger. The chrome bands (y<60 and y>=180)
+    // need to wait until pointerup so we can tell tap from swipe.
+    if (p.y >= kTopBandPx && p.y < kBotBandPx) {
+      // Outside swipe bands: fire the tap immediately as before.
+      send(INPUT.PetTap);
+      tapFiredOnDown = true;
+    }
     dragging = true;
     canvas.setPointerCapture(ev.pointerId);
   });
@@ -231,6 +246,22 @@
   canvas.addEventListener('pointerup', ev => {
     dragging = false;
     try { canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
+    const p = nativePos(ev);
+    const dx = p.x - swipeStartX, dy = p.y - swipeStartY;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    if (ady >= kSwipeMinPx && ady > adx) {
+      const top    = swipeStartY <  kTopBandPx;
+      const bottom = swipeStartY >= kBotBandPx;
+      if      (top    && dy < 0) { send(INPUT.HideChrome); return; }
+      else if (top    && dy > 0) { send(INPUT.ShowChrome); return; }
+      else if (bottom && dy > 0) { send(INPUT.HideChrome); return; }
+      else if (bottom && dy < 0) { send(INPUT.ShowChrome); return; }
+    }
+    // Not a swipe -- if we deferred the tap on down, dispatch now.
+    if (!tapFiredOnDown) {
+      if (swipeStartY < 32) send(INPUT.MenuToggle);
+      else                  send(INPUT.PetTap);
+    }
   });
 
   // ---- Real-world weather sync (best-effort via wttr.in, no key) ----

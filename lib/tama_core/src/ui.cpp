@@ -297,12 +297,13 @@ void draw_stat_bar(Renderer& r, int x, int y, int w, int h,
   r.drawText(x, y - 10, label, kGrayLight, 1);
 }
 
-void draw_stats_bar(Renderer& r, const Pet& pet, const char* clock_str) {
+void draw_stats_bar(Renderer& r, const Pet& pet, const char* clock_str,
+                    int y_off = 0) {
   const int margin = 6;
   const int bar_h  = 6;
   const int bar_w  = (kScreenW - margin * 5) / 4;
   int x = margin;
-  int y = 18;
+  int y = 18 + y_off;
   struct B { const char* label; uint8_t value; uint16_t color; };
   B bars[4] = {
     {"FOOD",  pet.stats.hunger,      kOrange},
@@ -316,20 +317,20 @@ void draw_stats_bar(Renderer& r, const Pet& pet, const char* clock_str) {
   }
   if (clock_str && clock_str[0]) {
     int tw = text_width(clock_str, 1);
-    r.drawText(kScreenW - tw - 2, 2, clock_str, kGrayLight, 1);
+    r.drawText(kScreenW - tw - 2, 2 + y_off, clock_str, kGrayLight, 1);
   }
 }
 
 // Round 3 Phase 3A: 3 mini-badges for the most-recently unlocked
 // achievements, painted in the top-left corner of the stats bar.
 // Rendered after draw_stats_bar so the badges sit on top of nothing.
-void draw_achievement_showcase(Renderer& r, const Game& game) {
+void draw_achievement_showcase(Renderer& r, const Game& game, int y_off = 0) {
   for (int i = 0; i < 3; ++i) {
     int id = game.latest_achievement(i);
     if (id < 0) break;
     int bx = 2 + i * 8;
-    r.fillRect(bx, 2, 6, 6, kYellow);
-    r.drawRect(bx, 2, 6, 6, kGrayDark);
+    r.fillRect(bx, 2 + y_off, 6, 6, kYellow);
+    r.drawRect(bx, 2 + y_off, 6, 6, kGrayDark);
   }
 }
 
@@ -1249,9 +1250,9 @@ void draw_scene_detail(Renderer& r, uint8_t scene_id, float daylight) {
   }
 }
 
-void draw_footer(Renderer& r, const Game& game) {
+void draw_footer(Renderer& r, const Game& game, int y_off = 0) {
   const Pet& pet = game.pet();
-  int y0 = kScreenH - kStatusH;
+  int y0 = kScreenH - kStatusH + y_off;
   r.fillRect(0, y0, kScreenW, kStatusH, kGrayDark);
   r.drawHLine(0, y0, kScreenW, kGrayLight);
 
@@ -2279,10 +2280,15 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     }
   }
 
-  r.fillRect(0, 0, kScreenW, kStatsBarH, kGrayDark);
-  r.drawHLine(0, kStatsBarH, kScreenW, kGrayLight);
-  draw_stats_bar(r, pet, game.clock_string());
-  draw_achievement_showcase(r, game);
+  // Top-bar slide: y_off is 0 fully on-screen, -kStatsBarH fully off-screen.
+  int chrome_pct = game.chrome_slide_pct();
+  int top_y_off  = -(kStatsBarH * (256 - chrome_pct)) / 256;
+  if (chrome_pct > 0) {
+    r.fillRect(0, top_y_off, kScreenW, kStatsBarH, kGrayDark);
+    r.drawHLine(0, kStatsBarH + top_y_off, kScreenW, kGrayLight);
+    draw_stats_bar(r, pet, game.clock_string(), top_y_off);
+  }
+  draw_achievement_showcase(r, game, top_y_off);
   // Round 5 Phase A2: sticker badges on the right edge under the stats
   // bar. Up to 5 unlocked stickers as 6x6 colored dots.
   {
@@ -2585,7 +2591,11 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     }
   }
 
-  draw_footer(r, game);
+  // Bottom-footer slide: y_off is 0 fully on-screen, +kStatusH fully off-screen.
+  if (chrome_pct > 0) {
+    int bot_y_off = (kStatusH * (256 - chrome_pct)) / 256;
+    draw_footer(r, game, bot_y_off);
+  }
 
   // Round 4: hardware init status chip in the bottom-left. Gated
   // behind BAILEY_DEBUG_HW_HUD so the default build hides it; flip

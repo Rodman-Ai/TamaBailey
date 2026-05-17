@@ -182,6 +182,15 @@ class Game {
   uint64_t  achievements() const { return achievements_; }
   uint16_t  streak_days()  const { return streak_days_; }
   Weather   weather()      const { return (Weather)weather_; }
+
+  // Chrome (top stats bar + bottom footer) visibility. Transient: not
+  // persisted in the save schema; defaults to true on every cold start.
+  // Toggled by HideChrome / ShowChrome inputs; restored to true by any
+  // other input the user issues. chrome_visible() returns the target
+  // intent (flips immediately on hide/show); the slide animation is
+  // exposed via chrome_slide_pct() (0 = off-screen, 256 = on-screen).
+  bool      chrome_visible() const { return chrome_target_visible_; }
+  int       chrome_slide_pct() const;
   Personality personality() const { return (Personality)personality_trait_; }
   bool      menu_open()    const { return menu_open_; }
   GameMode  mode()         const { return mode_; }
@@ -760,6 +769,11 @@ class Game {
   uint32_t last_stroke_ms_   = 0;
   bool     dirty_            = false;
   bool     menu_open_        = false;
+  // Transient: top stats bar + bottom footer slide animation. Not persisted.
+  bool     chrome_target_visible_ = true;
+  uint32_t chrome_toggle_ms_      = 0;     // when the target last flipped
+  uint16_t chrome_start_pct_      = 256;   // slide pct at the moment of the flip
+  void     set_chrome_target(bool visible);
   MenuTab  menu_tab_         = MenuTab::Actions;
   GameMode mode_             = GameMode::Idle;
   uint32_t mode_started_ms_  = 0;

@@ -69,6 +69,9 @@ enum class Input : uint8_t {
   // Round 6 Phase 6N: painting / drawing mini-game.
   PaintCellCycle         = 52,  // cycle color at the current cursor cell
   PaintCursorNext        = 53,  // advance the painting cursor 0..15
+  // Chrome (header + footer) visibility toggle via vertical swipe.
+  HideChrome             = 54,  // swipe-up-on-top OR swipe-down-on-bottom
+  ShowChrome             = 55,  // swipe-down-on-top OR swipe-up-on-bottom
 };
 
 }  // namespace tama

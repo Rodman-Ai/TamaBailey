@@ -442,6 +442,12 @@ void Game::unlock_achievement(AchievementId id) {
 }
 
 void Game::apply_input(Input in) {
+  // Chrome visibility toggles short-circuit -- they don't restore chrome
+  // and they don't fall through to the rest of the input pipeline.
+  if (in == Input::HideChrome) { set_chrome_target(false); return; }
+  if (in == Input::ShowChrome) { set_chrome_target(true);  return; }
+  // Any other player input restores the chrome bars.
+  set_chrome_target(true);
   // While the menu is open, short button presses cycle tabs instead of
   // performing actions on Bailey -- single mental model: button is a
   // selector, long-press is escape.
@@ -1372,6 +1378,11 @@ void Game::apply_input(Input in) {
       dirty_ = true;
       break;
     }
+    case Input::HideChrome:
+    case Input::ShowChrome:
+      // Handled earlier with a short-circuit; cases listed here only
+      // to satisfy -Wswitch enumeration coverage.
+      break;
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -3369,6 +3380,27 @@ const char* Game::share_url_path() const {
   }
   buf[12] = '\0';
   return buf;
+}
+
+// Chrome slide animation: how long the bars take to slide off /
+// on-screen when toggled. 250 ms feels snappy without being janky.
+namespace { constexpr uint32_t kChromeSlideMs = 250; }
+
+void Game::set_chrome_target(bool visible) {
+  if (visible == chrome_target_visible_) return;   // no spurious restarts
+  // Capture where the slide currently sits so an interrupted animation
+  // continues smoothly toward the new target.
+  chrome_start_pct_      = (uint16_t)chrome_slide_pct();
+  chrome_target_visible_ = visible;
+  chrome_toggle_ms_      = last_tick_ms_;
+}
+
+int Game::chrome_slide_pct() const {
+  int target = chrome_target_visible_ ? 256 : 0;
+  uint32_t elapsed = last_tick_ms_ - chrome_toggle_ms_;
+  if (elapsed >= kChromeSlideMs) return target;
+  int delta = target - (int)chrome_start_pct_;
+  return (int)chrome_start_pct_ + (delta * (int)elapsed) / (int)kChromeSlideMs;
 }
 
 // Round 6 Phase 6K: convenience setter for the wallpaper cycler.
