@@ -40,7 +40,8 @@ verified from Waveshare's own demo sketches at
 | BTN B / `B`      | **Play** with Bailey (+30 play, -10 rest)            |
 | BTN C / `C`      | **Clean** Bailey (+60 bath)                          |
 | Long-press (~0.8 s) any button | Toggle **status menu**                 |
-| Tap pet (touch / canvas click) | **Pet** Bailey (+5 play, 12 s cooldown) |
+| Tap pet (LCD / canvas click)   | **Pet** Bailey (+5 play, 12 s cooldown) |
+| Drag on pet (LCD / canvas)     | Continuous **Stroke**                  |
 | Tap stats bar                  | Toggle status menu                     |
 
 - Four stats (food / play / bath / rest) decay over real time.

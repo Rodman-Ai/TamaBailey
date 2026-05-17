@@ -19,11 +19,13 @@ from the device. The browser version plays the same procedurally-
 synthesized PCM clips through Web Audio. No functional impact on
 gameplay.
 
-### N2. ESP-side touch is not wired
-The Touch-1.54 board has a CST816 capacitive panel on the same I²C
-bus (IRQ=48, RST=47). `src/main.cpp` doesn't poll it. Gameplay is
-fully covered by the three onboard buttons. The browser version has
-click + drag.
+### N2. ESP-side touch (resolved)
+The CST816 capacitive panel is now driven by `src/esp_touch.{h,cpp}`
+via `lewisxhe/SensorLib`'s `TouchDrvCSTXXX`. Polled at ~60 Hz from
+`main.cpp::loop`. Taps on the pet -> `Input::PetTap`; drags ->
+`Input::Stroke`; taps on the stats bar -> `Input::MenuToggle`. If the
+chip doesn't answer at boot, the firmware logs and continues without
+touch.
 
 ### N3. Wi-Fi credential placeholder check is brittle
 `src/esp_clock.cpp::have_creds()` rejects the example SSID by checking

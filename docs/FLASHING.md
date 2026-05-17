@@ -167,10 +167,11 @@ this build (logging stub only). You'll see `[audio] Yip ...` in the
 serial log when sounds would play. Real device audio is a tracked
 follow-up; the browser version already has full audio.
 
-**Touch: tapping the screen doesn't pet Bailey.**
-The CST816 capacitive touch driver isn't wired in this build (also a
-follow-up). All gameplay works through the three onboard buttons.
-The browser version has full touch + drag support.
+**Touch on the device.**
+Tapping Bailey on the LCD pets him (heart pop + Wuff bark + small
+happiness bump). Dragging across him strokes him continuously. Tapping
+the dark stats bar at the top toggles the status menu. The browser
+version's touch behaves the same.
 
 ## What success looks like
 

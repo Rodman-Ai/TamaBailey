@@ -12,6 +12,7 @@
 #include "esp_input.h"
 #include "esp_renderer.h"
 #include "esp_storage.h"
+#include "esp_touch.h"
 #include "tama/game.h"
 
 static bailey::LGFX_ST7789_240x240 lcd;
@@ -20,6 +21,7 @@ static bailey::EspStorage          storage;
 static bailey::EspClock            clock_;
 static bailey::EspSpeaker          speaker;
 static bailey::EspImu              imu;
+static bailey::EspTouch            touch;
 static tama::Game                  game;
 static bailey::EspInput*           input = nullptr;
 
@@ -42,6 +44,7 @@ void setup() {
 
   speaker.begin();
   imu.begin();
+  touch.begin();
   clock_.begin();
   game.init(storage, millis(), &clock_, &speaker);
   lcd.setBrightness(game.settings().brightness);
@@ -57,6 +60,7 @@ void loop() {
 
   uint32_t now = millis();
   imu.poll(now, game);
+  touch.poll(now, game);
   game.tick(now);
   game.draw(*renderer);
   renderer->present();
