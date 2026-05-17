@@ -364,24 +364,27 @@ void Game::apply_input(Input in) {
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
-      // Main = 8 rows. Tricks submenu = 6 rows (5 tricks + <Back).
+      // Main = 10 rows (was 8: + Change scene, Change hat).
+      // Tricks submenu = 6 rows (5 tricks + <Back).
       // Friends submenu = 10 rows (Random + 8 friends + <Back).
       if (actions_submenu_ == 0) {
-        // Index 6 = "Tricks >", index 7 = "Play with a friend >".
+        // Index 8 = "Tricks >", index 9 = "Play with a friend >".
         if (in == Input::Feed) {
-          if (actions_cursor_ == 6) {
+          if (actions_cursor_ == 8) {
             actions_submenu_ = 1; actions_cursor_ = 0; return;
           }
-          if (actions_cursor_ == 7) {
+          if (actions_cursor_ == 9) {
             actions_submenu_ = 2; actions_cursor_ = 0; return;
           }
-          static const Input kMain[8] = {
+          static const Input kMain[10] = {
             Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
             Input::CycleToy, Input::Bedtime,
+            Input::CycleScene,      // Change scene
+            Input::CycleAccessory,  // Change hat
             Input::None,   // Tricks > (handled above)
             Input::None,   // Play with a friend > (handled above)
           };
-          Input chosen = kMain[actions_cursor_ % 8];
+          Input chosen = kMain[actions_cursor_ % 10];
           if (chosen != Input::None) {
             menu_open_ = false;
             apply_input(chosen);
@@ -389,7 +392,7 @@ void Game::apply_input(Input in) {
           return;
         }
         if (in == Input::Play) {
-          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 8);
+          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 10);
           return;
         }
       } else if (actions_submenu_ == 1) {
@@ -397,7 +400,7 @@ void Game::apply_input(Input in) {
         if (in == Input::Feed) {
           if (actions_cursor_ == 5) {
             actions_submenu_ = 0;
-            actions_cursor_  = 6;
+            actions_cursor_  = 8;   // land on the Tricks row of main
             return;
           }
           static const Input kTricks[5] = {
@@ -419,7 +422,7 @@ void Game::apply_input(Input in) {
         if (in == Input::Feed) {
           if (actions_cursor_ == 9) {
             actions_submenu_ = 0;
-            actions_cursor_  = 7;   // land on the Friends row of main
+            actions_cursor_  = 9;   // land on the Friends row of main
             return;
           }
           Input chosen;
@@ -841,7 +844,7 @@ void Game::apply_input(Input in) {
       if (menu_open_ && menu_tab_ == MenuTab::Actions) {
         int n = (actions_submenu_ == 1) ? 6
               : (actions_submenu_ == 2) ? 10
-              : 8;
+              : 10;   // main grew 8 -> 10 with Change scene + Change hat
         actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % n);
       }
       break;

@@ -1196,10 +1196,11 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 }
 
 void draw_menu_actions(Renderer& r, const Game& game) {
-  static const char* const kMain[8] = {
+  static const char* const kMain[10] = {
     "Go for a walk", "Play fetch", "Give treat", "Brush",
-    "Switch toy", "Bedtime", "Tricks >",
-    "Play with a friend >",
+    "Switch toy", "Bedtime",
+    "Change scene", "Change hat",
+    "Tricks >", "Play with a friend >",
   };
   static const char* const kTricks[6] = {
     "Sit", "Come", "High five", "Roll over", "Jump", "< Back",
@@ -1217,7 +1218,7 @@ void draw_menu_actions(Renderer& r, const Game& game) {
   } else if (sub == 2) {
     rows = kFriends; n_rows = 10; header = "VISIT FRIENDS";
   } else {
-    rows = kMain;    n_rows = 8;  header = "ACTIONS";
+    rows = kMain;    n_rows = 10; header = "ACTIONS";
   }
 
   int x = 14;
