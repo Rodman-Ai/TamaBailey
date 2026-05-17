@@ -339,6 +339,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     for (int i = 0; i < 8; ++i) leaderboard_hashes_[i] = s.leaderboard_hashes[i];
     leaderboard_head_   = s.leaderboard_head;
     leaderboard_count_  = s.leaderboard_count;
+    // v36 fields
+    for (int i = 0; i < 8; ++i) scene_wallpaper_[i] = s.scene_wallpaper[i];
+    pumpkin_tap_high_score_  = s.pumpkin_tap_high_score;
+    trick_chain_runs_        = s.trick_chain_runs;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1014,6 +1018,22 @@ void Game::apply_input(Input in) {
           recent_tricks_mask_   = 0;   // reset so next 3 also count
         }
       }
+      // Round 6 Phase 6K: trick CHAIN tracker -- 5 tricks (any kind)
+      // performed within 15 s. Awards +5 biscuits and bumps the
+      // chain counter on every completion.
+      if (trick_chain_count_ == 0 ||
+          last_tick_ms_ - trick_chain_first_ms_ > 15000) {
+        trick_chain_first_ms_ = last_tick_ms_;
+        trick_chain_count_    = 0;
+      }
+      if (trick_chain_count_ < 255) trick_chain_count_++;
+      if (trick_chain_count_ >= 5) {
+        if (trick_chain_runs_ < 255) trick_chain_runs_++;
+        grant_biscuits(5);
+        trick_chain_count_    = 0;
+        trick_chain_first_ms_ = 0;
+        play_clip(ClipId::Fanfare);
+      }
       pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness + 5);
       pet_.current_action    = Action::Pet;
       pet_.action_started_ms = last_tick_ms_;
@@ -1229,6 +1249,33 @@ void Game::apply_input(Input in) {
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Heart);
       dirty_ = true;
+      break;
+    }
+    case Input::PumpkinTap: {
+      // Round 6 Phase 6K: Halloween rhythm-tap mini-game. Only active
+      // on Oct 31 (active_holiday_ == 2). First tap starts the 5 s
+      // window; subsequent taps inside the window count toward the
+      // session score; expiry updates the high-score record.
+      if (active_holiday_ != 2) break;
+      if (pumpkin_tap_started_ms_ == 0 ||
+          last_tick_ms_ - pumpkin_tap_started_ms_ >= 5000) {
+        pumpkin_tap_started_ms_ = last_tick_ms_;
+        pumpkin_tap_count_      = 0;
+      }
+      pumpkin_tap_count_++;
+      if (pumpkin_tap_count_ > pumpkin_tap_high_score_)
+        pumpkin_tap_high_score_ = pumpkin_tap_count_;
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
+      dirty_ = true;
+      break;
+    }
+    case Input::CycleWallpaper: {
+      // Round 6 Phase 6K: cycle wallpaper variant for the current scene.
+      uint8_t s = settings_.scene_id;
+      if (s < 8) {
+        scene_wallpaper_[s] = (uint8_t)((scene_wallpaper_[s] + 1) % 4);
+        dirty_ = true;
+      }
       break;
     }
     case Input::ImuShake:
@@ -1789,6 +1836,11 @@ void Game::force_save(Storage& storage) {
   s.leaderboard_head            = leaderboard_head_;
   s.leaderboard_count           = leaderboard_count_;
   s._pad35[0] = s._pad35[1]     = 0;
+  // v36 additions
+  for (int i = 0; i < 8; ++i) s.scene_wallpaper[i] = scene_wallpaper_[i];
+  s.pumpkin_tap_high_score      = pumpkin_tap_high_score_;
+  s.trick_chain_runs            = trick_chain_runs_;
+  s._pad36                      = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2680,6 +2732,19 @@ void Game::perform_random_trick() {
     if (tricks_learned_ & (1u << i)) {
       trick_perf_[i]++;
       if (trick_perf_[i] >= 10) unlock_achievement(AchievementId::Showstopper);
+      // Round 6 Phase 6K: random tricks also count toward the chain.
+      if (trick_chain_count_ == 0 ||
+          last_tick_ms_ - trick_chain_first_ms_ > 15000) {
+        trick_chain_first_ms_ = last_tick_ms_;
+        trick_chain_count_    = 0;
+      }
+      if (trick_chain_count_ < 255) trick_chain_count_++;
+      if (trick_chain_count_ >= 5) {
+        if (trick_chain_runs_ < 255) trick_chain_runs_++;
+        grant_biscuits(5);
+        trick_chain_count_    = 0;
+        trick_chain_first_ms_ = 0;
+      }
       dirty_ = true;
       return;
     }
@@ -3169,6 +3234,14 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6K: convenience setter for the wallpaper cycler.
+void Game::cycle_scene_wallpaper() {
+  uint8_t s = settings_.scene_id;
+  if (s >= 8) return;
+  scene_wallpaper_[s] = (uint8_t)((scene_wallpaper_[s] + 1) % 4);
+  dirty_ = true;
 }
 
 // Round 6 Phase 6J: leaderboard read-out (age_idx 0 = most recent).

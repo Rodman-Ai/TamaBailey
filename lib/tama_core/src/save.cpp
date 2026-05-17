@@ -240,6 +240,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.leaderboard_count       = 0;
     s._pad35[0] = s._pad35[1] = 0;
   }
+  if (s.version < 36) {
+    // v35 -> v36: default wallpaper 0, zero mini-game records.
+    for (int i = 0; i < 8; ++i) s.scene_wallpaper[i] = 0;
+    s.pumpkin_tap_high_score = 0;
+    s.trick_chain_runs       = 0;
+    s._pad36                 = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

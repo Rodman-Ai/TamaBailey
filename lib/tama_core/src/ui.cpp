@@ -334,11 +334,19 @@ void draw_achievement_showcase(Renderer& r, const Game& game) {
 }
 
 // Background tint depending on time of day.
-void draw_background(Renderer& r, float daylight) {
+void draw_background(Renderer& r, float daylight, uint8_t wallpaper = 0) {
   uint16_t sky_day   = kSky;
   uint16_t sky_night = rgb(15, 20, 50);   // deep blue
   uint16_t grass_day = kGrass;
   uint16_t grass_night = rgb(20, 50, 25); // dark green
+  // Round 6 Phase 6K: per-scene wallpaper variants tint the sky.
+  // 0 = default sky, 1 = warm sunset, 2 = aurora teal, 3 = pastel rose.
+  switch (wallpaper) {
+    case 1: sky_day = rgb(255, 170, 100); break;
+    case 2: sky_day = rgb(120, 220, 200); break;
+    case 3: sky_day = rgb(250, 200, 220); break;
+    default: break;
+  }
   uint16_t sky   = mix(sky_night,   sky_day,   daylight);
   uint16_t grass = mix(grass_night, grass_day, daylight);
 
@@ -1543,6 +1551,13 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.leaderboard_count());
     r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6K: trick-chain runs + Halloween pumpkin score.
+  if (game.trick_chain_runs() > 0 || game.pumpkin_tap_high_score() > 0) {
+    std::snprintf(buf, sizeof(buf), "Chains:%u  Pumpkin:%u",
+                  (unsigned)game.trick_chain_runs(),
+                  (unsigned)game.pumpkin_tap_high_score());
+    r.drawText(x, y, buf, kOrange, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());
@@ -2160,7 +2175,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   const Pet& pet = game.pet();
   float daylight = game.daylight();
 
-  draw_background(r, daylight);
+  draw_background(r, daylight, game.scene_wallpaper(game.settings().scene_id));
   draw_scene_detail(r, game.settings().scene_id, daylight);
 
   // Round 5 Phase A2: bedroom wall poster (only in scene 4). One of 4

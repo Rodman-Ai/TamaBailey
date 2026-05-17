@@ -534,6 +534,23 @@ class Game {
   // newline-separated string in a static buffer.
   const char* trainer_photo_card() const;
 
+  // Round 6 Phase 6K: per-scene wallpaper variant (0..3).
+  uint8_t  scene_wallpaper(uint8_t scene_id) const {
+    if (scene_id >= 8) return 0;
+    return scene_wallpaper_[scene_id];
+  }
+  // Cycles wallpaper for the currently-active scene.
+  void     cycle_scene_wallpaper();
+  // Round 6 Phase 6K: pumpkin-tap mini-game state.
+  uint16_t pumpkin_tap_high_score() const { return pumpkin_tap_high_score_; }
+  uint16_t pumpkin_tap_count()      const { return pumpkin_tap_count_; }
+  bool     pumpkin_tap_active()     const {
+    return pumpkin_tap_started_ms_ != 0 &&
+           last_tick_ms_ - pumpkin_tap_started_ms_ < 5000;
+  }
+  // Round 6 Phase 6K: trick chain (5 tricks in 15 s) lifetime count.
+  uint8_t  trick_chain_runs()       const { return trick_chain_runs_; }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -966,6 +983,17 @@ class Game {
   uint32_t leaderboard_hashes_[8] = {0,0,0,0,0,0,0,0};
   uint8_t  leaderboard_head_  = 0;
   uint8_t  leaderboard_count_ = 0;
+
+  // Round 6 Phase 6K: per-scene wallpaper + mini-game state (v36).
+  uint8_t  scene_wallpaper_[8] = {0,0,0,0,0,0,0,0};
+  uint16_t pumpkin_tap_high_score_ = 0;
+  uint8_t  trick_chain_runs_       = 0;
+  // Transient pumpkin-tap session counters (5 s window).
+  uint32_t pumpkin_tap_started_ms_ = 0;
+  uint16_t pumpkin_tap_count_      = 0;
+  // Transient 5-trick chain tracker (rolling 15 s window).
+  uint32_t trick_chain_first_ms_   = 0;
+  uint8_t  trick_chain_count_      = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

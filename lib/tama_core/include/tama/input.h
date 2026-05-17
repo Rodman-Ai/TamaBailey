@@ -56,6 +56,9 @@ enum class Input : uint8_t {
   TugOfWar               = 42,  // start tug-of-war timing game
   ChaseStick             = 43,  // fetch variant in Forest scene
   VetVisit               = 44,  // cure-via-vet animation when sick
+  // Round 6 Phase 6K: mini-games + wallpaper customization.
+  PumpkinTap             = 45,  // Halloween-only rhythm-tap mini-game tap
+  CycleWallpaper         = 46,  // cycle scene wallpaper variant 0..3
 };
 
 }  // namespace tama
