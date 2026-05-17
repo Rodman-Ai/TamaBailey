@@ -141,6 +141,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.fireflies_caught = 0;
     s._pad21           = 0;
   }
+  if (s.version < 22) {
+    // v21 -> v22: never-spun login wheel.
+    s.last_login_wheel_day = 0;
+    s.last_wheel_reward    = 0;
+    s._pad22[0] = s._pad22[1] = s._pad22[2] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

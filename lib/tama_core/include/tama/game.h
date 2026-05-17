@@ -307,6 +307,17 @@ class Game {
   bool      fireworks_active() const {
     return last_tick_ms_ < new_year_fireworks_until_ms_;
   }
+  // Round 5 Phase C remainder: daily login wheel.
+  // Returns true if a spin is available (today != last_login_wheel_day
+  // AND today_day_index != 0). Reward enum: 0 = 5 biscuits, 1 = 3
+  // bones, 2 = 1 biscuit treat, 3 = 1 bacon treat, 4 = 1 random sticker.
+  bool      wheel_available()   const;
+  uint8_t   last_wheel_reward() const { return last_wheel_reward_; }
+  // Spin and apply the reward. Returns the reward id (0..4) or 255
+  // if the wheel isn't currently available (already spun today or no
+  // clock yet).
+  uint8_t   spin_wheel();
+
   // Round 5 Phase D2: photo flash + mystery visitor.
   bool      photo_flash_active() const {
     return last_tick_ms_ < photo_flash_until_ms_;
@@ -686,6 +697,10 @@ class Game {
 
   // Round 5 Phase C2: persistent active-streak counter (v20).
   uint16_t active_streak_days_ = 0;
+
+  // Round 5 Phase C remainder: daily login wheel (persisted v22).
+  uint32_t last_login_wheel_day_ = 0;
+  uint8_t  last_wheel_reward_    = 0;
 };
 
 }  // namespace tama

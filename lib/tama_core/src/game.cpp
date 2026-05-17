@@ -278,6 +278,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     active_streak_days_ = s.active_streak_days;
     // v21 fields
     fireflies_caught_   = s.fireflies_caught;
+    // v22 fields
+    last_login_wheel_day_ = s.last_login_wheel_day;
+    last_wheel_reward_    = s.last_wheel_reward & 0x07;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1480,6 +1483,10 @@ void Game::force_save(Storage& storage) {
   // v21 additions
   s.fireflies_caught        = fireflies_caught_;
   s._pad21                  = 0;
+  // v22 additions
+  s.last_login_wheel_day    = last_login_wheel_day_;
+  s.last_wheel_reward       = last_wheel_reward_;
+  s._pad22[0] = s._pad22[1] = s._pad22[2] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1630,6 +1637,44 @@ uint8_t Game::skill_charm() const {
   uint64_t v = total_pets_;
   if (v > 100) v = 100;
   return (uint8_t)v;
+}
+
+bool Game::wheel_available() const {
+  if (today_day_index_ == 0) return false;          // no synced clock yet
+  return last_login_wheel_day_ != today_day_index_;
+}
+
+uint8_t Game::spin_wheel() {
+  if (!wheel_available()) return 255;
+  // Deterministic-ish pick from a fresh rng_next draw; reroll if we
+  // land on the sticker reward but all 5 stickers are already unlocked.
+  uint8_t reward = (uint8_t)(rng_next() % 5);
+  for (int try_n = 0; try_n < 5 && reward == 4 && stickers_unlocked_ == 0x1F;
+       ++try_n) {
+    reward = (uint8_t)(rng_next() % 4);   // re-roll among the other 4
+  }
+  switch (reward) {
+    case 0:  grant_biscuits(5);            break;
+    case 1:  bones_collected_ += 3;        break;
+    case 2:  treats_[0]++;                 break;   // Biscuit treat
+    case 3:  treats_[1]++;                 break;   // Bacon treat
+    case 4: {
+      // Pick the first locked sticker bit.
+      for (int i = 0; i < 5; ++i) {
+        if (!((stickers_unlocked_ >> i) & 1)) {
+          stickers_unlocked_ |= (uint8_t)(1u << i);
+          break;
+        }
+      }
+      break;
+    }
+    default: break;
+  }
+  last_login_wheel_day_ = today_day_index_;
+  last_wheel_reward_    = reward;
+  play_clip(ClipId::Achieve);
+  dirty_ = true;
+  return reward;
 }
 
 void Game::set_pet_name(const char* name) {

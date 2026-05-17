@@ -1452,6 +1452,24 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.hide_seek_wins());
     r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   }
+  // Round 5 Phase C remainder: daily login wheel state.
+  {
+    static const char* const kWheelName[5] = {
+      "5 biscuits", "3 bones", "biscuit treat", "bacon treat", "sticker",
+    };
+    if (game.wheel_available()) {
+      r.drawText(x, y, "Wheel: SPIN!", kGreen, 1);
+    } else if (game.today_day_index() != 0) {
+      uint8_t reward = game.last_wheel_reward();
+      if (reward < 5) {
+        std::snprintf(buf, sizeof(buf), "Wheel: %s", kWheelName[reward]);
+        r.drawText(x, y, buf, kGrayLight, 1);
+      } else {
+        r.drawText(x, y, "Wheel: claimed", kGrayLight, 1);
+      }
+    }
+    y += kInfoStep;
+  }
 
   // Round 3: best-friend bond from the last sync code consumed.
   if (game.best_friend_hash() != 0) {
