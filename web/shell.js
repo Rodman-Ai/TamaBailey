@@ -167,6 +167,51 @@
     try { canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
   });
 
+  // ---- Real-world weather sync (best-effort via wttr.in, no key) ----
+  // Maps wttr.in condition codes to our Weather enum:
+  //   0 sunny, 1 cloudy, 2 rain, 3 snow.
+  async function syncRealWeather() {
+    try {
+      const res = await fetch("https://wttr.in/?format=j1", { mode: 'cors' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const code = +(data.current_condition?.[0]?.weatherCode || 113);
+      let w = 0;
+      if ([113].includes(code))                                  w = 0;       // clear/sunny
+      else if ([116, 119, 122, 143, 248, 260].includes(code))    w = 1;       // cloudy/fog
+      else if (code >= 176 && code <= 311 && ![179,182,185,227,230].includes(code)) w = 2; // rain
+      else if ([179,182,185,227,230,323,326,329,332,335,338,350,
+                 368,371,374,377,392,395].includes(code))         w = 3;       // snow
+      else                                                        w = 1;
+      if (Module._bailey_set_weather) Module._bailey_set_weather(w);
+    } catch (e) {
+      // Silent: keep the synthetic daily roll.
+    }
+  }
+
+  // ---- Browser notifications (opt-in, low-stat reminders) ----
+  let notifEnabled = false;
+  let lastNotifAt = 0;
+  function maybeNotify() {
+    if (!notifEnabled) return;
+    if (document.visibilityState === 'visible') return;
+    const now = Date.now();
+    if (now - lastNotifAt < 10 * 60 * 1000) return;        // at most every 10 min
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!Module._bailey_get_stat) return;
+    const stats = [0,1,2,3].map(i => Module._bailey_get_stat(i));
+    const min = Math.min(...stats);
+    if (min >= 20) return;
+    const labels = ['food', 'play', 'bath', 'rest'];
+    const idx = stats.indexOf(min);
+    new Notification("Bailey needs " + labels[idx], {
+      body: "Stats are low (" + min + "/100). Check on him?",
+      icon: undefined,
+      tag: 'tama-bailey-low-' + idx,
+    });
+    lastNotifAt = now;
+  }
+
   // ---- Microphone reactions (optional, user must grant permission) ----
   let micEnabled = false;
   let lastMicTrigger = 0;
@@ -209,6 +254,28 @@
       startMic();
       micBtn.textContent = micEnabled ? 'Mic on' : 'Enable mic';
     });
+    const notifBtn = document.getElementById('notifBtn');
+    if (notifBtn) notifBtn.addEventListener('click', async () => {
+      if (!('Notification' in window)) {
+        notifBtn.textContent = 'Notifs unsupported';
+        return;
+      }
+      const p = await Notification.requestPermission();
+      notifEnabled = (p === 'granted');
+      notifBtn.textContent = notifEnabled ? 'Reminders on' : 'Enable reminders';
+    });
+    // Kick off the weather sync once the Wasm runtime is ready.
+    const tryWeather = () => {
+      if (Module && Module._bailey_set_weather) {
+        syncRealWeather();
+        // Re-sync once an hour.
+        setInterval(syncRealWeather, 60 * 60 * 1000);
+      } else {
+        setTimeout(tryWeather, 500);
+      }
+    };
+    tryWeather();
+    setInterval(maybeNotify, 60 * 1000);  // check once a minute
   });
 
   // ---- Sync code share/paste UI ----

@@ -57,6 +57,26 @@ void bailey_set_spectator(int on) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void bailey_set_weather(int w) {
+  if (w < 0 || w > 3) return;
+  game.set_weather((tama::Weather)w);
+}
+
+// Lets the JS shell query a stat without exporting the full Game object.
+// Returns -1 if invalid index. Indices: 0=hunger 1=happiness 2=clean 3=energy.
+EMSCRIPTEN_KEEPALIVE
+int bailey_get_stat(int idx) {
+  const auto& p = game.pet();
+  switch (idx) {
+    case 0: return p.stats.hunger;
+    case 1: return p.stats.happiness;
+    case 2: return p.stats.cleanliness;
+    case 3: return p.stats.energy;
+    default: return -1;
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
 void bailey_frame() {
   uint32_t now = (uint32_t)emscripten_get_now();
   game.tick(now);

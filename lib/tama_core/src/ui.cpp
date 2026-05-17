@@ -317,23 +317,25 @@ void draw_footer(Renderer& r, const Pet& pet, uint16_t streak_days) {
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
 #if BAILEY_MEMORIAL_WALL
-  const char* labels[] = {"STATS", "BADGES", "OPTIONS", "SYNC", "MEM"};
-  constexpr int n_tabs = 5;
+  const char* labels[] = {"STATS", "BADGES", "OPTS", "SYNC", "MEM", "BAG", "SHOP"};
+  const int   tab_ids[] = {0, 1, 2, 3, 4, 5, 6};
+  constexpr int n_tabs = 7;
 #else
-  const char* labels[] = {"STATS", "BADGES", "OPTIONS", "SYNC"};
-  constexpr int n_tabs = 4;
+  const char* labels[] = {"STATS", "BADGES", "OPTS", "SYNC", "BAG", "SHOP"};
+  const int   tab_ids[] = {0, 1, 2, 3, 5, 6};
+  constexpr int n_tabs = 6;
 #endif
-  int x = 10;
+  int x = 6;
   int y = 14 + kStatsBarH;
   for (int i = 0; i < n_tabs; ++i) {
-    bool active = (int)game.menu_tab() == i;
+    bool active = (int)game.menu_tab() == tab_ids[i];
     uint16_t bg = active ? kYellow : kGrayDark;
     uint16_t fg = active ? kBlack  : kGrayLight;
-    int w = text_width(labels[i], 1) + 6;
+    int w = text_width(labels[i], 1) + 4;
     r.fillRect(x, y, w, 12, bg);
     r.drawRect(x, y, w, 12, kYellow);
-    r.drawText(x + 3, y + 2, labels[i], fg, 1);
-    x += w + 2;
+    r.drawText(x + 2, y + 2, labels[i], fg, 1);
+    x += w + 1;
   }
 }
 
@@ -451,6 +453,79 @@ void draw_menu_options(Renderer& r, const Game& game) {
                got ? kGreen : kGrayDark, 1);
     y += 10;
   }
+}
+
+void draw_menu_inventory(Renderer& r, const Game& game) {
+  int x = 16;
+  int y = 14 + kStatsBarH + 22;
+  char buf[40];
+  r.drawText(x, y, "INVENTORY", kYellow, 1); y += 12;
+  std::snprintf(buf, sizeof(buf), "Biscuits: %u", (unsigned)game.biscuits());
+  r.drawText(x, y, buf, kYellow, 1); y += 12;
+  r.drawText(x, y, "Toys:", kWhite, 1); y += 10;
+  for (int i = 0; i < (int)Toy::COUNT; ++i) {
+    bool owned = (game.toys_owned() & (1u << i)) != 0;
+    bool active = ((int)game.active_toy() == i);
+    std::snprintf(buf, sizeof(buf), "  %s %s%s",
+                  owned ? (active ? "*" : "+") : "-",
+                  toy_name((Toy)i),
+                  active ? " (active)" : "");
+    r.drawText(x, y, buf, owned ? kWhite : kGrayDark, 1);
+    y += 10;
+  }
+  y += 4;
+  r.drawText(x, y, "Treats:", kWhite, 1); y += 10;
+  for (int i = 0; i < (int)TreatTier::COUNT; ++i) {
+    std::snprintf(buf, sizeof(buf), "  %s x%u", treat_name((TreatTier)i), game.treats((TreatTier)i));
+    r.drawText(x, y, buf, kWhite, 1);
+    y += 10;
+  }
+}
+
+void draw_menu_shop(Renderer& r, const Game& game) {
+  int x = 12;
+  int y = 14 + kStatsBarH + 20;
+  char buf[40];
+  std::snprintf(buf, sizeof(buf), "SHOP   Biscuits: %u", (unsigned)game.biscuits());
+  r.drawText(x, y, buf, kYellow, 1); y += 12;
+
+  struct Row { const char* name; bool owned; uint32_t price; };
+  // Catalog mirrors Game::buy_item indices.
+  const Row rows[15] = {
+    {"Ball",          (game.toys_owned() & 1)  != 0, game.shop_price(0)},
+    {"Frisbee",       (game.toys_owned() & 2)  != 0, game.shop_price(1)},
+    {"Rope",          (game.toys_owned() & 4)  != 0, game.shop_price(2)},
+    {"Squeaky",       (game.toys_owned() & 8)  != 0, game.shop_price(3)},
+    {"Stick",         (game.toys_owned() & 16) != 0, game.shop_price(4)},
+    {"Red bandana",   game.accessory_unlocked(1),    game.shop_price(5)},
+    {"Blue collar",   game.accessory_unlocked(2),    game.shop_price(6)},
+    {"Party hat",     game.accessory_unlocked(3),    game.shop_price(7)},
+    {"Biscuit treat", false,                          game.shop_price(8)},
+    {"Bacon treat",   false,                          game.shop_price(9)},
+    {"Steak treat",   false,                          game.shop_price(10)},
+    {"Coat: Tan",     game.coat_pattern() == 1,      game.shop_price(11)},
+    {"Coat: Brindle", game.coat_pattern() == 2,      game.shop_price(12)},
+    {"Coat: Tri",     game.coat_pattern() == 3,      game.shop_price(13)},
+    {"Coat: Black",   game.coat_pattern() == 4,      game.shop_price(14)},
+  };
+  // Show 6 rows around the cursor
+  uint8_t cur = game.shop_cursor();
+  int start = (cur > 2) ? (cur - 2) : 0;
+  if (start > 9) start = 9;
+  for (int i = 0; i < 6; ++i) {
+    int idx = start + i;
+    if (idx >= 15) break;
+    bool sel = idx == cur;
+    if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
+    std::snprintf(buf, sizeof(buf), "%c %s  %ub",
+                  sel ? '>' : ' ', rows[idx].name, (unsigned)rows[idx].price);
+    uint16_t fg = rows[idx].owned ? kGreen
+                                  : (game.biscuits() >= rows[idx].price ? kWhite : kGrayDark);
+    r.drawText(x, y, buf, fg, 1);
+    y += 10;
+  }
+  y += 4;
+  r.drawText(x, y, "A=buy  B=next  C=tab", kGray, 1);
 }
 
 void draw_menu_sync(Renderer& r, const Game& game_const) {
@@ -608,6 +683,44 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
   if (game.is_birthday()) draw_confetti(r, now_ms);
 
+  // Holiday-specific decor: Halloween pumpkin, Christmas wreath / lights.
+  if (game.active_holiday() == 2) {
+    // Halloween pumpkin in bottom-left
+    r.fillRect(12, kScreenH - kStatusH - 18, 14, 12, kOrange);
+    r.drawRect(12, kScreenH - kStatusH - 18, 14, 12, kRed);
+    r.fillRect(17, kScreenH - kStatusH - 22, 4, 4, kGreen);
+    // jack-o-lantern eyes
+    r.fillRect(15, kScreenH - kStatusH - 14, 2, 2, kBlack);
+    r.fillRect(21, kScreenH - kStatusH - 14, 2, 2, kBlack);
+  } else if (game.active_holiday() == 3) {
+    // Christmas: string of lights along top of stats bar
+    uint16_t cols[5] = {kRed, kGreen, kYellow, kBlue, kPink};
+    for (int x = 4; x < kScreenW; x += 8) {
+      r.fillRect(x, kStatsBarH + 1, 3, 3, cols[(x / 8) % 5]);
+    }
+  }
+
+  // NPC visitor: a small silhouette dog walks across the bottom of the
+  // play area for 4 s.
+  if (game.npc_visit_kind() != 0) {
+    uint32_t elapsed = now_ms - game.npc_visit_ms();
+    if (elapsed < 4000) {
+      int x = -20 + (int)((kScreenW + 40) * elapsed / 4000);
+      int y = kScreenH - kStatusH - 18;
+      uint16_t cols[4] = {kBrown, kGrayDark, kBrownLight, kGray};
+      uint16_t c = cols[(game.npc_visit_kind() - 1) % 4];
+      // tiny dog: body + head + ear + legs
+      r.fillRect(x, y, 14, 8, c);
+      r.fillRect(x - 4, y - 4, 6, 6, c);   // head
+      r.fillRect(x - 6, y - 2, 2, 5, c);   // ear
+      r.fillRect(x + 1, y + 8, 2, 4, c);   // leg
+      r.fillRect(x + 10, y + 8, 2, 4, c);  // leg
+      r.fillRect(x - 7, y - 3, 1, 1, kBlack); // nose dot
+      // Greet prompt
+      r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
+    }
+  }
+
   draw_footer(r, pet, game.streak_days());
 
   // Mode-specific overlays
@@ -651,10 +764,11 @@ void draw_menu_overlay(Renderer& r, const Game& game) {
 #if BAILEY_MEMORIAL_WALL
       draw_menu_memorial(r, game);
 #else
-      // Memorial wall disabled at build time; fall through to Stats.
       draw_menu_stats(r, pet, game);
 #endif
       break;
+    case Game::MenuTab::Inventory: draw_menu_inventory(r, game); break;
+    case Game::MenuTab::Shop:      draw_menu_shop(r, game); break;
   }
 
   r.drawText(14, kScreenH - kStatusH - 14, "Long-press: close  |  short: next tab",

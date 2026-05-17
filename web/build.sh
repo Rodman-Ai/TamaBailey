@@ -28,7 +28,7 @@ EMCC=${EMCC:-emcc}
   "$WEB/main_web.cpp" \
   -s WASM=1 \
   -s MODULARIZE=0 \
-  -s EXPORTED_FUNCTIONS='["_bailey_init","_bailey_frame","_bailey_input","_bailey_apply_sync_code","_bailey_generate_sync_code","_bailey_set_spectator","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_bailey_init","_bailey_frame","_bailey_input","_bailey_apply_sync_code","_bailey_generate_sync_code","_bailey_set_spectator","_bailey_set_weather","_bailey_get_stat","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["HEAPU8","HEAP16","ccall","cwrap"]' \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=8mb \

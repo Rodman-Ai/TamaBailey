@@ -180,6 +180,13 @@ class Game {
   uint16_t  trick_perf(Trick t) const { return trick_perf_[(int)t]; }
   bool      is_birthday()    const { return is_birthday_today_; }
   bool      tucked_in()      const { return well_tucked_in_today_ != 0; }
+  uint8_t   shop_cursor()    const { return shop_cursor_; }
+  uint8_t   npc_visit_kind() const { return npc_visit_kind_; }
+  uint32_t  npc_visit_ms()   const { return npc_visit_ms_; }
+  // Active holiday: 0 none, 1 birthday, 2 halloween, 3 christmas
+  uint8_t   active_holiday() const { return active_holiday_; }
+  // Manually override the weather (e.g. from a wttr.in fetch on the web).
+  void      set_weather(Weather w) { weather_ = (uint8_t)w; dirty_ = true; }
 
   // Equip accessory (no-op if id not unlocked). 0 = unequip.
   void equip_accessory(uint8_t id);
@@ -193,7 +200,15 @@ class Game {
   const char* clock_string() const { return clock_str_; }
 
   // --- Settings menus interact via these ---
-  enum class MenuTab : uint8_t { Stats = 0, Achievements = 1, Settings = 2, Sync = 3, Memorial = 4 };
+  enum class MenuTab : uint8_t {
+    Stats = 0, Achievements = 1, Settings = 2, Sync = 3, Memorial = 4,
+    Inventory = 5, Shop = 6,
+  };
+  static MenuTab next_menu_tab(MenuTab cur);
+
+  // Round 2 Phase 2 helpers
+  bool buy_item(uint8_t shop_index);   // returns true on success
+  uint32_t shop_price(uint8_t shop_index) const;
   uint8_t memorial_count() const { return memorial_count_; }
   const SaveData::MemorialEntry& memorial_entry(uint8_t idx) const { return memorial_[idx % 5]; }
   MenuTab menu_tab() const { return menu_tab_; }
@@ -286,6 +301,11 @@ class Game {
   uint16_t walk_target_               = 0;
   bool     is_birthday_today_         = false;
   uint32_t last_wish_check_day_       = 0;
+  // Round 2 Phase 2 transient state
+  uint32_t npc_visit_ms_              = 0;  // when current NPC visit started
+  uint8_t  npc_visit_kind_            = 0;  // 1..4 = visitor sprite kind, 0 = none
+  uint8_t  shop_cursor_               = 0;
+  uint8_t  active_holiday_            = 0;
 
   float    daylight_         = 1.0f;
   char     clock_str_[16]    = {0};

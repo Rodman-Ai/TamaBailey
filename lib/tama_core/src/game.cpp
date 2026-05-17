@@ -285,12 +285,34 @@ void Game::apply_input(Input in) {
   // While the menu is open, short button presses cycle tabs instead of
   // performing actions on Bailey -- single mental model: button is a
   // selector, long-press is escape.
+  // NPC visitor: any action-class input greets the visitor (side-effect)
+  // and grants a small bonus. Doesn't replace the normal action.
+  if (npc_visit_kind_ != 0 &&
+      (in == Input::Feed || in == Input::Play || in == Input::Clean ||
+       in == Input::PetTap || in == Input::Walk || in == Input::Brush)) {
+    pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 5);
+    biscuits_ += 1;
+    npc_visit_kind_ = 0;
+    npc_visit_ms_ = 0;
+    dirty_ = true;
+    // Fall through so the actual action also runs.
+  }
+
   if (menu_open_ && (in == Input::Feed || in == Input::Play || in == Input::Clean)) {
-    int t = (int)menu_tab_ + 1;
-    constexpr int kLastTab = BAILEY_MEMORIAL_WALL ? (int)MenuTab::Memorial
-                                                  : (int)MenuTab::Sync;
-    if (t > kLastTab) t = 0;
-    menu_tab_ = (MenuTab)t;
+    // While on the Shop tab, button A buys the cursor item; B moves cursor;
+    // C closes menu. Other tabs cycle to next tab.
+    if (menu_tab_ == MenuTab::Shop) {
+      if (in == Input::Feed) {
+        buy_item(shop_cursor_);
+        return;
+      }
+      if (in == Input::Play) {
+        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 15);
+        return;
+      }
+      // Input::Clean falls through to cycle tab below
+    }
+    menu_tab_ = next_menu_tab(menu_tab_);
     return;
   }
 
@@ -506,13 +528,7 @@ void Game::apply_input(Input in) {
       menu_open_ = !menu_open_;
       break;
     case Input::MenuNext:
-      if (menu_open_) {
-        int t = (int)menu_tab_ + 1;
-        constexpr int kLastTab = BAILEY_MEMORIAL_WALL ? (int)MenuTab::Memorial
-                                                      : (int)MenuTab::Sync;
-        if (t > kLastTab) t = 0;
-        menu_tab_ = (MenuTab)t;
-      }
+      if (menu_open_) menu_tab_ = next_menu_tab(menu_tab_);
       break;
     case Input::CycleScene: {
       uint8_t next = (uint8_t)((settings_.scene_id + 1) % 3);
@@ -1043,8 +1059,28 @@ void Game::update_wish(uint32_t now_ms) {
 }
 
 void Game::update_walk(uint32_t now_ms) {
+  // NPC visitor tick: rare random cameo with auto-leave after 4s.
+  if (pet_.stage != LifeStage::Gone && mode_ == GameMode::Idle) {
+    if (npc_visit_kind_ == 0) {
+      uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
+#if BAILEY_FAST_DECAY
+      constexpr uint32_t kInvProb = 200;       // dense in fast mode
+#else
+      constexpr uint32_t kInvProb = 10000;     // ~once / 3 min at 60fps
+#endif
+      if ((r % kInvProb) == 0) {
+        npc_visit_kind_ = (uint8_t)(1 + ((r >> 8) % 4));
+        npc_visit_ms_   = now_ms;
+        dirty_ = true;
+      }
+    } else if (now_ms - npc_visit_ms_ > 4000) {
+      npc_visit_kind_ = 0;
+      npc_visit_ms_   = 0;
+      dirty_ = true;
+    }
+  }
+
   if (mode_ != GameMode::Walking) return;
-  // Auto-end if energy too low or target reached.
   if (pet_.stats.energy < 10 || walk_steps_ >= walk_target_) {
     if (total_steps_ >= 100)
       unlock_achievement(AchievementId::WalkOfALifetime);
@@ -1054,31 +1090,36 @@ void Game::update_walk(uint32_t now_ms) {
     walk_target_ = 0;
     dirty_ = true;
   }
-  (void)now_ms;
 }
 
 void Game::update_birthday(uint64_t now_unix_ms) {
   if (now_unix_ms == 0) return;
   LocalTime lt = to_local(now_unix_ms, settings_.tz_offset_min);
-  // Bailey's birthday is Jan 13 -- baked in (override via build flag later).
 #ifndef BAILEY_BIRTHDAY_MONTH
 #define BAILEY_BIRTHDAY_MONTH 1
 #endif
 #ifndef BAILEY_BIRTHDAY_DAY
 #define BAILEY_BIRTHDAY_DAY 13
 #endif
-  bool today = (lt.month == BAILEY_BIRTHDAY_MONTH && lt.day == BAILEY_BIRTHDAY_DAY);
-  is_birthday_today_ = today;
-  if (today) {
+  bool birthday  = (lt.month == BAILEY_BIRTHDAY_MONTH && lt.day == BAILEY_BIRTHDAY_DAY);
+  bool halloween = (lt.month == 10 && lt.day == 31);
+  bool christmas = (lt.month == 12 && lt.day == 25);
+  is_birthday_today_ = birthday;
+  active_holiday_    = birthday ? 1 : (halloween ? 2 : (christmas ? 3 : 0));
+
+  if (birthday) {
     uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
     if (birthday_celebrated_day_ != day) {
       birthday_celebrated_day_ = day;
-      // Auto-equip party hat if nothing is equipped & we have it unlocked.
       if (accessory_id_ == 0 && accessory_unlocked(3)) accessory_id_ = 3;
       unlock_achievement(AchievementId::BirthdayBoy);
       play_clip(ClipId::Fanfare);
       dirty_ = true;
     }
+  }
+  if (halloween || christmas) {
+    unlock_achievement(AchievementId::SeasonalGreetings);
+    if (christmas) weather_ = (uint8_t)Weather::Snow;
   }
 }
 
@@ -1106,6 +1147,59 @@ void Game::update_vocab() {
     if (age >= trick_age_threshold((Trick)i)) vocab_learned_ |= (1u << i);
   }
   if (vocab_learned_ != before) dirty_ = true;
+}
+
+Game::MenuTab Game::next_menu_tab(MenuTab cur) {
+  int t = (int)cur + 1;
+  constexpr int last = (int)MenuTab::Shop;
+  if (t > last) t = 0;
+#if !BAILEY_MEMORIAL_WALL
+  if (t == (int)MenuTab::Memorial) ++t;
+#endif
+  if (t > last) t = 0;
+  return (MenuTab)t;
+}
+
+// Shop catalog (index -> definition).
+// 0..4: toy unlocks (skip if owned)
+// 5..7: accessory unlocks (skip if unlocked via achievement)
+// 8..10: treats (always buyable, +1 to count)
+// 11..14: coat patterns (skip if already that)
+uint32_t Game::shop_price(uint8_t i) const {
+  if (i < 5) return 8;             // toy
+  if (i < 8) return 15;            // accessory
+  if (i < 11) {
+    static const uint32_t treat_prices[3] = {3, 10, 25};
+    return treat_prices[i - 8];
+  }
+  if (i < 15) return 20;           // coat
+  return 0;
+}
+
+bool Game::buy_item(uint8_t i) {
+  uint32_t price = shop_price(i);
+  if (price == 0 || biscuits_ < price) return false;
+  if (i < 5) {
+    uint8_t bit = (uint8_t)(1u << i);
+    if (toy_owned_ & bit) return false;
+    toy_owned_ |= bit;
+  } else if (i < 8) {
+    uint8_t acc = (uint8_t)(i - 5 + 1);   // 1..3
+    if (accessory_unlocked(acc)) return false;
+    // Bypass achievement gate by stamping the corresponding bit.
+    if (acc == 1) unlock_achievement(AchievementId::FirstPet);
+    else if (acc == 2) unlock_achievement(AchievementId::Streak3Days);
+    else if (acc == 3) unlock_achievement(AchievementId::EvolvedToAdult);
+  } else if (i < 11) {
+    treats_[i - 8]++;
+  } else if (i < 15) {
+    uint8_t coat = (uint8_t)(i - 11 + 1);
+    if (coat_pattern_ == coat) return false;
+    coat_pattern_ = coat;
+  }
+  biscuits_ -= price;
+  dirty_ = true;
+  return true;
 }
 
 bool Game::accessory_unlocked(uint8_t id) const {
