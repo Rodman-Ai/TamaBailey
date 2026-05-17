@@ -36,3 +36,17 @@
 #define PIN_TOUCH_SCL  41
 #define PIN_TOUCH_IRQ  48
 #define PIN_TOUCH_RST  47
+
+// ----- QMI8658 6-axis IMU (I2C, shared bus with touch + audio codec) -----
+#define PIN_IMU_SDA    42
+#define PIN_IMU_SCL    41
+#define PIN_IMU_IRQ     6
+
+// ----- Audio: ES8311 codec over I2C + I2S DAC -----
+#define PIN_AUDIO_PA_CTRL   7
+#define PIN_AUDIO_I2S_MCLK  8
+#define PIN_AUDIO_I2S_BCLK  9
+#define PIN_AUDIO_I2S_LRC  10
+#define PIN_AUDIO_I2S_DOUT 12
+#define PIN_AUDIO_I2C_SDA  42
+#define PIN_AUDIO_I2C_SCL  41

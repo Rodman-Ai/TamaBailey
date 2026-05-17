@@ -25,6 +25,8 @@ enum class Input : uint8_t {
   TreatGive        = 15,  // give one treat (cycles through tiers based on stock)
   Brush            = 16,  // brush Bailey -- small cleanliness bump
   CycleToy         = 17,  // cycle active toy
+  CycleAge         = 18,  // demo: cycle Puppy/Adult/Senior on demand
+  ImuFlick         = 19,  // IMU forward flick (throw / advance fetch)
 };
 
 }  // namespace tama

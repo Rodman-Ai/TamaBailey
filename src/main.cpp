@@ -1,12 +1,14 @@
 // TamaBailey -- Tamagotchi-style desk pet of Bailey the hound.
 //
 // Wires hardware adapters (LovyanGFX, OneButton, Preferences, Wi-Fi+NTP,
-// stub speaker) into the platform-agnostic game core in lib/tama_core/.
+// ES8311 audio, QMI8658 IMU) into the platform-agnostic game core in
+// lib/tama_core/.
 
 #include <Arduino.h>
 
 #include "esp_audio.h"
 #include "esp_clock.h"
+#include "esp_imu.h"
 #include "esp_input.h"
 #include "esp_renderer.h"
 #include "esp_storage.h"
@@ -17,6 +19,7 @@ static bailey::EspRenderer*        renderer = nullptr;
 static bailey::EspStorage          storage;
 static bailey::EspClock            clock_;
 static bailey::EspSpeaker          speaker;
+static bailey::EspImu              imu;
 static tama::Game                  game;
 static bailey::EspInput*           input = nullptr;
 
@@ -37,9 +40,10 @@ void setup() {
     while (true) delay(1000);
   }
 
+  speaker.begin();
+  imu.begin();
   clock_.begin();
   game.init(storage, millis(), &clock_, &speaker);
-  // Apply persisted brightness.
   lcd.setBrightness(game.settings().brightness);
 
   static bailey::EspInput in(game);
@@ -52,6 +56,7 @@ void loop() {
   clock_.poll();
 
   uint32_t now = millis();
+  imu.poll(now, game);
   game.tick(now);
   game.draw(*renderer);
   renderer->present();

@@ -36,7 +36,7 @@ constexpr uint8_t GR = 13;  // gray
 constexpr uint8_t DG = 14;  // dark gray
 constexpr uint8_t LG = 15;  // light gray
 
-uint8_t  g_pet[4][7][W * H];  // stage x pose x pixels
+uint8_t  g_pet[4][(int)PetPose::COUNT][W * H];  // stage x pose x pixels
 uint8_t  g_food[A * A];
 uint8_t  g_ball[A * A];
 uint8_t  g_poop[A * A];
@@ -114,12 +114,21 @@ void thicken_outline(uint8_t* buf, int bw, int bh, uint8_t outline) {
   }
 }
 
+// Ambient pose modes that further parameterize draw_bailey.
+enum BehaviorMode {
+  BM_Default = 0,
+  BM_Sit     = 1,  // body lower, hind legs tucked
+  BM_Bark    = 2,  // open mouth + head up
+  BM_Pant    = 3,  // long tongue dangling
+};
+
 // Core hound silhouette: brown body with WHITE belly + paws + muzzle +
 // chest blaze, dark patches around the eyes, tan eyebrow markings.
 // Matches the real Bailey -- a tan/brown hound mix with white markings.
 // `frame_lift` shifts the body up by a pixel for the breathing frame.
 // `closed_eyes` for sleep, `tongue` for happy poses, `sad_mouth` for sad.
 // `size_scale` controls puppy vs adult vs senior proportions.
+// `mode` selects ambient pose variants (Sit / Bark / Pant).
 void draw_bailey(uint8_t* buf,
                  int  frame_lift,
                  bool closed_eyes,
@@ -127,7 +136,8 @@ void draw_bailey(uint8_t* buf,
                  bool sad_mouth,
                  float size_scale,
                  uint8_t body_color = BD,
-                 uint8_t highlight  = HL) {
+                 uint8_t highlight  = HL,
+                 BehaviorMode mode  = BM_Default) {
   std::memset(buf, TR, W * H);
 
   const int cx = W / 2;
@@ -152,9 +162,11 @@ void draw_bailey(uint8_t* buf,
   auto draw_leg = [&](int x, int y, int w, int h) {
     fill_rect(buf, W, H, x, y, w, h, WH);
   };
-  // Back legs
-  draw_leg(cx + 4, cy + body_ry - 2, 4, 6);
-  draw_leg(cx + 9, cy + body_ry - 2, 4, 6);
+  // Sit: hind legs tuck out of sight; front legs stay extended.
+  if (mode != BM_Sit) {
+    draw_leg(cx + 4, cy + body_ry - 2, 4, 6);
+    draw_leg(cx + 9, cy + body_ry - 2, 4, 6);
+  }
   // Front legs
   draw_leg(cx - 12, cy + body_ry - 2, 4, 7);
   draw_leg(cx -  7, cy + body_ry - 2, 4, 7);
@@ -169,9 +181,11 @@ void draw_bailey(uint8_t* buf,
     pset(buf, W, H, cx - body_rx + 7, cy + dy, WH);
   }
 
-  // Head (offset left/forward of body)
+  // Head (offset left/forward of body). For Bark, lift the head a couple
+  // of pixels and tilt slightly so the open-mouth pose reads.
   const int hx = cx - body_rx + 4;
-  const int hy = cy - body_ry + 2;
+  int       hy = cy - body_ry + 2;
+  if (mode == BM_Bark) hy -= 3;
   fill_ellipse(buf, W, H, hx, hy, head_r, head_r - 1, body_color);
 
   // Floppy ears (drooping past the jaw on both sides of the head) -- darker
@@ -236,8 +250,21 @@ void draw_bailey(uint8_t* buf,
   pset(buf, W, H, hx + 1, hy + 3, BK);
   pset(buf, W, H, hx,     hy + 4, BK);
 
-  // Mouth + optional tongue / sad mouth
-  if (sad_mouth) {
+  // Mouth + optional tongue / sad mouth / bark / pant
+  if (mode == BM_Bark) {
+    // Open mouth: black oval with pink tongue interior + motion lines.
+    for (int dy = 5; dy <= 8; ++dy)
+      for (int dx = -2; dx <= 2; ++dx)
+        pset(buf, W, H, hx + dx, hy + dy, BK);
+    pset(buf, W, H, hx,     hy + 7, PK);
+    pset(buf, W, H, hx - 1, hy + 7, PK);
+    pset(buf, W, H, hx + 1, hy + 7, PK);
+    // motion lines on each side of the head (suggest a "WOOF!" burst)
+    for (int dx = 0; dx < 4; ++dx) {
+      pset(buf, W, H, hx - 8 - dx, hy - 2 - dx, OL);
+      pset(buf, W, H, hx + 8 + dx, hy - 2 - dx, OL);
+    }
+  } else if (sad_mouth) {
     pset(buf, W, H, hx - 2, hy + 7, BK);
     pset(buf, W, H, hx - 1, hy + 6, BK);
     pset(buf, W, H, hx,     hy + 6, BK);
@@ -247,10 +274,16 @@ void draw_bailey(uint8_t* buf,
     pset(buf, W, H, hx - 1, hy + 6, BK);
     pset(buf, W, H, hx,     hy + 6, BK);
     pset(buf, W, H, hx + 1, hy + 6, BK);
-    if (tongue) {
+    if (tongue || mode == BM_Pant) {
       pset(buf, W, H, hx,     hy + 7, PK);
       pset(buf, W, H, hx + 1, hy + 7, PK);
       pset(buf, W, H, hx,     hy + 8, PK);
+      if (mode == BM_Pant) {
+        // long dangling tongue
+        pset(buf, W, H, hx,     hy + 9,  PK);
+        pset(buf, W, H, hx + 1, hy + 9,  PK);
+        pset(buf, W, H, hx,     hy + 10, PK);
+      }
     }
   }
 
@@ -342,6 +375,10 @@ void draw_pose(uint8_t* buf, PetPose pose, float size_scale) {
     case PetPose::Playing: draw_bailey(buf, 1, false, true,  false, size_scale); break;
     case PetPose::Sleep:   draw_bailey(buf, 0, true,  false, false, size_scale); break;
     case PetPose::Sad:     draw_bailey(buf, 0, false, false, true,  size_scale); break;
+    case PetPose::Sit:     draw_bailey(buf, 0, false, false, false, size_scale, BD, HL, BM_Sit);  break;
+    case PetPose::Bark:    draw_bailey(buf, 0, false, false, false, size_scale, BD, HL, BM_Bark); break;
+    case PetPose::Pant:    draw_bailey(buf, 0, false, true,  false, size_scale, BD, HL, BM_Pant); break;
+    case PetPose::COUNT:   break;
     case PetPose::Gone: {
       std::memset(buf, TR, W * H);
       // Tombstone
@@ -374,14 +411,15 @@ void sprites_init() {
 
   for (int s = 0; s < 3; ++s) {
     float scale = kStageScale[s];
-    for (int p = 0; p < 6; ++p) {
-      draw_pose(g_pet[s][p], (PetPose)p, scale);
+    for (int p = 0; p < (int)PetPose::COUNT; ++p) {
+      if (p == (int)PetPose::Gone)
+        draw_pose(g_pet[s][p], PetPose::Gone, scale);
+      else
+        draw_pose(g_pet[s][p], (PetPose)p, scale);
     }
-    // Gone always renders the tombstone
-    draw_pose(g_pet[s][(int)PetPose::Gone], PetPose::Gone, scale);
   }
-  // Stage 3 (Gone) sprites: all the gone pose.
-  for (int p = 0; p < 7; ++p) {
+  // Stage 3 (legacy Gone) sprites: all the gone pose for safety.
+  for (int p = 0; p < (int)PetPose::COUNT; ++p) {
     draw_pose(g_pet[3][p], PetPose::Gone, 1.0f);
   }
 
@@ -397,7 +435,7 @@ const uint8_t* pet_sprite(LifeStage stage, PetPose pose) {
   int s = (int)stage;
   int p = (int)pose;
   if (s < 0 || s > 3) s = 0;
-  if (p < 0 || p > 6) p = 0;
+  if (p < 0 || p >= (int)PetPose::COUNT) p = 0;
   return g_pet[s][p];
 }
 

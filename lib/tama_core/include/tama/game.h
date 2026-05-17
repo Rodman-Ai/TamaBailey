@@ -189,6 +189,9 @@ class Game {
   bool      tucked_in()      const { return well_tucked_in_today_ != 0; }
   uint32_t  transition_started_ms() const { return transition_started_ms_; }
   uint8_t   move_out_family_idx()   const { return move_out_family_idx_; }
+  uint8_t   ambient_behavior()      const { return ambient_behavior_; }
+  int16_t   ambient_x_offset()      const { return ambient_x_offset_; }
+  uint32_t  ambient_started_ms()    const { return ambient_started_ms_; }
   uint8_t   shop_cursor()    const { return shop_cursor_; }
   uint8_t   npc_visit_kind() const { return npc_visit_kind_; }
   uint32_t  npc_visit_ms()   const { return npc_visit_ms_; }
@@ -252,6 +255,7 @@ class Game {
   void update_wish(uint32_t now_ms);
   void update_birthday(uint64_t now_unix_ms);
   void update_bedtime(uint64_t now_unix_ms);
+  void update_ambient(uint32_t now_ms);
   void update_vocab();
   void grant_biscuits(uint32_t n);
   void fulfill_wish_if_matches(Wish what);
@@ -328,6 +332,11 @@ class Game {
   // Death-removal: timestamp when MovingOut / Magic transition started.
   uint32_t transition_started_ms_     = 0;
   uint8_t  move_out_family_idx_       = 0;   // which surname to show
+  // Ambient behavior state machine.
+  uint8_t  ambient_behavior_          = 0;   // 0 stand, 1 walk, 2 sit, 3 pant, 4 bark
+  uint32_t ambient_started_ms_        = 0;
+  int16_t  ambient_x_offset_          = 0;
+  int8_t   ambient_walk_dir_          = 1;
   bool     in_transition() const {
     return pet_.mood == Mood::MovingOut || pet_.mood == Mood::Magic;
   }

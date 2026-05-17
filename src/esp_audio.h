@@ -4,14 +4,17 @@
 
 namespace bailey {
 
-// Phase 1 stub: logs each clip to Serial. The board's ES8311 codec
-// integration lands in a follow-up; gameplay code already calls into
-// this interface, so swapping in a real I2S/codec driver later is a
-// drop-in replacement.
+// Real ES8311 + I2S DAC backend for the Waveshare board. If begin() fails
+// (codec missing or I2C error), playClip() falls back to a Serial log so
+// the rest of the firmware keeps working.
 class EspSpeaker final : public tama::Speaker {
  public:
+  bool begin();
   void playClip(tama::ClipId clip, uint8_t volume = 100) override;
-  bool available() const override { return false; }
+  bool available() const override { return ok_; }
+
+ private:
+  bool ok_ = false;
 };
 
 }  // namespace bailey

@@ -188,7 +188,8 @@ void draw_coat_accents(Renderer& r, uint8_t coat_pattern) {
   }
 }
 
-void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms) {
+void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
+                     const Game& game) {
   PetPose pose = PetPose::IdleA;
 
   switch (pet.current_action) {
@@ -203,23 +204,37 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms) {
         case Mood::MovingOut: pose = PetPose::IdleB; break;  // happy walking off
         case Mood::Magic:     pose = PetPose::IdleA; break;  // calm transformation
         case Mood::Gone:      pose = PetPose::IdleA; break;  // legacy fallback
-        default:
-          pose = ((now_ms / kIdleFrameMs) & 1) ? PetPose::IdleB : PetPose::IdleA;
+        default: {
+          // Ambient behavior takes priority over breathing while idle.
+          switch (game.ambient_behavior()) {
+            case 1: // walking -- alternate breathing frames faster
+              pose = ((now_ms / 250) & 1) ? PetPose::IdleB : PetPose::IdleA;
+              break;
+            case 2: pose = PetPose::Sit;  break;
+            case 3: pose = PetPose::Pant; break;
+            case 4: pose = PetPose::Bark; break;
+            default:
+              pose = ((now_ms / kIdleFrameMs) & 1) ? PetPose::IdleB : PetPose::IdleA;
+              break;
+          }
           break;
+        }
       }
       break;
   }
 
   // For MovingOut, slide Bailey off the right edge based on elapsed time.
+  // Otherwise apply the ambient walking x-offset (zero outside walks).
   int draw_x = kPetX;
   if (pet.mood == Mood::MovingOut) {
-    // The full transition is ~5s; slide over that interval.
-    // We don't have direct access to transition_started_ms_ here, so use
-    // age_ms low bits + now_ms parity for a deterministic position --
-    // simpler: cosine-style cycle via now_ms gives a smooth slide.
     uint32_t cycle = now_ms % 5000;
     int max_dx = (kScreenW - kPetX);
     draw_x = kPetX + (int)(cycle * max_dx / 5000);
+  } else {
+    draw_x = kPetX + game.ambient_x_offset();
+    // Clamp so the sprite stays on screen.
+    if (draw_x < 4) draw_x = 4;
+    if (draw_x + kPetDrawW > kScreenW - 4) draw_x = kScreenW - 4 - kPetDrawW;
   }
 
   const uint8_t* sprite = pet_sprite(pet.stage, pose);
@@ -769,7 +784,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   r.drawHLine(0, kStatsBarH, kScreenW, kGrayLight);
   draw_stats_bar(r, pet, game.clock_string());
 
-  draw_pet_sprite(r, pet, now_ms);
+  draw_pet_sprite(r, pet, now_ms, game);
   // Skip coat / accessory overlays during MovingOut (Bailey is sliding
   // off; the fixed-position overlays would be left behind).
   if (pet.mood != Mood::MovingOut) {

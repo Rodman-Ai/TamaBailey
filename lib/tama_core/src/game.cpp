@@ -1,5 +1,6 @@
 #include "tama/game.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -227,9 +228,15 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     for (int i = 0; i < 7; ++i) mood_history_[i] = s.mood_history[i];
     mood_history_head_         = s.mood_history_head;
   } else {
-    // Fresh pet: roll a personality.
+    // Fresh pet: roll a personality and START AS ADULT so demo features
+    // (fetch, walks, tricks, accessories) are reachable immediately.
+    // Use the in-game age cycler (Input::CycleAge) to switch back to
+    // Puppy or jump to Senior.
     uint32_t seed = now_ms ^ 0xBADBAD;
     personality_trait_ = (uint8_t)(1 + (seed % 5));  // Playful..Shy
+    pet_.stage         = LifeStage::Adult;
+    pet_.age_ms        = kHealthyForAdult;        // pretend we earned it
+    pet_.healthy_streak_ms = kHealthyForAdult;
   }
 
   // Offline decay catch-up if we have a synced clock and a previous timestamp.
@@ -543,6 +550,48 @@ void Game::apply_input(Input in) {
       unlock_achievement(AchievementId::PhotoFan);
       dirty_ = true;
       break;
+    case Input::CycleAge: {
+      // Cycle Puppy -> Adult -> Senior -> Puppy. Skip Gone (no death).
+      LifeStage next;
+      switch (pet_.stage) {
+        case LifeStage::Puppy:  next = LifeStage::Adult;  break;
+        case LifeStage::Adult:  next = LifeStage::Senior; break;
+        case LifeStage::Senior: next = LifeStage::Puppy;  break;
+        default:                next = LifeStage::Adult;  break;
+      }
+      pet_.stage = next;
+      // Set age_ms / healthy_streak_ms to the floor of the new stage so
+      // evolution thresholds don't immediately fire.
+      switch (next) {
+        case LifeStage::Puppy:
+          pet_.age_ms = 0;
+          pet_.healthy_streak_ms = 0;
+          break;
+        case LifeStage::Adult:
+          pet_.age_ms = kHealthyForAdult;
+          pet_.healthy_streak_ms = kHealthyForAdult;
+          break;
+        case LifeStage::Senior:
+          pet_.age_ms = kHealthyForSenior;
+          pet_.healthy_streak_ms = kHealthyForSenior;
+          break;
+        default: break;
+      }
+      dirty_ = true;
+      break;
+    }
+    case Input::ImuFlick: {
+      // IMU forward flick: if Adult+ and aiming a fetch throw, jump
+      // straight to the in-flight phase. Otherwise start a fetch (which
+      // is what Play does on Adult+).
+      if (mode_ == GameMode::FetchAiming) {
+        mode_            = GameMode::FetchInFlight;
+        mode_started_ms_ = last_tick_ms_;
+      } else {
+        apply_input(Input::Play);  // chain to normal Play handler
+      }
+      break;
+    }
     case Input::MicTrigger:
       // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
       unlock_achievement(AchievementId::CalledByName);
@@ -767,6 +816,7 @@ void Game::tick(uint32_t now_ms) {
   update_sickness(dt);
   update_tricks();
   update_vocab();
+  update_ambient(now_ms);
 
   // Streak check + weather roll + birthday/bedtime whenever we have a
   // synced clock.
@@ -1130,6 +1180,69 @@ void Game::update_bedtime(uint64_t now_unix_ms) {
   // Reset flag at noon so it applies once per night.
   if (lt.hour == 12 && lt.minute == 0) {
     well_tucked_in_today_ = 0;
+  }
+}
+
+// Ambient idle behaviors --------------------------------------------------
+
+void Game::update_ambient(uint32_t now_ms) {
+  if (mode_ != GameMode::Idle) return;
+  if (pet_.current_action != Action::None) return;
+  if (in_transition()) return;
+  if (pet_.mood == Mood::Sleeping || pet_.mood == Mood::Sad) {
+    ambient_behavior_   = 0;   // pinned to stand for these moods
+    ambient_x_offset_   = 0;
+    return;
+  }
+
+#if BAILEY_FAST_DECAY
+  constexpr uint32_t kIntervalMs = 2000;
+#else
+  constexpr uint32_t kIntervalMs = 10000;
+#endif
+
+  uint32_t elapsed = now_ms - ambient_started_ms_;
+
+  // Drive walking behavior's x-offset every tick (interpolates smoothly).
+  if (ambient_behavior_ == 1) {
+    // 4-second slide; ramp x_offset from 0 -> 32 (or -32) then back.
+    float t = (float)elapsed / 4000.0f;
+    if (t > 1.0f) t = 1.0f;
+    int max_off = 32;
+    // Triangle wave: 0 -> max at t=0.5 -> 0 at t=1
+    int off = (int)(max_off * (1.0f - fabsf(t * 2 - 1.0f)));
+    ambient_x_offset_ = (int16_t)(off * ambient_walk_dir_);
+    if (t >= 1.0f) {
+      // Walk done -> back to stand for the rest of the interval.
+      ambient_behavior_ = 0;
+      ambient_x_offset_ = 0;
+    }
+  } else {
+    ambient_x_offset_ = 0;
+  }
+
+  // Periodically roll a new behavior.
+  if (elapsed >= kIntervalMs) {
+    ambient_started_ms_ = now_ms;
+    uint32_t r = (now_ms * 2654435761u) >> 11;
+    uint8_t  pct = (uint8_t)(r % 100);
+    uint8_t  next;
+    if      (pct < 50) next = 0;  // stand
+    else if (pct < 70) next = 1;  // walk
+    else if (pct < 85) next = 2;  // sit
+    else if (pct < 95) next = 3;  // pant
+    else               next = 4;  // bark
+
+    ambient_behavior_ = next;
+    if (next == 1) {
+      ambient_walk_dir_ = (r & 1) ? 1 : -1;
+    } else {
+      ambient_x_offset_ = 0;
+    }
+    if (next == 4) {
+      // Bark plays the Wuff clip.
+      play_clip(ClipId::Wuff);
+    }
   }
 }
 

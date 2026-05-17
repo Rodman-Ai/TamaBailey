@@ -47,6 +47,16 @@ verified from Waveshare's own demo sketches at
 - Rest regenerates while Bailey isn't actively playing.
 - Mood is driven by the stats: happy, hungry, dirty, sleeping, sad.
 - Keep all stats >= 30 for 24 h to evolve Puppy -> Adult, 96 h -> Senior.
+- **Demo mode**: a fresh save starts Bailey at Adult so fetch, walks,
+  tricks, accessories, and the magic-puppy / move-out loops are all
+  reachable right away. Cycle age (Puppy / Adult / Senior) on demand
+  via the "Cycle age" button on web, or `Input::CycleAge` from device.
+- **Ambient idle behaviors**: while idle, Bailey paces, sits, pants,
+  and barks (with sound) every ~10 s (or every 2 s in fast-decay mode).
+  Any player input preempts the ambient behavior.
+- **Shake the board** to make Bailey bark. **Flick forward** during a
+  fetch aim to throw the ball. **Real walking** with the board in hand
+  registers as walk-steps (QMI8658 6-axis IMU).
 - **Bailey can never die.** Two narrative loops replace death:
   - **Neglect** (all stats 0 for ~60 min) -> Bailey moves in with a
     different family. A new puppy hatches automatically. Achievements,

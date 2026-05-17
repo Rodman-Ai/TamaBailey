@@ -17,6 +17,11 @@ enum class PetPose : uint8_t {
   Sleep   = 4,
   Sad     = 5,
   Gone    = 6,
+  // Round 3: ambient behaviors
+  Sit     = 7,
+  Bark    = 8,
+  Pant    = 9,
+  COUNT   = 10,
 };
 
 // Generate all sprite buffers. Must be called once before drawing.
