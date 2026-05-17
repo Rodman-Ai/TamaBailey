@@ -116,14 +116,16 @@
       ev.preventDefault();
       ensureAudio();
       send(code);
-      // The Take-photo button additionally downloads the canvas PNG.
+      // The Take-photo button additionally downloads the canvas PNG
+      // and saves it to a localStorage album (last 5 shots).
       if (btn.id === 'photoBtn') {
-        // Wait one frame so the screen reflects current state.
         requestAnimationFrame(() => {
+          const dataUrl = canvas.toDataURL('image/png');
           const a = document.createElement('a');
           a.download = 'bailey-' + Date.now() + '.png';
-          a.href = canvas.toDataURL('image/png');
+          a.href = dataUrl;
           a.click();
+          savePhotoToAlbum(dataUrl);
         });
       }
     });
@@ -338,10 +340,63 @@
     document.querySelector('main')?.prepend(link);
   }
 
+  // ---- Photo album (last 5 photos in localStorage) ----
+  const ALBUM_KEY = 'tamabailey:album:v1';
+  function loadAlbum() {
+    try {
+      const raw = localStorage.getItem(ALBUM_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function savePhotoToAlbum(dataUrl) {
+    try {
+      const album = loadAlbum();
+      album.push({ ts: Date.now(), url: dataUrl });
+      while (album.length > 5) album.shift();
+      localStorage.setItem(ALBUM_KEY, JSON.stringify(album));
+    } catch (e) { /* quota or disabled storage -- ignore */ }
+  }
+  function showAlbum() {
+    const album = loadAlbum();
+    if (album.length === 0) {
+      alert("No photos yet. Hit Take photo to start your album.");
+      return;
+    }
+    // Quick & ugly modal: open a new window with a horizontal strip.
+    const w = window.open('', '_blank', 'width=420,height=540');
+    if (!w) return;
+    w.document.title = "Bailey's photo album";
+    w.document.body.style.background = '#222';
+    w.document.body.style.color = '#fff';
+    w.document.body.style.fontFamily = 'sans-serif';
+    w.document.body.style.padding = '12px';
+    const h = w.document.createElement('h2');
+    h.textContent = `Bailey's last ${album.length} photo${album.length > 1 ? 's' : ''}`;
+    w.document.body.appendChild(h);
+    // Newest first.
+    for (let i = album.length - 1; i >= 0; --i) {
+      const entry = album[i];
+      const wrap = w.document.createElement('div');
+      wrap.style.marginBottom = '12px';
+      const img = w.document.createElement('img');
+      img.src = entry.url;
+      img.style.width = '240px';
+      img.style.imageRendering = 'pixelated';
+      img.style.display = 'block';
+      const caption = w.document.createElement('small');
+      caption.textContent = new Date(entry.ts).toLocaleString();
+      caption.style.color = '#aaa';
+      wrap.appendChild(img);
+      wrap.appendChild(caption);
+      w.document.body.appendChild(wrap);
+    }
+  }
+
   // ---- Sync code share/paste UI ----
   window.addEventListener('load', () => {
     const shareBtn = document.getElementById('shareBtn');
     const pasteBtn = document.getElementById('pasteBtn');
+    const albumBtn = document.getElementById('albumBtn');
     if (shareBtn) shareBtn.addEventListener('click', () => {
       if (!Module._bailey_generate_sync_code) return;
       const cstr = Module.ccall('bailey_generate_sync_code', 'string', [], []);
@@ -357,5 +412,6 @@
       const ok = Module.ccall('bailey_apply_sync_code', 'number', ['string'], [code]);
       alert(ok ? "Bailey restored!" : "That code doesn't look right -- try again?");
     });
+    if (albumBtn) albumBtn.addEventListener('click', showAlbum);
   });
 })();
