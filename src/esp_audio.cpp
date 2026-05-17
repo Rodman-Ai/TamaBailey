@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <ESP_I2S.h>
+#include "driver/i2s.h"
 
 #include "pins.h"
 
@@ -79,17 +79,39 @@ bool es8311_init() {
 }
 
 // ---- I2S DMA -----------------------------------------------------------
-constexpr uint32_t kSrTarget = 16000;
-I2SClass g_i2s;
+// Uses the legacy driver/i2s.h ESP-IDF API so we don't depend on
+// arduino-esp32 3.x's ESP_I2S.h wrapper (PlatformIO's default
+// espressif32 platform still ships arduino-esp32 2.x where that header
+// is absent). driver/i2s.h exists in both lineages.
+constexpr i2s_port_t kI2sPort  = I2S_NUM_0;
+constexpr uint32_t   kSrTarget = 16000;
 
 bool i2s_init() {
-  g_i2s.setPins(PIN_AUDIO_I2S_BCLK, PIN_AUDIO_I2S_LRC,
-                PIN_AUDIO_I2S_DOUT, -1 /* DIN */,
-                PIN_AUDIO_I2S_MCLK);
-  if (!g_i2s.begin(I2S_MODE_STD, kSrTarget,
-                   I2S_DATA_BIT_WIDTH_16BIT,
-                   I2S_SLOT_MODE_STEREO)) {
-    Serial.println("[audio] I2S begin failed");
+  i2s_config_t cfg = {};
+  cfg.mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
+  cfg.sample_rate          = kSrTarget;
+  cfg.bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT;
+  cfg.channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT;
+  cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+  cfg.intr_alloc_flags     = 0;
+  cfg.dma_buf_count        = 6;
+  cfg.dma_buf_len          = 256;
+  cfg.use_apll             = true;
+  cfg.tx_desc_auto_clear   = true;
+  cfg.fixed_mclk           = (int)kSrTarget * 256;  // 4.096 MHz on MCLK pin
+
+  if (i2s_driver_install(kI2sPort, &cfg, 0, nullptr) != ESP_OK) {
+    Serial.println("[audio] i2s_driver_install failed");
+    return false;
+  }
+  i2s_pin_config_t pins = {};
+  pins.mck_io_num   = PIN_AUDIO_I2S_MCLK;
+  pins.bck_io_num   = PIN_AUDIO_I2S_BCLK;
+  pins.ws_io_num    = PIN_AUDIO_I2S_LRC;
+  pins.data_out_num = PIN_AUDIO_I2S_DOUT;
+  pins.data_in_num  = I2S_PIN_NO_CHANGE;
+  if (i2s_set_pin(kI2sPort, &pins) != ESP_OK) {
+    Serial.println("[audio] i2s_set_pin failed");
     return false;
   }
   return true;
@@ -118,7 +140,9 @@ void play_pcm(const int16_t* src, int n_src, uint8_t volume) {
       chunk[i * 2 + 0] = v;   // L
       chunk[i * 2 + 1] = v;   // R
     }
-    g_i2s.write((uint8_t*)chunk, frames * 2 * sizeof(int16_t));
+    size_t written = 0;
+    i2s_write(kI2sPort, chunk, frames * 2 * sizeof(int16_t),
+              &written, portMAX_DELAY);
     dst_pos += frames;
   }
 }
