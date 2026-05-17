@@ -233,6 +233,9 @@ class Game {
     return gourmet_active() ? gourmet_until_ms_ - last_tick_ms_ : 0;
   }
 
+  // Round 3 Phase 3: Best-friend bond (paired via sync code).
+  uint32_t best_friend_hash() const { return best_friend_hash_; }
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -439,6 +442,9 @@ class Game {
   // Daily quest: which day_index we last awarded biscuits for. Persisted.
   uint32_t daily_quest_awarded_day_ = 0;
   void update_daily_quest(uint64_t now_unix_ms);
+
+  // Best-friend bond: 32-bit hash of the last sync code consumed.
+  uint32_t best_friend_hash_ = 0;
 
   // Treat recipe combo: bitmask of tiers eaten in the last 60s.
   // Transient: not persisted across save/load.

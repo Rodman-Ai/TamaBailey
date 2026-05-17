@@ -900,7 +900,15 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
 
   std::snprintf(buf, sizeof(buf), "Streak: %u days  Pets: %lu",
                 (unsigned)game.streak_days(), (unsigned long)game.total_pets());
-  r.drawText(x, y, buf, kYellow, 1); y += 14;
+  r.drawText(x, y, buf, kYellow, 1); y += 12;
+
+  // Round 3: best-friend bond from the last sync code consumed.
+  if (game.best_friend_hash() != 0) {
+    std::snprintf(buf, sizeof(buf), "Best friend: %04X",
+                  (unsigned)(game.best_friend_hash() & 0xFFFFu));
+    r.drawText(x, y, buf, kPink, 1); y += 12;
+  }
+  y += 2;
 
   std::snprintf(buf, sizeof(buf), "Food  : %3u / 100", pet.stats.hunger);
   r.drawText(x, y, buf, kOrange, 1); y += 12;

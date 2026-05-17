@@ -73,6 +73,10 @@ bool save_validate_and_migrate(SaveData& s) {
     // v7 -> v8: zero the daily-quest reward tracker.
     s.daily_quest_awarded_day = 0;
   }
+  if (s.version < 9) {
+    // v8 -> v9: no bonded best friend yet.
+    s.best_friend_hash = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

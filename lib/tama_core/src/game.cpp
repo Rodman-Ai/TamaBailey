@@ -233,6 +233,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     walk_today_steps_ = s.walk_today_steps;
     // v8 fields
     daily_quest_awarded_day_ = s.daily_quest_awarded_day;
+    // v9 fields
+    best_friend_hash_        = s.best_friend_hash;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1228,6 +1230,8 @@ void Game::force_save(Storage& storage) {
   s._pad7            = 0;
   // v8 additions
   s.daily_quest_awarded_day = daily_quest_awarded_day_;
+  // v9 additions
+  s.best_friend_hash        = best_friend_hash_;
 
   storage.save(s);
   dirty_ = false;
@@ -1822,6 +1826,14 @@ bool Game::apply_sync_code(const char* code) {
   accessory_id_          = buf[5];
   personality_trait_     = (uint8_t)(buf[6] & 0x0F);
   inherited_trait_       = (uint8_t)((buf[6] >> 4) & 0x0F);
+  // Best-friend bond: stamp a stable hash of the sync payload so the
+  // Stats tab can show "Best friend: XXXX". Knuth's multiplicative hash
+  // mixed over the first 7 bytes (excludes the CRC). Hash 0 is reserved
+  // for "no bond" so bump if we happen to land on zero.
+  uint32_t hash = 0x9E3779B9u;
+  for (int i = 0; i < 7; ++i) hash = (hash ^ buf[i]) * 2654435761u;
+  best_friend_hash_ = hash == 0 ? 0x9E3779B9u : hash;
+  unlock_achievement(AchievementId::Pawmates);
   dirty_ = true;
   return true;
 }
