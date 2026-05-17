@@ -303,6 +303,10 @@ class Game {
   bool      have_local_hour() const { return have_local_hour_; }
   // Round 4 Phase 3: tomorrow's deterministic weather forecast.
   Weather   tomorrow_weather() const;
+  // Round 5 Phase D1: New Year fireworks active flag.
+  bool      fireworks_active() const {
+    return last_tick_ms_ < new_year_fireworks_until_ms_;
+  }
 
   // Round 5 Phase A: personalization. Pet name + birthday are
   // persisted and configurable. Defaults are "Bailey" + Jan 13.
@@ -610,6 +614,10 @@ class Game {
   // Once-per-Christmas auto-scene flag (transient): which day_index
   // we last auto-switched to Snow Park.
   uint32_t last_xmas_auto_scene_day_ = 0;
+
+  // Round 5 Phase D1: once-per-year New Year fireworks timer (transient).
+  uint32_t last_new_year_day_          = 0;
+  uint32_t new_year_fireworks_until_ms_ = 0;
 
   // Hardware init status (transient, set by the platform adapter).
   uint8_t  hw_imu_status_   = HwUnknown;

@@ -775,9 +775,10 @@ void Game::apply_input(Input in) {
     }
     case Input::CycleAccessory: {
       // Cycle through unlocked ones only (0=bare always allowed).
-      // 7 = 4 base (none/bandana/collar/hat) + 3 seasonal.
-      for (uint8_t try_n = 0; try_n < 7; ++try_n) {
-        uint8_t cand = (uint8_t)((accessory_id_ + 1 + try_n) % 7);
+      // 9 = 4 base (none/bandana/collar/hat) + 5 seasonal
+      // (pumpkin/santa/shamrock/egg-basket/heart-bandana).
+      for (uint8_t try_n = 0; try_n < 9; ++try_n) {
+        uint8_t cand = (uint8_t)((accessory_id_ + 1 + try_n) % 9);
         if (accessory_unlocked(cand)) {
           equip_accessory(cand);
           break;
@@ -1800,17 +1801,31 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   LocalTime lt = to_local(now_unix_ms, settings_.tz_offset_min);
   // Round 5: user-configurable birthday (was BAILEY_BIRTHDAY_MONTH/DAY
   // compile-time macros; now stored in save as birthday_month_/_day_).
-  bool birthday  = (lt.month == birthday_month_ && lt.day == birthday_day_);
-  bool halloween = (lt.month == 10 && lt.day == 31);
-  bool christmas = (lt.month == 12 && lt.day == 25);
-  bool stpatrick = (lt.month == 3  && lt.day == 17);
+  bool birthday   = (lt.month == birthday_month_ && lt.day == birthday_day_);
+  bool halloween  = (lt.month == 10 && lt.day == 31);
+  bool christmas  = (lt.month == 12 && lt.day == 25);
+  bool stpatrick  = (lt.month == 3  && lt.day == 17);
+  // Round 5 Phase D1: Easter (fixed Apr 12 for simplicity -- a movable
+  // feast pinned to a single date), Valentine's, New Year.
+  bool easter     = (lt.month == 4  && lt.day == 12);
+  bool valentines = (lt.month == 2  && lt.day == 14);
+  bool newyear    = (lt.month == 1  && lt.day == 1);
   is_birthday_today_ = birthday;
-  // Holiday IDs: 0 none, 1 birthday, 2 halloween, 3 christmas, 4 st-patrick
-  active_holiday_    = birthday ? 1 : (halloween ? 2 : (christmas ? 3 : (stpatrick ? 4 : 0)));
+  // Holiday IDs: 0 none, 1 birthday, 2 halloween, 3 christmas, 4 st-patrick,
+  // 5 easter, 6 valentines, 7 newyear.
+  active_holiday_    = birthday   ? 1 :
+                       halloween  ? 2 :
+                       christmas  ? 3 :
+                       stpatrick  ? 4 :
+                       easter     ? 5 :
+                       valentines ? 6 :
+                       newyear    ? 7 : 0;
   // Auto-unlock the seasonal accessory the first time we see the day.
-  if (halloween) seasonal_unlocks_ |= 0x1;   // pumpkin
-  if (christmas) seasonal_unlocks_ |= 0x2;   // santa hat
-  if (stpatrick) seasonal_unlocks_ |= 0x4;   // shamrock collar
+  if (halloween)  seasonal_unlocks_ |= 0x01;   // pumpkin       (id 4)
+  if (christmas)  seasonal_unlocks_ |= 0x02;   // santa hat     (id 5)
+  if (stpatrick)  seasonal_unlocks_ |= 0x04;   // shamrock      (id 6)
+  if (easter)     seasonal_unlocks_ |= 0x08;   // egg basket    (id 7)
+  if (valentines) seasonal_unlocks_ |= 0x10;   // heart bandana (id 8)
 
   if (birthday) {
     uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
@@ -1822,9 +1837,20 @@ void Game::update_birthday(uint64_t now_unix_ms) {
       dirty_ = true;
     }
   }
-  if (halloween || christmas || stpatrick) {
+  if (halloween || christmas || stpatrick || easter || valentines || newyear) {
     unlock_achievement(AchievementId::SeasonalGreetings);
     if (christmas) weather_ = (uint8_t)Weather::Snow;
+  }
+  // Round 5 Phase D1: stamp New Year fireworks start-time on the
+  // first tick of Jan 1. ui.cpp checks this to render a 5 s burst.
+  if (newyear) {
+    uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if (last_new_year_day_ != day) {
+      last_new_year_day_       = day;
+      new_year_fireworks_until_ms_ = last_tick_ms_ + 5000;
+      play_clip(ClipId::Fanfare);
+      dirty_ = true;
+    }
   }
   // Round 4: on Christmas, auto-switch to Snow Park scene once per
   // day. Player can CycleScene afterward and we won't undo their pick.
@@ -2148,16 +2174,19 @@ bool Game::buy_item(uint8_t i) {
 
 bool Game::accessory_unlocked(uint8_t id) const {
   // Mapping: id 1 (bandana) -> First Pet; id 2 (collar) -> 3-day streak;
-  // id 3 (party hat) -> EvolvedToAdult; ids 4-6 seasonal (auto-unlock
-  // on Halloween / Christmas / St. Patrick's, persistent thereafter).
+  // id 3 (party hat) -> EvolvedToAdult; ids 4-8 seasonal (auto-unlock
+  // on Halloween / Christmas / St. Patrick's / Easter / Valentine's,
+  // persistent thereafter).
   switch (id) {
     case 0: return true;  // bare
     case 1: return is_unlocked(achievements_, AchievementId::FirstPet);
     case 2: return is_unlocked(achievements_, AchievementId::Streak3Days);
     case 3: return is_unlocked(achievements_, AchievementId::EvolvedToAdult);
-    case 4: return (seasonal_unlocks_ & 0x1) != 0;   // pumpkin
-    case 5: return (seasonal_unlocks_ & 0x2) != 0;   // santa hat
-    case 6: return (seasonal_unlocks_ & 0x4) != 0;   // shamrock collar
+    case 4: return (seasonal_unlocks_ & 0x01) != 0;   // pumpkin
+    case 5: return (seasonal_unlocks_ & 0x02) != 0;   // santa hat
+    case 6: return (seasonal_unlocks_ & 0x04) != 0;   // shamrock collar
+    case 7: return (seasonal_unlocks_ & 0x08) != 0;   // egg basket
+    case 8: return (seasonal_unlocks_ & 0x10) != 0;   // heart bandana
     default: return false;
   }
 }

@@ -439,6 +439,41 @@ void draw_accessory_overlay(Renderer& r, uint8_t accessory_id) {
       r.fillRect(cx - 1*kPetScale,   cy + 5*kPetScale, kPetScale*2, kPetScale*2, kGreen);
       break;
     }
+    case 7: { // Easter: yellow egg basket carried at the neck, 3 eggs
+      // Brown basket weave.
+      int bx = kPetX + 8 * kPetScale;
+      int by = kPetY + 18 * kPetScale;
+      r.fillRect(bx,     by + 4, 14, 8, kBrownDark);
+      r.fillRect(bx + 1, by + 3, 12, 1, kBrownLight);
+      // Handle (arc).
+      r.fillRect(bx + 1, by - 1, 2, 4, kBrownDark);
+      r.fillRect(bx + 11, by - 1, 2, 4, kBrownDark);
+      r.fillRect(bx + 3, by - 2, 8, 1, kBrownDark);
+      // Three eggs (white / pink / blue).
+      r.fillRect(bx + 2, by, 3, 4, kWhite);
+      r.fillRect(bx + 6, by, 3, 4, kPink);
+      r.fillRect(bx + 10, by, 3, 4, kBlue);
+      break;
+    }
+    case 8: { // Valentine's: pink bandana with a white heart
+      for (int i = -10; i <= 10; ++i) {
+        for (int j = 0; j < 4; ++j) {
+          r.fillRect(cx + i*kPetScale - 1, cy + j*kPetScale,
+                     kPetScale, kPetScale, kPink);
+        }
+      }
+      // Knot.
+      r.fillRect(cx + 9*kPetScale, cy + 2*kPetScale,
+                 4*kPetScale, 5*kPetScale, kPink);
+      // White heart in the middle of the chest band.
+      r.fillRect(cx - 2, cy + 1*kPetScale,     2, 1, kWhite);
+      r.fillRect(cx + 1, cy + 1*kPetScale,     2, 1, kWhite);
+      r.fillRect(cx - 3, cy + 1*kPetScale + 1, 7, 1, kWhite);
+      r.fillRect(cx - 2, cy + 1*kPetScale + 2, 5, 1, kWhite);
+      r.fillRect(cx - 1, cy + 1*kPetScale + 3, 3, 1, kWhite);
+      r.drawPixel(cx,    cy + 1*kPetScale + 4, kWhite);
+      break;
+    }
   }
 }
 
@@ -2008,6 +2043,29 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
   if (game.is_birthday()) draw_confetti(r, now_ms);
+  // Round 5 Phase D1: New Year fireworks -- 3 colored bursts radiating
+  // from random points across the upper half during the 5 s window
+  // after the Jan 1 roll-over.
+  if (game.fireworks_active()) {
+    static const uint16_t burst_cols[3] = {kRed, kYellow, kBlue};
+    for (int b = 0; b < 3; ++b) {
+      uint32_t seed = (now_ms / 100 + b * 7919u) * 2654435761u;
+      int bcx = 30 + (int)((seed >> 8) % (kScreenW - 60));
+      int bcy = kStatsBarH + 10 + (int)((seed >> 16) % 60);
+      // Radiating dots.
+      for (int k = 0; k < 12; ++k) {
+        float ang = (float)k * 0.523598f;     // 30 deg increments
+        // Cheap sin/cos approximation via small table.
+        static const int8_t cs[12] = { 10, 9, 5, 0,-5,-9,-10,-9,-5, 0, 5, 9};
+        static const int8_t sn[12] = {  0, 5, 9,10, 9, 5,  0,-5,-9,-10,-9,-5};
+        (void)ang;
+        int dx = (int)(cs[k]);
+        int dy = (int)(sn[k]);
+        r.fillRect(bcx + dx, bcy + dy, 2, 2, burst_cols[b]);
+      }
+      r.fillRect(bcx - 1, bcy - 1, 3, 3, burst_cols[b]);
+    }
+  }
 
   // Round 4 Phase 2B: weather/mood overlays painted ON TOP of Bailey
   // and any visitor labels.
