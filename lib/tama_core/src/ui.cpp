@@ -1515,6 +1515,26 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
       r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
     }
   }
+  // Round 6 Phase 6E: soul-bonded friend.
+  if (game.soul_bond_friend_id() < (int)Friend::COUNT) {
+    static const char* const kFriendName[8] = {
+      "Ollie", "Mitchell", "Enzo", "Lincoln",
+      "Ruben", "Francie", "Bomi", "Noshy",
+    };
+    std::snprintf(buf, sizeof(buf), "Soul bond: %s",
+                  kFriendName[game.soul_bond_friend_id()]);
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+  }
+  // Round 6 Phase 6E: dormant friends -- "miss" hint.
+  {
+    uint8_t dormant = game.dormant_friends_mask();
+    if (dormant != 0) {
+      int n = 0;
+      for (int i = 0; i < 8; ++i) if (dormant & (1u << i)) ++n;
+      std::snprintf(buf, sizeof(buf), "Miss: %d friends 3+ days", n);
+      r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
+    }
+  }
   if (game.stories_heard() > 0) {
     std::snprintf(buf, sizeof(buf), "Stories: %u", (unsigned)game.stories_heard());
     r.drawText(x, y, buf, kGrayLight, 1); y += kInfoStep;

@@ -421,6 +421,28 @@ class Game {
   // (when active and hunger < 60).
   bool     auto_feeder_owned() const { return auto_feeder_owned_ != 0; }
 
+  // Round 6 Phase 6E: soul-bonded friend (0xFF none); first friend to
+  // reach 25 visits is recorded permanently.
+  uint8_t  soul_bond_friend_id() const { return soul_bond_friend_id_; }
+  // Per-friend wishlist bitmask. Player toggles which friends to keep
+  // queued for the next ambient visit window.
+  uint8_t  friend_wishlist_mask() const { return friend_wishlist_mask_; }
+  void     toggle_friend_wishlist(Friend f) {
+    int i = (int)f;
+    if (i < 0 || i >= (int)Friend::COUNT) return;
+    friend_wishlist_mask_ ^= (uint8_t)(1u << i);
+    dirty_ = true;
+  }
+  // Day_index of the last visit per friend; 0 means never.
+  uint32_t friend_last_visit_day(Friend f) const {
+    int i = (int)f;
+    if (i < 0 || i >= (int)Friend::COUNT) return 0;
+    return friend_last_visit_day_[i];
+  }
+  // Bitmask of friends that have been dormant for >= 3 days (and have
+  // visited at least once). Empty when no clock yet.
+  uint8_t  dormant_friends_mask() const;
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -818,6 +840,11 @@ class Game {
   uint8_t  auto_feeder_owned_   = 0;
   // Transient accumulator for auto-feeder hunger restoration.
   uint32_t auto_feeder_acc_ms_  = 0;
+
+  // Round 6 Phase 6E: soul bond + wishlist + last-visit tracking (v30).
+  uint8_t  soul_bond_friend_id_  = 0xFF;
+  uint8_t  friend_wishlist_mask_ = 0;
+  uint32_t friend_last_visit_day_[(int)Friend::COUNT] = {0,0,0,0,0,0,0,0};
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

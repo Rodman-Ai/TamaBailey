@@ -195,6 +195,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.auto_feeder_owned = 0;
     s._pad29            = 0;
   }
+  if (s.version < 30) {
+    // v29 -> v30: no soul bond, empty wishlist, never-visited timestamps.
+    s.soul_bond_friend_id  = 0xFF;
+    s.friend_wishlist_mask = 0;
+    for (int i = 0; i < 8; ++i) s.friend_last_visit_day[i] = 0;
+    s._pad30               = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

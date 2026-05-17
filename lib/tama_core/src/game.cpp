@@ -310,6 +310,11 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     vet_history_head_   = s.vet_history_head;
     vet_history_count_  = s.vet_history_count;
     auto_feeder_owned_  = s.auto_feeder_owned;
+    // v30 fields
+    soul_bond_friend_id_  = s.soul_bond_friend_id;
+    friend_wishlist_mask_ = s.friend_wishlist_mask;
+    for (int i = 0; i < (int)Friend::COUNT; ++i)
+      friend_last_visit_day_[i] = s.friend_last_visit_day[i];
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1060,6 +1065,13 @@ void Game::apply_input(Input in) {
         // Round 6 Phase 6B: each fresh visit bumps the per-friend bond
         // level up to a cap of 5 hearts.
         if (friend_bond_levels_[(int)f] < 5) friend_bond_levels_[(int)f]++;
+        // Round 6 Phase 6E: stamp this friend's last-visit day (only
+        // meaningful when we have a synced clock) and lock in the
+        // soul-bonded friend the first time anyone reaches 25 visits.
+        if (today_day_index_ != 0)
+          friend_last_visit_day_[(int)f] = today_day_index_;
+        if (soul_bond_friend_id_ == 0xFF && friend_visits_[(int)f] >= 25)
+          soul_bond_friend_id_ = (uint8_t)f;
         unlock_achievement(AchievementId::PlayDate);
         bool met_all = true;
         for (int i = 0; i < (int)Friend::COUNT; ++i)
@@ -1689,6 +1701,12 @@ void Game::force_save(Storage& storage) {
   s.vet_history_count       = vet_history_count_;
   s.auto_feeder_owned       = auto_feeder_owned_;
   s._pad29                  = 0;
+  // v30 additions
+  s.soul_bond_friend_id     = soul_bond_friend_id_;
+  s.friend_wishlist_mask    = friend_wishlist_mask_;
+  for (int i = 0; i < (int)Friend::COUNT; ++i)
+    s.friend_last_visit_day[i] = friend_last_visit_day_[i];
+  s._pad30                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2162,7 +2180,21 @@ void Game::update_walk(uint32_t now_ms) {
         npc_visit_ms_   = now_ms;
         unlock_achievement(AchievementId::MysteryMet);
       } else {
-        int friend_a = (int)(rng_next() % (int)Friend::COUNT);
+        // Round 6 Phase 6E: bias ambient spawns toward wish-listed
+        // friends. Half the time, if the wishlist is non-empty, pick
+        // uniformly from the wishlisted set; otherwise fall back to
+        // the uniform-over-all pick.
+        int friend_a;
+        uint8_t wl = friend_wishlist_mask_;
+        if (wl != 0 && (rng_next() & 1u)) {
+          int count = 0;
+          int picks[(int)Friend::COUNT];
+          for (int i = 0; i < (int)Friend::COUNT; ++i)
+            if (wl & (1u << i)) picks[count++] = i;
+          friend_a = picks[rng_next() % count];
+        } else {
+          friend_a = (int)(rng_next() % (int)Friend::COUNT);
+        }
         npc_visit_kind_ = (uint8_t)(friend_a + 1);
         npc_visit_ms_   = now_ms;
         // Half the time, bring a second different friend along, but
@@ -2959,6 +2991,19 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6E: which friends have been dormant for >=3 days?
+uint8_t Game::dormant_friends_mask() const {
+  uint32_t today = today_day_index_;
+  if (today == 0) return 0;
+  uint8_t m = 0;
+  for (int i = 0; i < (int)Friend::COUNT; ++i) {
+    uint32_t last = friend_last_visit_day_[i];
+    if (last == 0) continue;            // never visited; nothing to miss
+    if (today >= last + 3) m |= (uint8_t)(1u << i);
+  }
+  return m;
 }
 
 // Round 6 Phase 6D: exercise 0..100 derived from today's walk steps.

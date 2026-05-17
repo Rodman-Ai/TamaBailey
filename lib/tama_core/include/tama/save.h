@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 29;
+constexpr uint16_t kSaveVersion  = 30;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -179,6 +179,11 @@ struct SaveData {
   uint8_t  vet_history_count;              // 0..5; saturates
   uint8_t  auto_feeder_owned;              // 0 = not owned, 1 = owned (purchased from shop)
   uint8_t  _pad29;
+  // ---- v30 additions (Round 6 Phase 6E: social depth) ----
+  uint8_t  soul_bond_friend_id;            // 0..7 if any friend has 25+ visits (1st reached); 0xFF none
+  uint8_t  friend_wishlist_mask;           // bitmask of friends queued for invites
+  uint32_t friend_last_visit_day[8];       // day_index of last visit per Friend slot
+  uint16_t _pad30;
 };
 #pragma pack(pop)
 
