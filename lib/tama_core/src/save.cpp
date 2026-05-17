@@ -211,6 +211,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.birthday_cake_seen_day  = 0;
     s._pad31[0] = s._pad31[1] = 0;
   }
+  if (s.version < 32) {
+    // v31 -> v32: no badge, default accessory size, no extra coats.
+    s.collar_badge_id      = 0;
+    s.accessory_size       = 1;
+    s.extra_coats_unlocked = 0;
+    s._pad32               = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

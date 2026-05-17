@@ -361,11 +361,20 @@ void draw_background(Renderer& r, float daylight) {
 // Accessory drawn over the pet's head/neck. accessory_id meanings:
 //   1 = red bandana, 2 = blue collar, 3 = party hat
 // engraving (optional) is a 4-char tag rendered on the blue-collar tag.
+// badge_id (0..4) renders a tiny icon next to the engraved tag.
+// size_variant (0 small / 1 default / 2 large) scales the overlay
+// horizontally so the same accessory has small / medium / large flavors.
 void draw_accessory_overlay(Renderer& r, uint8_t accessory_id,
-                            const char* engraving = nullptr) {
+                            const char* engraving = nullptr,
+                            uint8_t badge_id = 0,
+                            uint8_t size_variant = 1) {
   if (accessory_id == 0) return;
   int cx = kPetX + kPetDrawW / 2;
   int cy = kPetY + 24 * kPetScale;
+  // Round 6 Phase 6G: size_variant scales the horizontal reach of
+  // each accessory. 0 = -2 px on each side, 2 = +2 px on each side.
+  int size_dx = (size_variant == 0) ? -2 : (size_variant == 2 ? 2 : 0);
+  (void)size_dx;
   switch (accessory_id) {
     case 1: { // red bandana around neck
       for (int i = -10; i <= 10; ++i) {
@@ -380,7 +389,8 @@ void draw_accessory_overlay(Renderer& r, uint8_t accessory_id,
       break;
     }
     case 2: { // blue collar
-      for (int i = -8; i <= 8; ++i)
+      int collar_w = 8 + size_dx;     // size variant -> wider/narrower strap
+      for (int i = -collar_w; i <= collar_w; ++i)
         r.fillRect(cx + i*kPetScale - 1, cy + 1*kPetScale,
                    kPetScale, kPetScale * 2, kBlue);
       r.fillRect(cx - 1, cy + 3*kPetScale, kPetScale * 2, kPetScale * 2, kYellow);
@@ -388,6 +398,15 @@ void draw_accessory_overlay(Renderer& r, uint8_t accessory_id,
       if (engraving) {
         r.drawText(cx + 2 * kPetScale - 8, cy + 3 * kPetScale + 4,
                    engraving, kBlack, 1);
+      }
+      // Round 6 Phase 6G: optional badge sticker next to the tag.
+      if (badge_id >= 1 && badge_id <= 4) {
+        uint16_t bcol = badge_id == 1 ? kGreen :   // paw
+                        badge_id == 2 ? kYellow :  // star
+                        badge_id == 3 ? kBrown :   // bone
+                                        kPink;     // heart
+        r.fillRect(cx + 3 * kPetScale + 2, cy + 3 * kPetScale,
+                   3, 3, bcol);
       }
       break;
     }
@@ -2254,7 +2273,9 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   if (pet.mood != Mood::MovingOut) {
     draw_coat_accents(r, game.coat_pattern());
     draw_accessory_overlay(r, game.accessory_id(),
-                           game.accessory_id() == 2 ? game.collar_engraving() : nullptr);
+                           game.accessory_id() == 2 ? game.collar_engraving() : nullptr,
+                           game.collar_badge_id(),
+                           game.accessory_size());
   }
   draw_weather(r, game, now_ms);
 

@@ -321,6 +321,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     quest_history_count_     = s.quest_history_count;
     day_of_dogs_last_day_    = s.day_of_dogs_last_day;
     birthday_cake_seen_day_  = s.birthday_cake_seen_day;
+    // v32 fields
+    collar_badge_id_         = s.collar_badge_id;
+    accessory_size_          = s.accessory_size;
+    extra_coats_unlocked_    = s.extra_coats_unlocked;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -886,8 +890,12 @@ void Game::apply_input(Input in) {
       break;
     }
     case Input::CycleCoat: {
-      uint8_t next = (uint8_t)((coat_pattern_ + 1) % 5);
-      choose_coat(next);
+      // Round 6 Phase 6G: extend cycle to 0..7. Skip locked extras.
+      uint8_t next = coat_pattern_;
+      for (int step = 0; step < 8; ++step) {
+        next = (uint8_t)((next + 1) % 8);
+        if (next <= 4 || coat_unlocked(next)) { choose_coat(next); break; }
+      }
       break;
     }
     case Input::CycleAccessory: {
@@ -1475,6 +1483,13 @@ void Game::check_achievements() {
   // Round 6 Phase 6B: keep the earned-titles mask in sync with the
   // underlying counters (bones / steps / Showstopper achievement).
   update_earned_titles();
+  // Round 6 Phase 6G: extra-coat milestone unlocks.
+  // Cream  (id 5): Bailey reaches Senior stage.
+  // Merle  (id 6): trainer level >= 5.
+  // Husky  (id 7): >= 1000 total walking steps.
+  if (pet_.stage == LifeStage::Senior) unlock_coat(5);
+  if (trainer_level() >= 5)            unlock_coat(6);
+  if (total_steps_ >= 1000)            unlock_coat(7);
 }
 
 void Game::tick(uint32_t now_ms) {
@@ -1720,6 +1735,11 @@ void Game::force_save(Storage& storage) {
   s.day_of_dogs_last_day    = day_of_dogs_last_day_;
   s.birthday_cake_seen_day  = birthday_cake_seen_day_;
   s._pad31[0] = s._pad31[1] = 0;
+  // v32 additions
+  s.collar_badge_id         = collar_badge_id_;
+  s.accessory_size          = accessory_size_;
+  s.extra_coats_unlocked    = extra_coats_unlocked_;
+  s._pad32                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2106,7 +2126,10 @@ void Game::equip_accessory(uint8_t id) {
 }
 
 void Game::choose_coat(uint8_t id) {
-  if (id > 4) return;
+  // Round 6 Phase 6G: ids 5..7 are the extra Cream / Merle / Husky
+  // coats; allow them only when their unlock bit is set.
+  if (id > 7) return;
+  if (id > 4 && !coat_unlocked(id)) return;
   coat_pattern_ = id;
   if (mode_ == GameMode::PickingCoat) {
     mode_ = GameMode::Idle;

@@ -459,6 +459,26 @@ class Game {
     dirty_ = true;
   }
 
+  // Round 6 Phase 6G: cosmetic depth.
+  // collar badge (0..4) added to the blue collar accessory tag.
+  uint8_t  collar_badge_id()    const { return collar_badge_id_; }
+  void     cycle_collar_badge()       { collar_badge_id_ = (collar_badge_id_ + 1) % 5; dirty_ = true; }
+  // Accessory size variant: 0 small, 1 default, 2 large.
+  uint8_t  accessory_size()     const { return accessory_size_; }
+  void     cycle_accessory_size()     { accessory_size_ = (accessory_size_ + 1) % 3; dirty_ = true; }
+  // Extra coats unlock mask: bit0 Cream (id 5), bit1 Merle (6), bit2 Husky (7).
+  uint8_t  extra_coats_unlocked() const { return extra_coats_unlocked_; }
+  bool     coat_unlocked(uint8_t coat_id) const {
+    if (coat_id <= 4) return true;
+    if (coat_id > 7)  return false;
+    return (extra_coats_unlocked_ & (1u << (coat_id - 5))) != 0;
+  }
+  void     unlock_coat(uint8_t coat_id) {
+    if (coat_id < 5 || coat_id > 7) return;
+    extra_coats_unlocked_ |= (uint8_t)(1u << (coat_id - 5));
+    dirty_ = true;
+  }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -870,6 +890,11 @@ class Game {
   uint8_t  birthday_cake_seen_day_ = 0;
   // Transient cake-display timer (resets when birthday window passes).
   uint32_t birthday_cake_started_ms_ = 0;
+
+  // Round 6 Phase 6G: cosmetics (persisted v32).
+  uint8_t  collar_badge_id_      = 0;
+  uint8_t  accessory_size_       = 1;
+  uint8_t  extra_coats_unlocked_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

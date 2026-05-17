@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 31;
+constexpr uint16_t kSaveVersion  = 32;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -191,6 +191,11 @@ struct SaveData {
   uint32_t day_of_dogs_last_day;           // day_index of last Aug 26 event spawn
   uint8_t  birthday_cake_seen_day;         // last day_index we played the cake animation (lo 8 bits)
   uint8_t  _pad31[2];
+  // ---- v32 additions (Round 6 Phase 6G: cosmetic depth) ----
+  uint8_t  collar_badge_id;                // 0 none / 1 paw / 2 star / 3 bone / 4 heart
+  uint8_t  accessory_size;                 // 0 small / 1 default / 2 large
+  uint8_t  extra_coats_unlocked;           // bitmask: bit0 Cream(5) / bit1 Merle(6) / bit2 Husky(7)
+  uint8_t  _pad32;
 };
 #pragma pack(pop)
 
