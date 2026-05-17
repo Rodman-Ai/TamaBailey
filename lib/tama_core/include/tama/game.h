@@ -509,6 +509,20 @@ class Game {
   //      2 Lucky Streak (+1 biscuit per achievement)
   bool     buy_perk(uint8_t bit);     // returns true on success
 
+  // Round 6 Phase 6I: lifetime daily-seal count + check-in flag.
+  uint8_t  daily_seals_total()    const { return daily_seals_total_; }
+  bool     daily_seal_today()     const;
+  // Halloween costumes (additional accessory ids 9 + 10). Auto-unlock
+  // on Halloween (Oct 31) -- both costumes unlock together.
+  uint8_t  halloween_costumes_unlocked() const { return halloween_costumes_unlocked_; }
+  // Limited-time event banner: rotating event id derived from
+  // today_day_index_ / 7. 0..3 cycle (none / fall fest / paw pride /
+  // winter cheer / spring bloom). Returns 0 when no clock yet.
+  uint8_t  current_event_id()     const;
+  const char* current_event_name() const;
+  // Days remaining in this 7-day event window (0 when no clock).
+  uint8_t  event_days_remaining() const;
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -931,6 +945,11 @@ class Game {
   uint32_t weekly_steps_progress_    = 0;
   uint32_t weekly_last_awarded_week_ = 0;
   uint8_t  trainer_perks_mask_       = 0;
+
+  // Round 6 Phase 6I: daily seals + halloween costumes (persisted v34).
+  uint8_t  daily_seals_total_       = 0;
+  uint32_t daily_seals_last_day_    = 0;
+  uint8_t  halloween_costumes_unlocked_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

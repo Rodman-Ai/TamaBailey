@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 33;
+constexpr uint16_t kSaveVersion  = 34;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -202,6 +202,11 @@ struct SaveData {
   uint32_t weekly_last_awarded_week;       // week_index (day_index/7) of last reward
   uint8_t  trainer_perks_mask;             // bit0 Bigger Bites, bit1 Best Pals, bit2 Lucky Streak
   uint8_t  _pad33[3];
+  // ---- v34 additions (Round 6 Phase 6I: events + daily seal) ----
+  uint8_t  daily_seals_total;              // lifetime daily check-in seals (0..255)
+  uint32_t daily_seals_last_day;           // last day_index a seal was granted
+  uint8_t  halloween_costumes_unlocked;    // bit0 witch hat (id 9), bit1 ghost sheet (id 10)
+  uint8_t  _pad34[2];
 };
 #pragma pack(pop)
 

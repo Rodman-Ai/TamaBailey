@@ -331,6 +331,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     weekly_steps_progress_    = s.weekly_steps_progress;
     weekly_last_awarded_week_ = s.weekly_last_awarded_week;
     trainer_perks_mask_       = s.trainer_perks_mask;
+    // v34 fields
+    daily_seals_total_          = s.daily_seals_total;
+    daily_seals_last_day_       = s.daily_seals_last_day;
+    halloween_costumes_unlocked_ = s.halloween_costumes_unlocked;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1771,6 +1775,11 @@ void Game::force_save(Storage& storage) {
   s.weekly_last_awarded_week = weekly_last_awarded_week_;
   s.trainer_perks_mask       = trainer_perks_mask_;
   s._pad33[0] = s._pad33[1] = s._pad33[2] = 0;
+  // v34 additions
+  s.daily_seals_total           = daily_seals_total_;
+  s.daily_seals_last_day        = daily_seals_last_day_;
+  s.halloween_costumes_unlocked = halloween_costumes_unlocked_;
+  s._pad34[0] = s._pad34[1]     = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2359,6 +2368,9 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   if (stpatrick)  seasonal_unlocks_ |= 0x04;   // shamrock      (id 6)
   if (easter)     seasonal_unlocks_ |= 0x08;   // egg basket    (id 7)
   if (valentines) seasonal_unlocks_ |= 0x10;   // heart bandana (id 8)
+  // Round 6 Phase 6I: Halloween also unlocks the full witch hat
+  // (id 9) + ghost sheet (id 10) costumes.
+  if (halloween)  halloween_costumes_unlocked_ |= 0x03;
 
   if (birthday) {
     uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
@@ -2590,6 +2602,12 @@ void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
   uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
   if (today_day_index_ == 0) {
     today_day_index_ = day;
+    // Round 6 Phase 6I: first synced tick also grants a daily seal.
+    if (daily_seals_last_day_ != day) {
+      daily_seals_last_day_ = day;
+      if (daily_seals_total_ < 255) daily_seals_total_++;
+      dirty_ = true;
+    }
     return;
   }
   if (day == today_day_index_) return;
@@ -2636,6 +2654,11 @@ void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
   today_samples_       = 0;
   today_actions_       = 0;
   walk_today_steps_    = 0;     // round 3: reset daily walk counter at midnight
+  // Round 6 Phase 6I: stamp a daily seal whenever we cross into a new day.
+  if (daily_seals_last_day_ != day) {
+    daily_seals_last_day_ = day;
+    if (daily_seals_total_ < 255) daily_seals_total_++;
+  }
   dirty_ = true;
 }
 
@@ -2763,6 +2786,8 @@ bool Game::accessory_unlocked(uint8_t id) const {
     case 6: return (seasonal_unlocks_ & 0x04) != 0;   // shamrock collar
     case 7: return (seasonal_unlocks_ & 0x08) != 0;   // egg basket
     case 8: return (seasonal_unlocks_ & 0x10) != 0;   // heart bandana
+    case 9:  return (halloween_costumes_unlocked_ & 0x01) != 0;  // witch hat
+    case 10: return (halloween_costumes_unlocked_ & 0x02) != 0;  // ghost sheet
     default: return false;
   }
 }
@@ -3126,6 +3151,38 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6I: daily seal granted today?
+bool Game::daily_seal_today() const {
+  return today_day_index_ != 0 &&
+         daily_seals_last_day_ == today_day_index_;
+}
+
+// Round 6 Phase 6I: rotating limited-time events. Each event runs for
+// 7 days and the slot is keyed off the current week_index modulo the
+// number of events. Event id 0 = no event (rest week).
+uint8_t Game::current_event_id() const {
+  if (today_day_index_ == 0) return 0;
+  // Cycle through 5 slots: 0 rest, 1..4 themed events.
+  return (uint8_t)((today_day_index_ / 7) % 5);
+}
+
+const char* Game::current_event_name() const {
+  switch (current_event_id()) {
+    case 0: return "";
+    case 1: return "Fall Fest";
+    case 2: return "Paw Pride Week";
+    case 3: return "Winter Cheer";
+    case 4: return "Spring Bloom";
+    default: return "";
+  }
+}
+
+uint8_t Game::event_days_remaining() const {
+  if (today_day_index_ == 0) return 0;
+  uint8_t day_in_week = (uint8_t)(today_day_index_ % 7);
+  return (uint8_t)(7 - day_in_week);
 }
 
 // Round 6 Phase 6H: gift name lookup for the friend gift log.

@@ -226,6 +226,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.trainer_perks_mask         = 0;
     s._pad33[0] = s._pad33[1] = s._pad33[2] = 0;
   }
+  if (s.version < 34) {
+    // v33 -> v34: no daily seals, no halloween costumes.
+    s.daily_seals_total            = 0;
+    s.daily_seals_last_day         = 0;
+    s.halloween_costumes_unlocked  = 0;
+    s._pad34[0] = s._pad34[1]      = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

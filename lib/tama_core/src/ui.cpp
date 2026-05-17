@@ -1524,6 +1524,19 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
     std::snprintf(buf, sizeof(buf), "Perks : [%s]", p);
     r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6I: limited-time event banner + daily seal count.
+  if (game.current_event_id() != 0) {
+    std::snprintf(buf, sizeof(buf), "Event: %s (%ud left)",
+                  game.current_event_name(),
+                  (unsigned)game.event_days_remaining());
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+  }
+  if (game.daily_seals_total() > 0) {
+    std::snprintf(buf, sizeof(buf), "Seals: %u%s",
+                  (unsigned)game.daily_seals_total(),
+                  game.daily_seal_today() ? " (today!)" : "");
+    r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());
