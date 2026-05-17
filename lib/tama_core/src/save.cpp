@@ -233,6 +233,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.halloween_costumes_unlocked  = 0;
     s._pad34[0] = s._pad34[1]      = 0;
   }
+  if (s.version < 35) {
+    // v34 -> v35: empty trainer leaderboard.
+    for (int i = 0; i < 8; ++i) s.leaderboard_hashes[i] = 0;
+    s.leaderboard_head        = 0;
+    s.leaderboard_count       = 0;
+    s._pad35[0] = s._pad35[1] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

@@ -1537,6 +1537,12 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   game.daily_seal_today() ? " (today!)" : "");
     r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6J: trainer leaderboard summary.
+  if (game.leaderboard_count() > 0) {
+    std::snprintf(buf, sizeof(buf), "Leaderboard: %u/8",
+                  (unsigned)game.leaderboard_count());
+    r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());

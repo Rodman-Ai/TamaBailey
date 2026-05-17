@@ -523,6 +523,17 @@ class Game {
   // Days remaining in this 7-day event window (0 when no clock).
   uint8_t  event_days_remaining() const;
 
+  // Round 6 Phase 6J: trainer leaderboard. Each successful
+  // apply_sync_code() pushes the partner's hash here; ring buffer
+  // retains the last 8 distinct entries.
+  uint8_t  leaderboard_count() const { return leaderboard_count_; }
+  uint32_t leaderboard_entry(uint8_t age_idx) const;
+
+  // Round 6 Phase 6J: photo card -- multi-line bio text for sharing.
+  // Composed from name + level + title + key counters into a single
+  // newline-separated string in a static buffer.
+  const char* trainer_photo_card() const;
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -950,6 +961,11 @@ class Game {
   uint8_t  daily_seals_total_       = 0;
   uint32_t daily_seals_last_day_    = 0;
   uint8_t  halloween_costumes_unlocked_ = 0;
+
+  // Round 6 Phase 6J: trainer leaderboard (persisted v35).
+  uint32_t leaderboard_hashes_[8] = {0,0,0,0,0,0,0,0};
+  uint8_t  leaderboard_head_  = 0;
+  uint8_t  leaderboard_count_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

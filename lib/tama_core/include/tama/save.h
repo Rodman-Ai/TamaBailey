@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 34;
+constexpr uint16_t kSaveVersion  = 35;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -207,6 +207,11 @@ struct SaveData {
   uint32_t daily_seals_last_day;           // last day_index a seal was granted
   uint8_t  halloween_costumes_unlocked;    // bit0 witch hat (id 9), bit1 ghost sheet (id 10)
   uint8_t  _pad34[2];
+  // ---- v35 additions (Round 6 Phase 6J: trainer leaderboard) ----
+  uint32_t leaderboard_hashes[8];          // ring buffer of partner sync-code hashes seen
+  uint8_t  leaderboard_head;
+  uint8_t  leaderboard_count;              // 0..8; saturates
+  uint8_t  _pad35[2];
 };
 #pragma pack(pop)
 

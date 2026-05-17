@@ -335,6 +335,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     daily_seals_total_          = s.daily_seals_total;
     daily_seals_last_day_       = s.daily_seals_last_day;
     halloween_costumes_unlocked_ = s.halloween_costumes_unlocked;
+    // v35 fields
+    for (int i = 0; i < 8; ++i) leaderboard_hashes_[i] = s.leaderboard_hashes[i];
+    leaderboard_head_   = s.leaderboard_head;
+    leaderboard_count_  = s.leaderboard_count;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1780,6 +1784,11 @@ void Game::force_save(Storage& storage) {
   s.daily_seals_last_day        = daily_seals_last_day_;
   s.halloween_costumes_unlocked = halloween_costumes_unlocked_;
   s._pad34[0] = s._pad34[1]     = 0;
+  // v35 additions
+  for (int i = 0; i < 8; ++i) s.leaderboard_hashes[i] = leaderboard_hashes_[i];
+  s.leaderboard_head            = leaderboard_head_;
+  s.leaderboard_count           = leaderboard_count_;
+  s._pad35[0] = s._pad35[1]     = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2837,6 +2846,15 @@ bool Game::apply_sync_code(const char* code) {
   uint32_t hash = 0x9E3779B9u;
   for (int i = 0; i < 7; ++i) hash = (hash ^ buf[i]) * 2654435761u;
   best_friend_hash_ = hash == 0 ? 0x9E3779B9u : hash;
+  // Round 6 Phase 6J: push partner hash into leaderboard ring buffer
+  // (dedupe against the last entry so back-to-back same-code applies
+  // don't fill the buffer with duplicates).
+  uint8_t last = (uint8_t)((leaderboard_head_ + 8 - 1) % 8);
+  if (leaderboard_count_ == 0 || leaderboard_hashes_[last] != best_friend_hash_) {
+    leaderboard_hashes_[leaderboard_head_] = best_friend_hash_;
+    leaderboard_head_ = (uint8_t)((leaderboard_head_ + 1) % 8);
+    if (leaderboard_count_ < 8) leaderboard_count_++;
+  }
   unlock_achievement(AchievementId::Pawmates);
   dirty_ = true;
   return true;
@@ -3151,6 +3169,37 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6J: leaderboard read-out (age_idx 0 = most recent).
+uint32_t Game::leaderboard_entry(uint8_t age_idx) const {
+  if (age_idx >= leaderboard_count_) return 0;
+  uint8_t i = (uint8_t)((leaderboard_head_ + 8 - 1 - age_idx) % 8);
+  return leaderboard_hashes_[i];
+}
+
+// Round 6 Phase 6J: 6-line printable bio card for sharing.
+const char* Game::trainer_photo_card() const {
+  static char buf[256];
+  unsigned bonded = 0;
+  for (int i = 0; i < (int)Friend::COUNT; ++i)
+    if (friend_bond_levels_[i] > 0) ++bonded;
+  std::snprintf(buf, sizeof(buf),
+                "%s, %s\n"
+                "Trainer Lv %u  XP %u\n"
+                "%u biscuits  %u bones\n"
+                "%lu steps  %u tricks\n"
+                "%u friends bonded\n"
+                "Seals: %u  Achv: %u",
+                pet_name_, trainer_title(),
+                (unsigned)trainer_level(), (unsigned)trainer_xp_,
+                (unsigned)biscuits_, (unsigned)bones_collected_,
+                (unsigned long)total_steps_,
+                (unsigned)__builtin_popcount(tricks_learned_),
+                bonded,
+                (unsigned)daily_seals_total_,
+                (unsigned)__builtin_popcountll(achievements_));
+  return buf;
 }
 
 // Round 6 Phase 6I: daily seal granted today?
