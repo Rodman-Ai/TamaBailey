@@ -60,13 +60,28 @@ constexpr uint32_t kIdleFrameMs     = 700;
 constexpr uint64_t kMaxOfflineCatchupMs = (uint64_t)7 * 24 * 3600 * 1000;
 
 enum class GameMode : uint8_t {
-  Idle = 0,
-  // Phase 2 modes -- implemented in later phases.
-  FetchAiming   = 1,
-  FetchCatching = 2,
-  Training      = 3,
-  PhotoMode     = 4,
+  Idle           = 0,
+  FetchAiming    = 1,
+  FetchInFlight  = 2,
+  FetchCatching  = 3,
+  FetchResult    = 4,
+  PickingCoat    = 5,
+  PhotoMode      = 6,
 };
+
+// Tricks (Phase 2). Auto-learned at age milestones (no rhythm mini-game).
+enum class Trick : uint8_t {
+  Sit       = 0,
+  Shake     = 1,
+  RollOver  = 2,
+  Speak     = 3,
+  Spin      = 4,
+  COUNT     = 5,
+};
+const char* trick_name(Trick t);
+constexpr uint8_t kAllTricksMask = (1u << (int)Trick::COUNT) - 1;
+// Age (ms) at which each trick auto-learns. Scaled by BAILEY_FAST_DECAY.
+uint64_t trick_age_threshold(Trick t);
 
 enum class Personality : uint8_t {
   None    = 0,
@@ -116,6 +131,14 @@ class Game {
   bool      is_sick()      const { return sickness_ != 0; }
   uint8_t   coat_pattern() const { return coat_pattern_; }
   uint8_t   accessory_id() const { return accessory_id_; }
+  uint8_t   tricks_learned() const { return tricks_learned_; }
+  uint64_t  fetch_catches()  const { return fetch_catches_; }
+  uint32_t  fetch_state_ms() const { return mode_started_ms_; }
+
+  // Equip accessory (no-op if id not unlocked). 0 = unequip.
+  void equip_accessory(uint8_t id);
+  void choose_coat(uint8_t id);
+  bool accessory_unlocked(uint8_t id) const;
 
   // Background tint from 0.0 (deep night) to 1.0 (full day), based on
   // local clock if synced, else millis-based 24-min cycle.
@@ -146,6 +169,12 @@ class Game {
   void apply_offline_catchup(uint64_t now_unix_ms);
   void play_clip(ClipId clip);
   void unlock_achievement(AchievementId id);
+  // Phase 2
+  void update_fetch_mode(uint32_t now_ms);
+  void update_weather(uint64_t now_unix_ms);
+  void update_sickness(uint32_t dt_ms);
+  void update_tricks();
+  void try_cure_sickness();
 
   Pet      pet_;
   Settings settings_;
@@ -178,6 +207,10 @@ class Game {
   bool     menu_open_        = false;
   MenuTab  menu_tab_         = MenuTab::Stats;
   GameMode mode_             = GameMode::Idle;
+  uint32_t mode_started_ms_  = 0;
+  uint32_t last_weather_roll_day_ = 0;
+  uint32_t sick_started_ms_  = 0;
+  uint32_t last_fetch_result_ = 0;  // 1 = caught, 2 = missed, 0 = none
 
   float    daylight_         = 1.0f;
   char     clock_str_[16]    = {0};

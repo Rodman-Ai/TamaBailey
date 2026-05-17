@@ -99,10 +99,11 @@ canvas#screen {
 }
 .footnote { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 
-.share-row {
+.share-row, .cosmetic-row {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 14px;
   margin: 14px 0 0;
 }
 .link-btn {

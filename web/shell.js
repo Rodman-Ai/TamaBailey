@@ -71,18 +71,15 @@
     if (window.Module && Module._bailey_input) Module._bailey_input(code);
   }
 
-  // ---- Button handlers ----
-  document.querySelectorAll('[data-input]').forEach(btn => {
+  // ---- Main 3 buttons (Feed/Play/Clean) with long-press = menu ----
+  document.querySelectorAll('.btn[data-input]').forEach(btn => {
     const code = INPUT[btn.dataset.input] ?? 0;
     let longTimer = null;
     function down(ev) {
       ev.preventDefault();
-      ensureAudio();  // browsers require a user gesture to start AudioContext
+      ensureAudio();
       btn.classList.add('held');
-      longTimer = setTimeout(() => {
-        send(INPUT.MenuToggle);
-        longTimer = null;
-      }, 800);
+      longTimer = setTimeout(() => { send(INPUT.MenuToggle); longTimer = null; }, 800);
     }
     function up(ev) {
       ev.preventDefault();
@@ -92,6 +89,26 @@
     btn.addEventListener('pointerdown',  down);
     btn.addEventListener('pointerup',    up);
     btn.addEventListener('pointercancel', () => { clearTimeout(longTimer); longTimer = null; btn.classList.remove('held'); });
+  });
+
+  // ---- Cosmetic / utility buttons (plain clicks) ----
+  document.querySelectorAll('.link-btn[data-input]').forEach(btn => {
+    const code = INPUT[btn.dataset.input] ?? 0;
+    btn.addEventListener('click', ev => {
+      ev.preventDefault();
+      ensureAudio();
+      send(code);
+      // The Take-photo button additionally downloads the canvas PNG.
+      if (btn.id === 'photoBtn') {
+        // Wait one frame so the screen reflects current state.
+        requestAnimationFrame(() => {
+          const a = document.createElement('a');
+          a.download = 'bailey-' + Date.now() + '.png';
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+        });
+      }
+    });
   });
 
   // ---- Keyboard ----

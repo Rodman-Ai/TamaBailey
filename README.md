@@ -155,6 +155,27 @@ TamaBailey/
 └── docs/
 ```
 
+## What's in (Phase 2)
+
+- **Fetch mini-game** -- when Bailey is an Adult or older and not sick,
+  pressing Play (B / `B`) starts a fetch flow. The ball arcs out, comes
+  back, and you have to time a second B press during the catch window
+  for the full happiness bonus + a fetch-skill increment.
+- **Trick learning** -- Bailey auto-learns tricks at age milestones
+  (Sit / Shake / Roll Over / Speak / Spin); a Clever personality halves
+  the timers. Tricks list appears in the Options menu.
+- **Multiple scenes** -- living room (default), backyard, dog park,
+  each with its own ambient detail. Cycle with the *Change scene*
+  button in the web app.
+- **Weather** -- rolls once per real-world day (sunny / cloudy / rain /
+  snow). Rain accelerates bath decay; snow slows rest regen.
+- **Accessories** -- bandana, blue collar, party hat -- each unlocked
+  by an achievement. Cycle with *Change accessory*.
+- **Coat patterns** -- 5 hound coats; Bailey prompts to pick one on
+  first evolution to Adult.
+- **Sickness + recovery** -- if food AND bath both stay below 20 for
+  too long, Bailey gets sick (red border, sneeze). A bath cures him.
+
 ## What's in (Phase 1)
 
 - **Web audio** -- bark / wuff / splash / heart / snore / whimper /

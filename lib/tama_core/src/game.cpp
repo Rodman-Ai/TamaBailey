@@ -87,6 +87,36 @@ bool decode_base32(const char* in, uint8_t* out, int max_out, int& n_out) {
 
 }  // namespace
 
+const char* trick_name(Trick t) {
+  switch (t) {
+    case Trick::Sit:      return "Sit";
+    case Trick::Shake:    return "Shake";
+    case Trick::RollOver: return "Roll Over";
+    case Trick::Speak:    return "Speak";
+    case Trick::Spin:     return "Spin";
+    default:              return "?";
+  }
+}
+
+uint64_t trick_age_threshold(Trick t) {
+  // Auto-learn schedule. Scale matches BAILEY_FAST_DECAY.
+#if BAILEY_FAST_DECAY
+  const uint64_t base[] = { 60000ULL, 180000ULL, 360000ULL, 600000ULL, 900000ULL };
+#else
+  // 1h, 4h, 12h, 24h, 48h
+  const uint64_t base[] = {
+    1ULL  * 3600 * 1000,
+    4ULL  * 3600 * 1000,
+    12ULL * 3600 * 1000,
+    24ULL * 3600 * 1000,
+    48ULL * 3600 * 1000,
+  };
+#endif
+  int i = (int)t;
+  if (i < 0 || i >= (int)Trick::COUNT) return UINT64_MAX;
+  return base[i];
+}
+
 const char* personality_name(Personality p) {
   switch (p) {
     case Personality::Playful: return "Playful";
@@ -221,21 +251,52 @@ void Game::apply_input(Input in) {
       unlock_achievement(AchievementId::FirstFeed);
       dirty_ = true;
       break;
-    case Input::Play:
-      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPlayBoost);
-      pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
-      pet_.current_action = Action::Play;
-      pet_.action_started_ms = last_tick_ms_;
-      play_clip(ClipId::Wuff);
-      unlock_achievement(AchievementId::FirstPlay);
-      dirty_ = true;
+    case Input::Play: {
+      // While in a fetch flow, button is treated as the "catch" press.
+      if (mode_ == GameMode::FetchCatching) {
+        // Hit -- award full happiness + skill increment
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPlayBoost);
+        pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
+        fetch_catches_++;
+        last_fetch_result_   = 1;
+        mode_                = GameMode::FetchResult;
+        mode_started_ms_     = last_tick_ms_;
+        play_clip(ClipId::Wuff);
+        unlock_achievement(AchievementId::FirstPlay);
+        if (fetch_catches_ >= 10) unlock_achievement(AchievementId::FetchPro);
+        dirty_ = true;
+        break;
+      }
+      // Puppy or sick: skip the fetch flow, do classic Play.
+      if (pet_.stage == LifeStage::Puppy || sickness_ != 0) {
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + kActionPlayBoost);
+        pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
+        pet_.current_action  = Action::Play;
+        pet_.action_started_ms = last_tick_ms_;
+        play_clip(ClipId::Wuff);
+        unlock_achievement(AchievementId::FirstPlay);
+        dirty_ = true;
+        break;
+      }
+      // Adult+: start a fetch flow.
+      if (mode_ == GameMode::Idle) {
+        mode_              = GameMode::FetchAiming;
+        mode_started_ms_   = last_tick_ms_;
+        pet_.current_action = Action::Play;
+        pet_.action_started_ms = last_tick_ms_;
+        play_clip(ClipId::Yip);
+        dirty_ = true;
+      }
       break;
+    }
     case Input::Clean:
       pet_.stats.cleanliness = clamp_stat((int)pet_.stats.cleanliness + kActionCleanBoost);
       pet_.current_action = Action::Clean;
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Splash);
       unlock_achievement(AchievementId::FirstClean);
+      // A bath also doubles as the cure for sickness.
+      if (sickness_ != 0) try_cure_sickness();
       dirty_ = true;
       break;
     case Input::PetTap: {
@@ -278,6 +339,40 @@ void Game::apply_input(Input in) {
         if (t > (int)MenuTab::Sync) t = 0;
         menu_tab_ = (MenuTab)t;
       }
+      break;
+    case Input::CycleScene: {
+      uint8_t next = (uint8_t)((settings_.scene_id + 1) % 3);
+      settings_.scene_id = next;
+      scene_id_ = next;
+      // Track scenic-tour achievement via a side bitmask in settings._pad.
+      // (Cheap: reuse byte; bit 0 = visited #0, etc.)
+      settings_._pad |= (uint8_t)(1u << next);
+      if ((settings_._pad & 0x07) == 0x07)
+        unlock_achievement(AchievementId::ScenicTour);
+      dirty_ = true;
+      break;
+    }
+    case Input::CycleCoat: {
+      uint8_t next = (uint8_t)((coat_pattern_ + 1) % 5);
+      choose_coat(next);
+      break;
+    }
+    case Input::CycleAccessory: {
+      // Cycle through unlocked ones only (0=bare always allowed).
+      for (uint8_t try_n = 0; try_n < 4; ++try_n) {
+        uint8_t cand = (uint8_t)((accessory_id_ + 1 + try_n) % 4);
+        if (accessory_unlocked(cand)) {
+          equip_accessory(cand);
+          break;
+        }
+      }
+      break;
+    }
+    case Input::TakePhoto:
+      // Phase 3 photo mode handled on the web side via canvas.toDataURL.
+      // Core just records the achievement.
+      unlock_achievement(AchievementId::PhotoFan);
+      dirty_ = true;
       break;
     case Input::Restart:
       // Handled above when stage == Gone
@@ -385,6 +480,11 @@ void Game::update_evolution(uint32_t dt_ms) {
     pet_.stage = LifeStage::Adult;
     play_clip(ClipId::Fanfare);
     unlock_achievement(AchievementId::EvolvedToAdult);
+    // Prompt the player to pick a coat pattern on first Adult evolution.
+    if (coat_pattern_ == 0) {
+      mode_ = GameMode::PickingCoat;
+      mode_started_ms_ = last_tick_ms_;
+    }
     dirty_ = true;
   } else if (pet_.stage == LifeStage::Adult &&
              pet_.healthy_streak_ms >= kHealthyForSenior) {
@@ -486,9 +586,16 @@ void Game::tick(uint32_t now_ms) {
   update_mood();
   update_daylight(now_ms);
   check_achievements();
+  update_fetch_mode(now_ms);
+  update_sickness(dt);
+  update_tricks();
 
-  // Streak check whenever we have a synced clock.
-  if (clock_ && clock_->is_synced()) check_streak(clock_->now_unix_ms());
+  // Streak check + weather roll whenever we have a synced clock.
+  if (clock_ && clock_->is_synced()) {
+    uint64_t u = clock_->now_unix_ms();
+    check_streak(u);
+    update_weather(u);
+  }
 
   if (pet_.current_action != Action::None) {
     uint32_t elapsed = now_ms - pet_.action_started_ms;
@@ -528,6 +635,153 @@ void Game::force_save(Storage& storage) {
   storage.save(s);
   dirty_ = false;
   last_save_ms_ = last_tick_ms_;
+}
+
+// ===== Phase 2 systems =====
+
+void Game::update_fetch_mode(uint32_t now_ms) {
+  if (mode_ == GameMode::Idle) return;
+  uint32_t elapsed = now_ms - mode_started_ms_;
+  constexpr uint32_t kAimMs       =  700;
+  constexpr uint32_t kFlightMs    = 1000;
+  constexpr uint32_t kCatchWinMs  =  500;
+  constexpr uint32_t kResultMs    =  900;
+  switch (mode_) {
+    case GameMode::FetchAiming:
+      if (elapsed >= kAimMs) {
+        mode_ = GameMode::FetchInFlight;
+        mode_started_ms_ = now_ms;
+      }
+      break;
+    case GameMode::FetchInFlight:
+      if (elapsed >= kFlightMs) {
+        mode_ = GameMode::FetchCatching;
+        mode_started_ms_ = now_ms;
+      }
+      break;
+    case GameMode::FetchCatching:
+      if (elapsed >= kCatchWinMs) {
+        // Missed: small consolation happiness
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 8);
+        last_fetch_result_   = 2;
+        mode_                = GameMode::FetchResult;
+        mode_started_ms_     = now_ms;
+        dirty_ = true;
+      }
+      break;
+    case GameMode::FetchResult:
+      if (elapsed >= kResultMs) {
+        mode_ = GameMode::Idle;
+        pet_.current_action = Action::None;
+        last_fetch_result_ = 0;
+      }
+      break;
+    case GameMode::PickingCoat:
+      // Stays open until player picks
+      break;
+    case GameMode::PhotoMode:
+      // Phase 3
+      break;
+    case GameMode::Idle:
+      break;
+  }
+}
+
+void Game::update_weather(uint64_t now_unix_ms) {
+  uint32_t today = local_day_index(now_unix_ms, settings_.tz_offset_min);
+  if (today == last_weather_roll_day_) return;
+  last_weather_roll_day_ = today;
+  // Bias toward sunny: 0..15 sunny, 16..23 cloudy, 24..28 rain, 29..31 snow
+  uint32_t r = today * 2654435761u;
+  uint8_t roll = (uint8_t)(r % 32);
+  uint8_t w;
+  if      (roll < 16) w = (uint8_t)Weather::Sunny;
+  else if (roll < 24) w = (uint8_t)Weather::Cloudy;
+  else if (roll < 29) w = (uint8_t)Weather::Rain;
+  else                w = (uint8_t)Weather::Snow;
+  weather_ = w;
+  // Visiting through bad weather counts toward achievement
+  if (w == (uint8_t)Weather::Rain || w == (uint8_t)Weather::Snow)
+    unlock_achievement(AchievementId::WeatheredTheStorm);
+  dirty_ = true;
+}
+
+void Game::update_sickness(uint32_t dt_ms) {
+  if (pet_.stage == LifeStage::Gone) { sickness_ = 0; return; }
+  // Sick when both food and bath stay low for a sustained period.
+  bool danger = pet_.stats.hunger < 20 && pet_.stats.cleanliness < 20;
+  if (danger) {
+    sick_started_ms_ += dt_ms;
+#if BAILEY_FAST_DECAY
+    constexpr uint32_t kSickThreshold = 5000;
+#else
+    constexpr uint32_t kSickThreshold = 5u * 60 * 1000;  // 5 min
+#endif
+    if (sickness_ == 0 && sick_started_ms_ >= kSickThreshold) {
+      sickness_ = 1;
+      play_clip(ClipId::Sneeze);
+      dirty_ = true;
+    }
+  } else {
+    sick_started_ms_ = 0;
+  }
+}
+
+void Game::try_cure_sickness() {
+  if (sickness_ == 0) return;
+  sickness_ = 0;
+  sick_started_ms_ = 0;
+  pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 10);
+  play_clip(ClipId::Heart);
+  unlock_achievement(AchievementId::SurvivedSickness);
+  dirty_ = true;
+}
+
+void Game::update_tricks() {
+  if (pet_.stage == LifeStage::Gone) return;
+  uint64_t age = pet_.age_ms;
+  uint8_t before = tricks_learned_;
+  // Clever personality halves trick thresholds.
+  uint64_t scale_num = ((Personality)personality_trait_ == Personality::Clever) ? 1 : 2;
+  uint64_t scale_den = 2;
+  for (int i = 0; i < (int)Trick::COUNT; ++i) {
+    uint64_t thr = trick_age_threshold((Trick)i) * scale_num / scale_den;
+    if (age >= thr) tricks_learned_ |= (1u << i);
+  }
+  if (tricks_learned_ != before) {
+    unlock_achievement(AchievementId::LearnedFirstTrick);
+    if (tricks_learned_ == kAllTricksMask)
+      unlock_achievement(AchievementId::LearnedAllTricks);
+    dirty_ = true;
+  }
+}
+
+void Game::equip_accessory(uint8_t id) {
+  if (id != 0 && !accessory_unlocked(id)) return;
+  accessory_id_ = id;
+  if (id != 0) unlock_achievement(AchievementId::Dapper);
+  dirty_ = true;
+}
+
+void Game::choose_coat(uint8_t id) {
+  if (id > 4) return;
+  coat_pattern_ = id;
+  if (mode_ == GameMode::PickingCoat) {
+    mode_ = GameMode::Idle;
+  }
+  dirty_ = true;
+}
+
+bool Game::accessory_unlocked(uint8_t id) const {
+  // Mapping: id 1 (bandana) -> First Pet; id 2 (collar) -> 3-day streak;
+  // id 3 (party hat) -> EvolvedToAdult.
+  switch (id) {
+    case 0: return true;  // bare
+    case 1: return is_unlocked(achievements_, AchievementId::FirstPet);
+    case 2: return is_unlocked(achievements_, AchievementId::Streak3Days);
+    case 3: return is_unlocked(achievements_, AchievementId::EvolvedToAdult);
+    default: return false;
+  }
 }
 
 const char* Game::generate_sync_code() {

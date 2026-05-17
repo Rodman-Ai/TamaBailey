@@ -401,7 +401,15 @@ void draw_menu_options(Renderer& r, const Game& game) {
   std::snprintf(buf, sizeof(buf), "Mic       : %s", s.mic_enabled ? "on" : "off");
   r.drawText(x, y, buf, kWhite, 1); y += 14;
 
-  r.drawText(x, y, "Edit values in web app", kGray, 1);
+  // Tricks learned
+  uint8_t tl = game.tricks_learned();
+  r.drawText(x, y, "Tricks    :", kWhite, 1); y += 10;
+  for (int i = 0; i < (int)Trick::COUNT; ++i) {
+    bool got = (tl & (1u << i)) != 0;
+    r.drawText(x + 12, y, trick_name((Trick)i),
+               got ? kGreen : kGrayDark, 1);
+    y += 10;
+  }
 }
 
 void draw_menu_sync(Renderer& r, const Game& game_const) {
@@ -431,6 +439,74 @@ bool point_on_stats_bar(int /*x*/, int y) {
   return y >= 0 && y < kStatsBarH;
 }
 
+// Render fetch state -- the ball arc + a catch-window prompt.
+void draw_fetch(Renderer& r, const Game& game, uint32_t now_ms) {
+  GameMode m = game.mode();
+  (void)m;
+  // We use a free flag via local time-since
+  uint32_t elapsed = now_ms - game.fetch_state_ms();
+  if (m == GameMode::FetchAiming) {
+    r.drawText(kStatsBarH + 4, kStatsBarH + 4, "Aim...", kYellow, 1);
+    return;
+  }
+  if (m == GameMode::FetchInFlight) {
+    // Ball arcing right-to-far-right; show as moving green circle
+    float t = (float)elapsed / 1000.0f;
+    if (t > 1.0f) t = 1.0f;
+    int x = (int)(kPetX + kPetDrawW + t * 80);
+    int y = (int)(kPetY + kPetDrawH - 20 - 60 * (1.0f - (2.0f * t - 1.0f) * (2.0f * t - 1.0f)));
+    r.fillRect(x, y, 6, 6, kGreen);
+    r.drawRect(x - 1, y - 1, 8, 8, kBlack);
+    return;
+  }
+  if (m == GameMode::FetchCatching) {
+    // Ball flying back, prompt to press B
+    float t = (float)elapsed / 500.0f;
+    if (t > 1.0f) t = 1.0f;
+    int x = (int)(kPetX + kPetDrawW + 80 - t * 100);
+    int y = (int)(kPetY + kPetDrawH - 30 - 30 * (1.0f - (2.0f * t - 1.0f) * (2.0f * t - 1.0f)));
+    r.fillRect(x, y, 6, 6, kGreen);
+    r.drawRect(x - 1, y - 1, 8, 8, kBlack);
+    r.drawText(kStatsBarH + 4, kStatsBarH + 4, "PRESS B!", kYellow, 2);
+    return;
+  }
+  if (m == GameMode::FetchResult) {
+    bool hit = game.fetch_catches() > 0 && elapsed < 900;
+    (void)hit;
+    // For result, indicate caught or missed by checking last action
+    r.drawText(kStatsBarH + 4, kStatsBarH + 4,
+               game.pet().current_action == Action::Play ? "GOT IT!" : "missed",
+               game.pet().current_action == Action::Play ? kGreen : kOrange, 2);
+  }
+}
+
+void draw_coat_picker(Renderer& r, const Game& game) {
+  int pad = 12;
+  r.fillRect(pad, pad + kStatsBarH, kScreenW - pad * 2, 120, kBlack);
+  r.drawRect(pad, pad + kStatsBarH, kScreenW - pad * 2, 120, kYellow);
+  r.drawText(pad + 6, kStatsBarH + pad + 4, "Pick Bailey's coat!", kYellow, 1);
+
+  const char* names[5] = {"Tan", "Brindle", "Tri", "Red", "Black & Tan"};
+  uint16_t swatches[5] = {kBrown, kBrownDark, rgb(40,25,10), rgb(190,70,40), rgb(20,15,10)};
+  for (int i = 0; i < 5; ++i) {
+    int x = pad + 6 + (i % 3) * 70;
+    int y = kStatsBarH + pad + 22 + (i / 3) * 36;
+    bool active = (game.coat_pattern() == i);
+    r.fillRect(x, y, 16, 16, swatches[i]);
+    r.drawRect(x, y, 16, 16, active ? kYellow : kGrayLight);
+    r.drawText(x + 20, y + 4, names[i], kWhite, 1);
+  }
+  r.drawText(pad + 6, kStatsBarH + pad + 100,
+             "B = next, hold to confirm", kGray, 1);
+}
+
+void draw_sickness_overlay(Renderer& r) {
+  // Subtle red border + sneeze marker
+  r.drawRect(0, kStatsBarH, kScreenW, kScreenH - kStatsBarH - kStatusH, kRed);
+  r.drawRect(1, kStatsBarH + 1, kScreenW - 2, kScreenH - kStatsBarH - kStatusH - 2, kRed);
+  r.drawText(kScreenW - 60, kStatsBarH + 6, "SICK!", kRed, 1);
+}
+
 void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   const Pet& pet = game.pet();
   float daylight = game.daylight();
@@ -447,6 +523,14 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   draw_accessory_overlay(r, game.accessory_id());
   draw_weather(r, (uint8_t)game.weather(), now_ms);
   draw_footer(r, pet, game.streak_days());
+
+  // Mode-specific overlays
+  if (game.mode() != GameMode::Idle && game.mode() != GameMode::PickingCoat)
+    draw_fetch(r, game, now_ms);
+  if (game.is_sick())
+    draw_sickness_overlay(r);
+  if (game.mode() == GameMode::PickingCoat)
+    draw_coat_picker(r, game);
 }
 
 void draw_menu_overlay(Renderer& r, const Game& game) {
