@@ -274,7 +274,7 @@ void Game::unlock_achievement(AchievementId id) {
     biscuits_ += 2;
     if (biscuits_ >= 50) {
       // Set the bit directly (avoid recursion through unlock_achievement).
-      uint32_t b = bit(AchievementId::BiscuitTycoon);
+      uint32_t b = achievement_bit(AchievementId::BiscuitTycoon);
       if (!(achievements_ & b)) achievements_ |= b;
     }
     dirty_ = true;
