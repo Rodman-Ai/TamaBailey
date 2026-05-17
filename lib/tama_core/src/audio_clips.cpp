@@ -210,6 +210,25 @@ void build_wind() {
   g_clips[(int)ClipId::Wind] = c;
 }
 
+// Thunder: deep low-frequency rumble with a slow attack and a long
+// tail. Layers a sweep below 200 Hz with broad noise.
+void build_thunder() {
+  Clip c = make(1200);
+  add_sweep_square(c, 80, 50, 0.55f, 0,   900, 0.25f, 0.6f);
+  add_sweep_square(c, 60, 40, 0.4f,  100, 1100, 0.3f, 0.6f);
+  add_noise(c, 0.18f, 0, 1200, 0.3f, 0.7f);
+  g_clips[(int)ClipId::Thunder] = c;
+}
+
+// Snore (loud): a longer, breathier sigh than the existing Snore.
+// Used for the periodic snore cue during the Sleeping pose.
+void build_snore_loud() {
+  Clip c = make(900);
+  add_sweep_square(c, 200, 110, 0.35f, 0, 450, 0.15f, 0.5f);
+  add_noise(c, 0.10f, 0, 900, 0.2f, 0.6f);
+  g_clips[(int)ClipId::SnoreLoud] = c;
+}
+
 }  // namespace
 
 void audio_init() {
@@ -228,6 +247,8 @@ void audio_init() {
   build_birds();
   build_waves();
   build_wind();
+  build_thunder();
+  build_snore_loud();
 }
 
 const int16_t* pcm_clip(ClipId clip, int& num_samples) {

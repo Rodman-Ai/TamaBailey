@@ -151,6 +151,7 @@ enum class Weather : uint8_t {
   Cloudy = 1,
   Rain   = 2,
   Snow   = 3,
+  Fog    = 4,    // Round 4
 };
 
 class Game {
@@ -294,7 +295,24 @@ class Game {
   uint8_t   horoscope_id()    const;
   const char* horoscope_text() const;
   // Manually override the weather (e.g. from a wttr.in fetch on the web).
-  void      set_weather(Weather w) { weather_ = (uint8_t)w; dirty_ = true; }
+  void      set_weather(Weather w) {
+    uint8_t nw = (uint8_t)w;
+    if (nw != weather_) {
+      prev_weather_         = weather_;
+      last_weather_change_ms_ = last_tick_ms_;
+    }
+    weather_ = nw;
+    dirty_ = true;
+  }
+  // Round 4: previous weather + transition timestamp -- used by the
+  // rainbow / puddle-fade overlays.
+  uint8_t   prev_weather()           const { return prev_weather_; }
+  uint32_t  last_weather_change_ms() const { return last_weather_change_ms_; }
+  uint32_t  last_lightning_ms()      const { return last_lightning_ms_; }
+  void      set_last_lightning_ms(uint32_t ms) { last_lightning_ms_ = ms; }
+  // Returns true if a lightning bolt fires THIS tick (renderer paints
+  // the flash; the audio cue is fired here).
+  void      maybe_trigger_lightning(uint32_t now_ms);
 
   // Equip accessory (no-op if id not unlocked). 0 = unequip.
   void equip_accessory(uint8_t id);
@@ -524,6 +542,11 @@ class Game {
   uint16_t hide_seek_wins_          = 0;
   uint8_t  hide_seek_last_outcome_  = 0;
   uint32_t hide_seek_last_ms_       = 0;
+
+  // Round 4: weather transition + lightning timing (transient).
+  uint8_t  prev_weather_            = 0;
+  uint32_t last_weather_change_ms_  = 0;
+  uint32_t last_lightning_ms_       = 0;
 };
 
 }  // namespace tama

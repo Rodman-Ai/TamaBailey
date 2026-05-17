@@ -1217,6 +1217,7 @@ void Game::tick(uint32_t now_ms) {
   update_tricks();
   update_vocab();
   update_ambient(now_ms);
+  maybe_trigger_lightning(now_ms);
 
   // Streak check + weather roll + birthday/bedtime whenever we have a
   // synced clock.
@@ -1411,19 +1412,38 @@ void Game::update_weather(uint64_t now_unix_ms) {
   uint32_t today = local_day_index(now_unix_ms, settings_.tz_offset_min);
   if (today == last_weather_roll_day_) return;
   last_weather_roll_day_ = today;
-  // Bias toward sunny: 0..15 sunny, 16..23 cloudy, 24..28 rain, 29..31 snow
+  // Distribution (32 buckets): 14 Sunny / 6 Cloudy / 5 Rain / 4 Snow / 3 Fog.
   uint32_t r = today * 2654435761u;
   uint8_t roll = (uint8_t)(r % 32);
   uint8_t w;
-  if      (roll < 16) w = (uint8_t)Weather::Sunny;
-  else if (roll < 24) w = (uint8_t)Weather::Cloudy;
-  else if (roll < 29) w = (uint8_t)Weather::Rain;
-  else                w = (uint8_t)Weather::Snow;
+  if      (roll < 14) w = (uint8_t)Weather::Sunny;
+  else if (roll < 20) w = (uint8_t)Weather::Cloudy;
+  else if (roll < 25) w = (uint8_t)Weather::Rain;
+  else if (roll < 29) w = (uint8_t)Weather::Snow;
+  else                w = (uint8_t)Weather::Fog;
+  if (w != weather_) {
+    prev_weather_           = weather_;
+    last_weather_change_ms_ = last_tick_ms_;
+  }
   weather_ = w;
   // Visiting through bad weather counts toward achievement
   if (w == (uint8_t)Weather::Rain || w == (uint8_t)Weather::Snow)
     unlock_achievement(AchievementId::WeatheredTheStorm);
   dirty_ = true;
+}
+
+void Game::maybe_trigger_lightning(uint32_t now_ms) {
+  // Round 4: random lightning strike during Rain weather. ~once per
+  // 3-8 s.  Renderer reads last_lightning_ms_ to paint the 80 ms flash.
+  if (weather_ != (uint8_t)Weather::Rain) return;
+  if (now_ms - last_lightning_ms_ < 3000) return;
+  uint32_t roll = rng_next();
+  // ~1 % per tick rolled past the 3 s floor; ceiling is ~8 s
+  // because by then the cumulative probability is high.
+  if ((roll % 100) == 0 || now_ms - last_lightning_ms_ > 8000) {
+    last_lightning_ms_ = now_ms;
+    play_clip(ClipId::Thunder);
+  }
 }
 
 void Game::update_sickness(uint32_t dt_ms) {

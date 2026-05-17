@@ -19,7 +19,10 @@ enum class ClipId : uint8_t {
   Birds     = 10, // outdoor scene chirp
   Waves     = 11, // beach scene ripple
   Wind      = 12, // snow scene gust
-  COUNT     = 13,
+  // Round 4 weather cues.
+  Thunder   = 13, // low-frequency rumble for lightning during Rain
+  SnoreLoud = 14, // periodic soft sigh during Sleeping (existing Snore=4 is shorter)
+  COUNT     = 15,
 };
 
 class Speaker {

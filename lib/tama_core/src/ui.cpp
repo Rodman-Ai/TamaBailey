@@ -637,23 +637,122 @@ static void draw_bath_choreography(Renderer& r, const Pet& pet,
 }
 
 // Weather overlay: light particles across the screen.
-void draw_weather(Renderer& r, uint8_t weather, uint32_t now_ms) {
-  if (weather == 0) return;
+// Round 4: rainbow arc across the upper half, painted for a window
+// after Rain -> Sunny.
+static void draw_rainbow(Renderer& r) {
+  static const uint16_t bands[6] = {
+      kRed, kOrange, kYellow, kGreen, kBlue, kPink};
+  int cx = kScreenW / 2;
+  int cy = kScreenH - 40;     // off-screen-low so the arc curves over
+  for (int b = 0; b < 6; ++b) {
+    int rr = 130 - b * 4;
+    // sample the upper semicircle once per pixel column
+    for (int dx = -rr; dx <= rr; dx += 2) {
+      // y = cy - sqrt(rr*rr - dx*dx), approximated:
+      int dx2 = dx * dx;
+      int rr2 = rr * rr;
+      if (dx2 > rr2) continue;
+      int v = rr2 - dx2;
+      // crude integer sqrt good enough for a 130-radius arc
+      int s = 0;
+      while ((s + 1) * (s + 1) <= v) ++s;
+      int x = cx + dx;
+      int y = cy - s;
+      if (y < kStatsBarH + 2 || y > kScreenH - kStatusH - 30) continue;
+      r.fillRect(x, y, 2, 1, bands[b]);
+    }
+  }
+}
+
+// Round 4: 3 diagonal yellow streaks from the sun corner.
+static void draw_sun_rays(Renderer& r, uint32_t now_ms) {
+  int sx = kScreenW - 20;
+  int sy = kStatsBarH + 14;
+  for (int i = 0; i < 3; ++i) {
+    int dx = -40 - i * 18;
+    int dy = (i % 2 ? 1 : -1) * (4 + i * 3);
+    int len = 30 + i * 6;
+    // Twinkle: vary intensity by frame.
+    uint16_t col = ((now_ms / 120 + i) & 1) ? kYellow : kOrange;
+    for (int k = 0; k < len; ++k) {
+      int x = sx + dx + k;
+      int y = sy + (dy * k) / len;
+      r.drawPixel(x, y, col);
+    }
+  }
+}
+
+// Round 4: fog overlay -- translucent gray checkerboard across the
+// play area. Cheap dither using a 2x2 pattern.
+static void draw_fog_overlay(Renderer& r, uint32_t now_ms) {
+  int floor_y = kPetY + kPetDrawH - 6;
+  uint16_t haze = mix(kGrayDark, kWhite, 0.7f);
+  int phase = (now_ms / 200) & 1;
+  for (int y = kStatsBarH + 1; y < floor_y; y += 1) {
+    for (int x = 0; x < kScreenW; x += 2) {
+      if (((x + y + phase) & 3) == 0) r.drawPixel(x, y, haze);
+    }
+  }
+}
+
+void draw_weather(Renderer& r, const Game& game, uint32_t now_ms) {
+  uint8_t weather = (uint8_t)game.weather();
+  int floor_y = kPetY + kPetDrawH - 6;
   uint32_t seed = 0x12345;
-  if (weather == (uint8_t)2 /* Rain */) {
-    for (int i = 0; i < 24; ++i) {
+
+  // Lightning flash: full-screen white veil for 80 ms after a strike.
+  if (weather == (uint8_t)Weather::Rain &&
+      now_ms - game.last_lightning_ms() < 80) {
+    r.fillRect(0, kStatsBarH + 1, kScreenW,
+               kScreenH - kStatsBarH - kStatusH - 1, kWhite);
+  }
+
+  if (weather == (uint8_t)Weather::Rain) {
+    // 36 falling streaks + a splash dot on the floor where each lands.
+    for (int i = 0; i < 36; ++i) {
       seed = seed * 1664525u + 1013904223u;
       int x = (int)((seed >> 8) % kScreenW);
       int y = (int)(((seed >> 16) + now_ms / 50) % (kScreenH - kStatusH));
       r.drawVLine(x, y, 4, kSkyDeep);
+      // Splash mark just above the floor for streaks that landed.
+      if (y > floor_y - 6 && y < floor_y) {
+        r.fillRect(x - 1, floor_y, 3, 1, kBlue);
+      }
     }
-  } else if (weather == (uint8_t)3 /* Snow */) {
-    for (int i = 0; i < 24; ++i) {
+    // Up to 4 puddles at fixed scene positions.
+    static const int kPuddleX[4] = {30, 90, 150, 200};
+    for (int i = 0; i < 4; ++i) {
+      r.fillRect(kPuddleX[i], floor_y + 2, 10, 2, kBlue);
+      r.drawPixel(kPuddleX[i] - 1, floor_y + 2, kSkyDeep);
+      r.drawPixel(kPuddleX[i] + 10, floor_y + 2, kSkyDeep);
+    }
+  } else if (weather == (uint8_t)Weather::Snow) {
+    // Snowflakes drift sideways via a sin-ish wobble; size shrinks
+    // near the floor for a tiny depth cue.
+    for (int i = 0; i < 32; ++i) {
       seed = seed * 1664525u + 1013904223u;
-      int x = (int)((seed >> 8) % kScreenW);
+      int base_x = (int)((seed >> 8) % kScreenW);
       int y = (int)(((seed >> 16) + now_ms / 80) % (kScreenH - kStatusH));
-      r.fillRect(x, y, 2, 2, kWhite);
+      // Triangle-wave wobble across +-4 px, period ~1.6s.
+      int phase = (int)((now_ms / 100) + i * 17) % 16;
+      int wobble = phase < 8 ? phase - 4 : 12 - phase;
+      int x = base_x + wobble;
+      int sz = (y > floor_y - 24) ? 1 : 2;
+      r.fillRect(x, y, sz, sz, kWhite);
     }
+  } else if (weather == (uint8_t)Weather::Fog) {
+    draw_fog_overlay(r, now_ms);
+  }
+
+  // After Rain -> Sunny (within 30 s), paint the rainbow.
+  if (weather == (uint8_t)Weather::Sunny &&
+      game.prev_weather() == (uint8_t)Weather::Rain &&
+      now_ms - game.last_weather_change_ms() < 30000) {
+    draw_rainbow(r);
+  }
+  // Sunny + bright daylight -> sun rays.
+  if (weather == (uint8_t)Weather::Sunny && game.daylight() > 0.85f) {
+    draw_sun_rays(r, now_ms);
   }
 }
 
@@ -1451,7 +1550,7 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     draw_coat_accents(r, game.coat_pattern());
     draw_accessory_overlay(r, game.accessory_id());
   }
-  draw_weather(r, (uint8_t)game.weather(), now_ms);
+  draw_weather(r, game, now_ms);
 
   // Now draw the visitor labels + hearts ON TOP of Bailey so the name
   // strip is still readable when there's overlap.
