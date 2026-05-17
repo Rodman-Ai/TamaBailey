@@ -39,7 +39,7 @@ float friend_size_scale(Friend f) {
     case Friend::Ruben:    return 1.10f;
     case Friend::Francie:  return 0.50f;
     case Friend::Bomi:     return 0.85f;   // was 1.00, Jindo smaller than Bailey
-    case Friend::Noshy:    return 0.90f;
+    case Friend::Noshy:    return 0.80f;   // a touch smaller than Bomi
     default:               return 1.0f;
   }
 }

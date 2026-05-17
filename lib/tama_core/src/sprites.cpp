@@ -618,8 +618,11 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
       pointy_ear = true;
       tail_curl = true; tail_len = 22;
       break;
+    // Black Cockapoo: all-black body (was DG), curly coat, white nose
+    // star is the only white marking and comes from the overlay below.
     case Friend::Noshy:
-      body = DG; hi = GR; blaze = false; belly = DG;
+      body = BK; hi = DG; blaze = false; belly = BK;
+      white_paws = false; white_muzzle = false; white_blaze = false;
       break;
     default:
       body = BD; hi = HL;
