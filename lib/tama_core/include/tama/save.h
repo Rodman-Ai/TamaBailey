@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 36;
+constexpr uint16_t kSaveVersion  = 37;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -217,6 +217,11 @@ struct SaveData {
   uint16_t pumpkin_tap_high_score;         // lifetime best taps in 5 s on Halloween
   uint8_t  trick_chain_runs;               // lifetime 5-trick chain completions (saturates 255)
   uint8_t  _pad36;
+  // ---- v37 additions (Round 6 Phase 6L: 3 rhythm-tap mini-games) ----
+  uint16_t snowball_hits;                  // lifetime snowball-fight taps (winter scene)
+  uint16_t petals_caught;                  // lifetime petal catches (cherry blossom day)
+  uint16_t grooming_score;                 // lifetime grooming rhythm-tap score
+  uint16_t _pad37;
 };
 #pragma pack(pop)
 

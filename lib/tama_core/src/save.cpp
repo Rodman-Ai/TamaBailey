@@ -247,6 +247,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.trick_chain_runs       = 0;
     s._pad36                 = 0;
   }
+  if (s.version < 37) {
+    // v36 -> v37: zero the 3 new mini-game lifetime counters.
+    s.snowball_hits   = 0;
+    s.petals_caught   = 0;
+    s.grooming_score  = 0;
+    s._pad37          = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

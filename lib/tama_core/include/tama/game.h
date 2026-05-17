@@ -551,6 +551,11 @@ class Game {
   // Round 6 Phase 6K: trick chain (5 tricks in 15 s) lifetime count.
   uint8_t  trick_chain_runs()       const { return trick_chain_runs_; }
 
+  // Round 6 Phase 6L: 3 more rhythm-tap mini-games, all lifetime counters.
+  uint16_t snowball_hits()   const { return snowball_hits_; }
+  uint16_t petals_caught()   const { return petals_caught_; }
+  uint16_t grooming_score()  const { return grooming_score_; }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -994,6 +999,11 @@ class Game {
   // Transient 5-trick chain tracker (rolling 15 s window).
   uint32_t trick_chain_first_ms_   = 0;
   uint8_t  trick_chain_count_      = 0;
+
+  // Round 6 Phase 6L: 3 more rhythm-tap mini-game lifetime counters (v37).
+  uint16_t snowball_hits_  = 0;
+  uint16_t petals_caught_  = 0;
+  uint16_t grooming_score_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

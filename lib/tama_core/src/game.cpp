@@ -343,6 +343,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     for (int i = 0; i < 8; ++i) scene_wallpaper_[i] = s.scene_wallpaper[i];
     pumpkin_tap_high_score_  = s.pumpkin_tap_high_score;
     trick_chain_runs_        = s.trick_chain_runs;
+    // v37 fields
+    snowball_hits_           = s.snowball_hits;
+    petals_caught_           = s.petals_caught;
+    grooming_score_          = s.grooming_score;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1278,6 +1282,35 @@ void Game::apply_input(Input in) {
       }
       break;
     }
+    case Input::SnowballThrow: {
+      // Round 6 Phase 6L: Snowball Fight -- Snow Park scene (id 4) OR
+      // current weather Snow.  Each tap counts a snowball.
+      if (settings_.scene_id != 4 && weather_ != (uint8_t)Weather::Snow) break;
+      if (snowball_hits_ < 0xFFFF) snowball_hits_++;
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
+      dirty_ = true;
+      break;
+    }
+    case Input::PetalCatch: {
+      // Round 6 Phase 6L: Petal Catch -- only on Cherry Blossom Day
+      // (active_holiday_ == 8). Each tap catches a drifting petal.
+      if (active_holiday_ != 8) break;
+      if (petals_caught_ < 0xFFFF) petals_caught_++;
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
+      dirty_ = true;
+      break;
+    }
+    case Input::GroomBrush: {
+      // Round 6 Phase 6L: Grooming rhythm tap -- always available.
+      // Boosts cleanliness like Brush (+2) and banks a lifetime score.
+      if (in_transition()) break;
+      pet_.stats.cleanliness = clamp_stat((int)pet_.stats.cleanliness + 2);
+      if (grooming_score_ < 0xFFFF) grooming_score_++;
+      pet_.current_action = Action::Clean;
+      pet_.action_started_ms = last_tick_ms_;
+      dirty_ = true;
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1841,6 +1874,11 @@ void Game::force_save(Storage& storage) {
   s.pumpkin_tap_high_score      = pumpkin_tap_high_score_;
   s.trick_chain_runs            = trick_chain_runs_;
   s._pad36                      = 0;
+  // v37 additions
+  s.snowball_hits               = snowball_hits_;
+  s.petals_caught               = petals_caught_;
+  s.grooming_score              = grooming_score_;
+  s._pad37                      = 0;
 
   storage.save(s);
   dirty_ = false;

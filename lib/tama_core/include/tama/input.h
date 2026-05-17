@@ -59,6 +59,10 @@ enum class Input : uint8_t {
   // Round 6 Phase 6K: mini-games + wallpaper customization.
   PumpkinTap             = 45,  // Halloween-only rhythm-tap mini-game tap
   CycleWallpaper         = 46,  // cycle scene wallpaper variant 0..3
+  // Round 6 Phase 6L: 3 more rhythm-tap mini-games.
+  SnowballThrow          = 47,  // winter-scene snowball-fight tap
+  PetalCatch             = 48,  // cherry-blossom-day petal catch tap
+  GroomBrush             = 49,  // detailed grooming rhythm tap
 };
 
 }  // namespace tama

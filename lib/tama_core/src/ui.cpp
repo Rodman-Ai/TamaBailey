@@ -1558,6 +1558,15 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.pumpkin_tap_high_score());
     r.drawText(x, y, buf, kOrange, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6L: seasonal mini-game lifetime scores.
+  if (game.snowball_hits() > 0 || game.petals_caught() > 0 ||
+      game.grooming_score() > 0) {
+    std::snprintf(buf, sizeof(buf), "Snow:%u Petal:%u Groom:%u",
+                  (unsigned)game.snowball_hits(),
+                  (unsigned)game.petals_caught(),
+                  (unsigned)game.grooming_score());
+    r.drawText(x, y, buf, kSky, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());
