@@ -1438,6 +1438,15 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   game.skill_charm());
     r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
   }
+  // Round 5 Phase C3: hall of fame compact records line. Top counters
+  // surfaced together: fetch catches / dig successes / hide-seek wins.
+  {
+    std::snprintf(buf, sizeof(buf), "Best: %luF %uD %uH",
+                  (unsigned long)game.fetch_catches(),
+                  (unsigned)game.dig_successes(),
+                  (unsigned)game.hide_seek_wins());
+    r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
+  }
 
   // Round 3: best-friend bond from the last sync code consumed.
   if (game.best_friend_hash() != 0) {
@@ -1514,18 +1523,72 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   }
 }
 
+// Round 5 Phase C3: tier of an achievement (0..3 = none / bronze /
+// silver / gold). Derived live from the underlying counter so the
+// player's "tier ladder" updates without any save bump.
+static uint8_t achievement_tier(const Game& game, AchievementId id) {
+  if (!is_unlocked(game.achievements(), id)) return 0;
+  // Default tier for unlocked-but-not-counter-based achievements: bronze.
+  switch (id) {
+    case AchievementId::Petted100: {
+      uint64_t n = game.total_pets();
+      return n >= 1000 ? 3 : (n >= 500 ? 2 : 1);
+    }
+    case AchievementId::FetchPro: {
+      uint64_t n = game.fetch_catches();
+      return n >= 100 ? 3 : (n >= 50 ? 2 : 1);
+    }
+    case AchievementId::WalkOfALifetime: {
+      uint64_t n = game.total_steps();
+      return n >= 1000 ? 3 : (n >= 500 ? 2 : 1);
+    }
+    case AchievementId::BiscuitTycoon: {
+      uint32_t n = game.biscuits();
+      return n >= 500 ? 3 : (n >= 200 ? 2 : 1);
+    }
+    case AchievementId::Streak7Days: {
+      uint16_t n = game.streak_days();
+      return n >= 30 ? 3 : (n >= 14 ? 2 : 1);
+    }
+    case AchievementId::MasterDigger: {
+      uint16_t n = game.dig_successes();
+      return n >= 100 ? 3 : (n >= 50 ? 2 : 1);
+    }
+    case AchievementId::HideAndSeekChamp: {
+      uint16_t n = game.hide_seek_wins();
+      return n >= 50 ? 3 : (n >= 20 ? 2 : 1);
+    }
+    case AchievementId::Goodnight: {
+      uint16_t n = game.stories_heard();
+      return n >= 100 ? 3 : (n >= 50 ? 2 : 1);
+    }
+    default: return 1;   // bronze for any unlocked one-shot.
+  }
+}
+
 void draw_menu_achievements(Renderer& r, const Game& game) {
   int x0 = 22;
   int y0 = 14 + kStatsBarH + 22;
   int row = 0, col = 0;
   for (int i = 0; i < kAchievementCount; ++i) {
-    bool unlocked = is_unlocked(game.achievements(), (AchievementId)i);
+    AchievementId id = (AchievementId)i;
+    bool unlocked = is_unlocked(game.achievements(), id);
     int x = x0 + col * 100;
     int y = y0 + row * 14;
     r.fillRect(x, y, 8, 8, unlocked ? kYellow : kGrayDark);
     r.drawRect(x, y, 8, 8, kGrayLight);
-    r.drawText(x + 12, y, achievement_name((AchievementId)i),
+    r.drawText(x + 12, y, achievement_name(id),
                unlocked ? kWhite : kGray, 1);
+    // Round 5: tier dots. Up to 3 small 3x3 squares next to the
+    // unlocked badge: bronze / silver / gold based on the counter.
+    uint8_t tier = unlocked ? achievement_tier(game, id) : 0;
+    static const uint16_t kTierColors[3] = {
+      rgb(180, 110, 60), kGrayLight, kYellow,  // bronze / silver / gold
+    };
+    for (int t = 0; t < 3; ++t) {
+      uint16_t c = (t < tier) ? kTierColors[t] : kGrayDark;
+      r.fillRect(x + 90 + t * 4, y + 2, 3, 3, c);
+    }
     ++col;
     if (col >= 2) { col = 0; ++row; }
   }
