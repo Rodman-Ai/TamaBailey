@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 2;
+constexpr uint16_t kSaveVersion  = 3;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -73,50 +73,30 @@ struct SaveData {
   uint8_t       memorial_count;
   uint8_t       memorial_head;     // ring buffer write head
   uint8_t       _pad2[2];
+  // ---- v3 additions (Round 2) ----
+  uint32_t biscuits;                       // currency
+  uint8_t  toy_owned;                      // bitmask of 5 toys
+  uint8_t  active_toy;                     // 0..4 selected toy id
+  uint8_t  treats[3];                      // small / medium / large counts
+  uint8_t  wish;                           // active wish enum (0=none)
+  uint64_t wish_started_ms;                // when current wish began
+  uint32_t birthday_celebrated_unix_day;   // last day_index we celebrated
+  uint8_t  well_tucked_in_today;           // bedtime routine flag
+  uint8_t  vocab_learned;                  // bitmask of 5 words
+  uint16_t trick_perf[5];                  // performance counter per trick
+  uint64_t total_steps;                    // accumulated walking steps
+  uint8_t  mood_history[7];                // last 7 days' average happiness
+  uint8_t  mood_history_head;              // write index
+  uint8_t  _pad3[3];
 };
 #pragma pack(pop)
 
 constexpr size_t kSaveBytes = sizeof(SaveData);
 
-void pet_to_save(const Pet& pet, const Settings& settings,
-                 uint32_t achievements, uint16_t streak_days,
-                 uint64_t streak_last_visit_unix_ms,
-                 uint64_t last_save_real_unix_ms,
-                 uint64_t total_pets,
-                 uint64_t fetch_catches,
-                 uint8_t  coat_pattern,
-                 uint8_t  accessory_id,
-                 uint8_t  personality_trait,
-                 uint8_t  inherited_trait,
-                 uint8_t  tricks_learned,
-                 uint8_t  weather,
-                 uint8_t  sickness,
-                 uint8_t  scene_id,
-                 const SaveData::MemorialEntry* memorial,
-                 uint8_t  memorial_count,
-                 uint8_t  memorial_head,
-                 SaveData& out);
-
-// Parse save bytes. Accepts v1 (migrates by zero-filling new fields) and
-// v2. Returns false on unrecognized magic / unknown version.
-bool save_to_pet(const SaveData& in, Pet& out,
-                 Settings& settings_out,
-                 uint32_t& achievements_out,
-                 uint16_t& streak_days_out,
-                 uint64_t& streak_last_visit_unix_ms_out,
-                 uint64_t& last_save_real_unix_ms_out,
-                 uint64_t& total_pets_out,
-                 uint64_t& fetch_catches_out,
-                 uint8_t&  coat_pattern_out,
-                 uint8_t&  accessory_id_out,
-                 uint8_t&  personality_trait_out,
-                 uint8_t&  inherited_trait_out,
-                 uint8_t&  tricks_learned_out,
-                 uint8_t&  weather_out,
-                 uint8_t&  sickness_out,
-                 uint8_t&  scene_id_out,
-                 SaveData::MemorialEntry* memorial_out,
-                 uint8_t&  memorial_count_out,
-                 uint8_t&  memorial_head_out);
+// Validate a save record: magic + version + sane life_stage. Cleans v1/v2
+// in place by zeroing newer fields (in.version is left as the caller-owned
+// value; treat fields above the saved version as nominal defaults). Returns
+// false on bad magic / future-version / out-of-range life stage.
+bool save_validate_and_migrate(SaveData& in_out);
 
 }  // namespace tama

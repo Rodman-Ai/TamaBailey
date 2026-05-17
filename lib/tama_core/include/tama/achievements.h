@@ -26,9 +26,15 @@ enum class AchievementId : uint8_t {
   HonoredAncestor   = 17,  // Phase 3: inherited a trait
   PhotoFan          = 18,  // Phase 3: took a photo
   CalledByName      = 19,  // Phase 3: triggered via mic
+  // Round 2 additions
+  BirthdayBoy       = 20,
+  WalkOfALifetime   = 21,  // 100 lifetime steps
+  WishGranter       = 22,  // fulfilled 5 wishes
+  BiscuitTycoon     = 23,  // 50 biscuits earned lifetime
+  SeasonalGreetings = 24,  // visited on any holiday
 };
 
-constexpr int kAchievementCount = 20;
+constexpr int kAchievementCount = 25;
 static_assert(kAchievementCount <= 32, "bitmask is 32 bits");
 
 const char* achievement_name(AchievementId id);

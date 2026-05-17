@@ -20,6 +20,11 @@ enum class Input : uint8_t {
   CycleAccessory   = 11,
   TakePhoto        = 12,  // Phase 3
   MicTrigger       = 13,  // Phase 3: a loud sound was heard
+  // Round 2 inputs
+  Walk             = 14,  // start a walk (or step during walking)
+  TreatGive        = 15,  // give one treat (cycles through tiers based on stock)
+  Brush            = 16,  // brush Bailey -- small cleanliness bump
+  CycleToy         = 17,  // cycle active toy
 };
 
 }  // namespace tama

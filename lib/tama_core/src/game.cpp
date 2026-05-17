@@ -117,6 +117,49 @@ uint64_t trick_age_threshold(Trick t) {
   return base[i];
 }
 
+const char* toy_name(Toy t) {
+  switch (t) {
+    case Toy::Ball:        return "Ball";
+    case Toy::Frisbee:     return "Frisbee";
+    case Toy::Rope:        return "Rope";
+    case Toy::SqueakyDuck: return "Squeaky";
+    case Toy::Stick:       return "Stick";
+    default:               return "?";
+  }
+}
+
+const char* treat_name(TreatTier t) {
+  switch (t) {
+    case TreatTier::Biscuit: return "Biscuit";
+    case TreatTier::Bacon:   return "Bacon";
+    case TreatTier::Steak:   return "Steak";
+    default:                 return "?";
+  }
+}
+
+const char* wish_name(Wish w) {
+  switch (w) {
+    case Wish::Treat:  return "Wants a treat";
+    case Wish::Walk:   return "Wants a walk";
+    case Wish::Pet:    return "Wants petting";
+    case Wish::Fetch:  return "Wants to play fetch";
+    case Wish::Brush:  return "Wants a brush";
+    case Wish::None:
+    default:           return "";
+  }
+}
+
+const char* word_name(Word w) {
+  switch (w) {
+    case Word::Name:    return "Bailey";
+    case Word::Sit:     return "sit";
+    case Word::Outside: return "outside";
+    case Word::Treat:   return "treat";
+    case Word::Bedtime: return "bedtime";
+    default:            return "?";
+  }
+}
+
 const char* personality_name(Personality p) {
   switch (p) {
     case Personality::Playful: return "Playful";
@@ -138,16 +181,51 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
   speaker_ = speaker ? speaker : &g_null_speaker;
 
   SaveData s{};
-  if (storage.load(s)) {
-    if (save_to_pet(s, pet_,
-                    settings_, achievements_,
-                    streak_days_, streak_last_visit_unix_ms_,
-                    last_save_real_unix_ms_, total_pets_, fetch_catches_,
-                    coat_pattern_, accessory_id_, personality_trait_,
-                    inherited_trait_, tricks_learned_, weather_, sickness_,
-                    scene_id_, memorial_, memorial_count_, memorial_head_)) {
-      // Loaded.
-    }
+  if (storage.load(s) && save_validate_and_migrate(s)) {
+    // Base fields
+    pet_.stats.hunger      = s.hunger;
+    pet_.stats.happiness   = s.happiness;
+    pet_.stats.cleanliness = s.cleanliness;
+    pet_.stats.energy      = s.energy;
+    pet_.stage             = (LifeStage)s.life_stage;
+    pet_.age_ms            = s.age_ms;
+    pet_.healthy_streak_ms = s.healthy_streak_ms;
+    pet_.neglect_streak_ms = s.neglect_streak_ms;
+    pet_.current_action    = Action::None;
+    pet_.last_pet_ms       = 0;
+    // v2 fields
+    settings_                  = s.settings;
+    achievements_              = s.achievements;
+    streak_days_               = s.streak_days;
+    streak_last_visit_unix_ms_ = s.streak_last_visit_unix_ms;
+    last_save_real_unix_ms_    = s.last_save_real_unix_ms;
+    total_pets_                = s.total_pets;
+    fetch_catches_             = s.fetch_catches;
+    coat_pattern_              = s.coat_pattern;
+    accessory_id_              = s.accessory_id;
+    personality_trait_         = s.personality_trait;
+    inherited_trait_           = s.inherited_trait;
+    tricks_learned_            = s.tricks_learned;
+    weather_                   = s.weather;
+    sickness_                  = s.sickness;
+    scene_id_                  = s.scene_id;
+    for (int i = 0; i < 5; ++i) memorial_[i] = s.memorial[i];
+    memorial_count_            = s.memorial_count;
+    memorial_head_             = s.memorial_head;
+    // v3 fields
+    biscuits_                  = s.biscuits;
+    toy_owned_                 = s.toy_owned ? s.toy_owned : 1;
+    active_toy_                = s.active_toy < (int)Toy::COUNT ? s.active_toy : 0;
+    for (int i = 0; i < 3; ++i) treats_[i] = s.treats[i];
+    wish_                      = s.wish;
+    wish_started_ms_           = s.wish_started_ms;
+    birthday_celebrated_day_   = s.birthday_celebrated_unix_day;
+    well_tucked_in_today_      = s.well_tucked_in_today;
+    vocab_learned_             = s.vocab_learned;
+    for (int i = 0; i < 5; ++i) trick_perf_[i] = s.trick_perf[i];
+    total_steps_               = s.total_steps;
+    for (int i = 0; i < 7; ++i) mood_history_[i] = s.mood_history[i];
+    mood_history_head_         = s.mood_history_head;
   } else {
     // Fresh pet: roll a personality.
     uint32_t seed = now_ms ^ 0xBADBAD;
@@ -192,6 +270,13 @@ void Game::play_clip(ClipId clip) {
 void Game::unlock_achievement(AchievementId id) {
   if (unlock(achievements_, id)) {
     play_clip(ClipId::Achieve);
+    // Round 2: pay out 2 biscuits per achievement unlock.
+    biscuits_ += 2;
+    if (biscuits_ >= 50) {
+      // Set the bit directly (avoid recursion through unlock_achievement).
+      uint32_t b = bit(AchievementId::BiscuitTycoon);
+      if (!(achievements_ & b)) achievements_ |= b;
+    }
     dirty_ = true;
   }
 }
@@ -247,14 +332,19 @@ void Game::apply_input(Input in) {
   }
 
   switch (in) {
-    case Input::Feed:
-      pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + kActionEatBoost);
+    case Input::Feed: {
+      uint32_t boost = kActionEatBoost;
+      if (well_tucked_in_today_) boost *= 2;  // bedtime routine bonus
+      pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + boost);
       pet_.current_action = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Yip);
       unlock_achievement(AchievementId::FirstFeed);
+      // Bailey's wish counted as treat-adjacent: if asked for treat, feeding
+      // doesn't fulfill it (treat-specific Input::TreatGive does).
       dirty_ = true;
       break;
+    }
     case Input::Play: {
       // While in a fetch flow, button is treated as the "catch" press.
       if (mode_ == GameMode::FetchCatching) {
@@ -268,6 +358,7 @@ void Game::apply_input(Input in) {
         play_clip(ClipId::Wuff);
         unlock_achievement(AchievementId::FirstPlay);
         if (fetch_catches_ >= 10) unlock_achievement(AchievementId::FetchPro);
+        fulfill_wish_if_matches(Wish::Fetch);
         dirty_ = true;
         break;
       }
@@ -314,7 +405,84 @@ void Game::apply_input(Input in) {
         play_clip(ClipId::Heart);
         unlock_achievement(AchievementId::FirstPet);
         if (total_pets_ >= 100) unlock_achievement(AchievementId::Petted100);
+        fulfill_wish_if_matches(Wish::Pet);
         dirty_ = true;
+      }
+      break;
+    }
+    case Input::Walk: {
+      if (mode_ == GameMode::Walking) {
+        // Each Walk press during Walking = a step.
+        walk_steps_++;
+        total_steps_++;
+        pet_.stats.energy = clamp_stat((int)pet_.stats.energy - 1);
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
+        // 1/8 chance to find an item per step.
+        uint32_t r = (last_tick_ms_ + (uint32_t)total_steps_) * 2654435761u;
+        if ((r & 7) == 0) {
+          int kind = (r >> 3) % 3;
+          if (kind == 0) {
+            grant_biscuits(1);                          // bone
+          } else if (kind == 1 && (toy_owned_ != kAllToysMask)) {
+            // Unlock a random missing toy
+            for (int i = 0; i < (int)Toy::COUNT; ++i) {
+              uint8_t bit = 1u << ((i + (r >> 6)) % (int)Toy::COUNT);
+              if (!(toy_owned_ & bit)) { toy_owned_ |= bit; break; }
+            }
+          } else {
+            treats_[r & 3 ? 0 : 1]++;                   // biscuit treat usually
+          }
+        }
+        fulfill_wish_if_matches(Wish::Walk);
+        dirty_ = true;
+        break;
+      }
+      // Otherwise: start a walk (Adult+ only, idle, has energy).
+      if (pet_.stage != LifeStage::Puppy && mode_ == GameMode::Idle &&
+          pet_.stats.energy >= 30) {
+        mode_              = GameMode::Walking;
+        mode_started_ms_   = last_tick_ms_;
+        walk_steps_        = 0;
+        walk_target_       = 20;
+        pet_.current_action = Action::Play;
+        pet_.action_started_ms = last_tick_ms_;
+        dirty_ = true;
+      }
+      break;
+    }
+    case Input::TreatGive: {
+      // Give the highest-tier treat available.
+      int tier = -1;
+      for (int i = (int)TreatTier::COUNT - 1; i >= 0; --i) {
+        if (treats_[i] > 0) { tier = i; break; }
+      }
+      if (tier < 0) break;  // no treats in inventory
+      treats_[tier]--;
+      uint32_t boost = (uint32_t)(5 + tier * 7);    // 5/12/19
+      uint32_t food  = (uint32_t)(3 + tier * 4);    // 3/7/11
+      pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + boost);
+      pet_.stats.hunger    = clamp_stat((int)pet_.stats.hunger    + food);
+      pet_.current_action  = Action::Eat;
+      pet_.action_started_ms = last_tick_ms_;
+      play_clip(ClipId::Yip);
+      fulfill_wish_if_matches(Wish::Treat);
+      dirty_ = true;
+      break;
+    }
+    case Input::Brush: {
+      pet_.stats.cleanliness = clamp_stat((int)pet_.stats.cleanliness + 15);
+      pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness   +  3);
+      pet_.current_action    = Action::Clean;
+      pet_.action_started_ms = last_tick_ms_;
+      play_clip(ClipId::Heart);
+      fulfill_wish_if_matches(Wish::Brush);
+      dirty_ = true;
+      break;
+    }
+    case Input::CycleToy: {
+      for (int i = 1; i <= (int)Toy::COUNT; ++i) {
+        int cand = (active_toy_ + i) % (int)Toy::COUNT;
+        if (toy_owned_ & (1u << cand)) { active_toy_ = (uint8_t)cand; dirty_ = true; break; }
       }
       break;
     }
@@ -598,14 +766,20 @@ void Game::tick(uint32_t now_ms) {
   update_daylight(now_ms);
   check_achievements();
   update_fetch_mode(now_ms);
+  update_walk(now_ms);
+  update_wish(now_ms);
   update_sickness(dt);
   update_tricks();
+  update_vocab();
 
-  // Streak check + weather roll whenever we have a synced clock.
+  // Streak check + weather roll + birthday/bedtime whenever we have a
+  // synced clock.
   if (clock_ && clock_->is_synced()) {
     uint64_t u = clock_->now_unix_ms();
     check_streak(u);
     update_weather(u);
+    update_birthday(u);
+    update_bedtime(u);
   }
 
   if (pet_.current_action != Action::None) {
@@ -634,15 +808,52 @@ void Game::maybe_save(Storage& storage) {
 }
 
 void Game::force_save(Storage& storage) {
-  SaveData s;
   uint64_t real_now = (clock_ && clock_->is_synced()) ? clock_->now_unix_ms() : 0;
   if (real_now) last_save_real_unix_ms_ = real_now;
-  pet_to_save(pet_, settings_, achievements_, streak_days_,
-              streak_last_visit_unix_ms_, last_save_real_unix_ms_,
-              total_pets_, fetch_catches_, coat_pattern_, accessory_id_,
-              personality_trait_, inherited_trait_, tricks_learned_,
-              weather_, sickness_, scene_id_,
-              memorial_, memorial_count_, memorial_head_, s);
+
+  SaveData s{};
+  s.magic                   = kSaveMagic;
+  s.version                 = kSaveVersion;
+  s.hunger                  = pet_.stats.hunger;
+  s.happiness               = pet_.stats.happiness;
+  s.cleanliness             = pet_.stats.cleanliness;
+  s.energy                  = pet_.stats.energy;
+  s.life_stage              = (uint8_t)pet_.stage;
+  s.age_ms                  = pet_.age_ms;
+  s.healthy_streak_ms       = pet_.healthy_streak_ms;
+  s.neglect_streak_ms       = pet_.neglect_streak_ms;
+  s.settings                = settings_;
+  s.achievements            = achievements_;
+  s.streak_days             = streak_days_;
+  s.streak_last_visit_unix_ms = streak_last_visit_unix_ms_;
+  s.last_save_real_unix_ms  = last_save_real_unix_ms_;
+  s.total_pets              = total_pets_;
+  s.fetch_catches           = fetch_catches_;
+  s.coat_pattern            = coat_pattern_;
+  s.accessory_id            = accessory_id_;
+  s.personality_trait       = personality_trait_;
+  s.inherited_trait         = inherited_trait_;
+  s.tricks_learned          = tricks_learned_;
+  s.weather                 = weather_;
+  s.sickness                = sickness_;
+  s.scene_id                = scene_id_;
+  for (int i = 0; i < 5; ++i) s.memorial[i] = memorial_[i];
+  s.memorial_count          = memorial_count_;
+  s.memorial_head           = memorial_head_;
+  s.biscuits                = biscuits_;
+  s.toy_owned               = toy_owned_;
+  s.active_toy              = active_toy_;
+  for (int i = 0; i < 3; ++i) s.treats[i] = treats_[i];
+  s.wish                    = wish_;
+  s.wish_started_ms         = wish_started_ms_;
+  s.birthday_celebrated_unix_day = birthday_celebrated_day_;
+  s.well_tucked_in_today    = well_tucked_in_today_;
+  s.vocab_learned           = vocab_learned_;
+  for (int i = 0; i < 5; ++i) s.trick_perf[i] = trick_perf_[i];
+  s.total_steps             = total_steps_;
+  for (int i = 0; i < 7; ++i) s.mood_history[i] = mood_history_[i];
+  s.mood_history_head       = mood_history_head_;
+
   storage.save(s);
   dirty_ = false;
   last_save_ms_ = last_tick_ms_;
@@ -692,6 +903,9 @@ void Game::update_fetch_mode(uint32_t now_ms) {
       break;
     case GameMode::PhotoMode:
       // Phase 3
+      break;
+    case GameMode::Walking:
+      // Walk progression is handled in update_walk(); nothing to do here.
       break;
     case GameMode::Idle:
       break;
@@ -781,6 +995,117 @@ void Game::choose_coat(uint8_t id) {
     mode_ = GameMode::Idle;
   }
   dirty_ = true;
+}
+
+// ===== Round 2 systems =====
+
+void Game::grant_biscuits(uint32_t n) {
+  uint32_t before = biscuits_;
+  biscuits_ += n;
+  if (before < 50 && biscuits_ >= 50) unlock_achievement(AchievementId::BiscuitTycoon);
+  dirty_ = true;
+}
+
+void Game::fulfill_wish_if_matches(Wish what) {
+  if (wish_ == 0 || (Wish)wish_ != what) return;
+  pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 10);
+  grant_biscuits(1);
+  wish_ = 0;
+  wish_started_ms_ = 0;
+  // Track via streak_last_visit (reused) to count fulfilled wishes:
+  static uint16_t fulfilled = 0;  // process-local; the achievement is a one-shot
+  if (++fulfilled >= 5) unlock_achievement(AchievementId::WishGranter);
+  dirty_ = true;
+}
+
+void Game::update_wish(uint32_t now_ms) {
+  if (pet_.stage == LifeStage::Gone) { wish_ = 0; return; }
+#if BAILEY_FAST_DECAY
+  constexpr uint64_t kWishIntervalMs = 60ULL * 1000;   // 1 min in fast mode
+#else
+  constexpr uint64_t kWishIntervalMs = 30ULL * 60 * 1000;  // 30 min
+#endif
+  // If no wish, periodically roll one.
+  if (wish_ == 0) {
+    if (last_tick_ms_ - (uint32_t)wish_started_ms_ > kWishIntervalMs) {
+      uint32_t r = now_ms * 2654435761u + (uint32_t)pet_.age_ms;
+      wish_ = (uint8_t)(1 + (r % 5));   // Treat..Brush
+      wish_started_ms_ = last_tick_ms_;
+      dirty_ = true;
+    }
+  } else {
+    // Expire stale wishes.
+    if (last_tick_ms_ - (uint32_t)wish_started_ms_ > kWishIntervalMs * 2) {
+      wish_ = 0;
+      wish_started_ms_ = last_tick_ms_;
+    }
+  }
+}
+
+void Game::update_walk(uint32_t now_ms) {
+  if (mode_ != GameMode::Walking) return;
+  // Auto-end if energy too low or target reached.
+  if (pet_.stats.energy < 10 || walk_steps_ >= walk_target_) {
+    if (total_steps_ >= 100)
+      unlock_achievement(AchievementId::WalkOfALifetime);
+    mode_ = GameMode::Idle;
+    pet_.current_action = Action::None;
+    walk_steps_ = 0;
+    walk_target_ = 0;
+    dirty_ = true;
+  }
+  (void)now_ms;
+}
+
+void Game::update_birthday(uint64_t now_unix_ms) {
+  if (now_unix_ms == 0) return;
+  LocalTime lt = to_local(now_unix_ms, settings_.tz_offset_min);
+  // Bailey's birthday is Jan 13 -- baked in (override via build flag later).
+#ifndef BAILEY_BIRTHDAY_MONTH
+#define BAILEY_BIRTHDAY_MONTH 1
+#endif
+#ifndef BAILEY_BIRTHDAY_DAY
+#define BAILEY_BIRTHDAY_DAY 13
+#endif
+  bool today = (lt.month == BAILEY_BIRTHDAY_MONTH && lt.day == BAILEY_BIRTHDAY_DAY);
+  is_birthday_today_ = today;
+  if (today) {
+    uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if (birthday_celebrated_day_ != day) {
+      birthday_celebrated_day_ = day;
+      // Auto-equip party hat if nothing is equipped & we have it unlocked.
+      if (accessory_id_ == 0 && accessory_unlocked(3)) accessory_id_ = 3;
+      unlock_achievement(AchievementId::BirthdayBoy);
+      play_clip(ClipId::Fanfare);
+      dirty_ = true;
+    }
+  }
+}
+
+void Game::update_bedtime(uint64_t now_unix_ms) {
+  if (now_unix_ms == 0) return;
+  LocalTime lt = to_local(now_unix_ms, settings_.tz_offset_min);
+  // Bedtime window: 20:00-21:00 local time. Mark tucked-in if Bailey
+  // got attention during that hour.
+  if (lt.hour == 20 && pet_.current_action != Action::None) {
+    well_tucked_in_today_ = 1;
+    dirty_ = true;
+  }
+  // Reset flag at noon so it applies once per night.
+  if (lt.hour == 12 && lt.minute == 0) {
+    well_tucked_in_today_ = 0;
+  }
+}
+
+void Game::update_vocab() {
+  if (pet_.stage == LifeStage::Gone) return;
+  // Vocab learned at same age thresholds as tricks, but offset by trick index.
+  uint64_t age = pet_.age_ms;
+  uint8_t before = vocab_learned_;
+  for (int i = 0; i < (int)Word::COUNT; ++i) {
+    if (age >= trick_age_threshold((Trick)i)) vocab_learned_ |= (1u << i);
+  }
+  if (vocab_learned_ != before) dirty_ = true;
 }
 
 bool Game::accessory_unlocked(uint8_t id) const {

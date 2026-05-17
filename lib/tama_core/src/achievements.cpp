@@ -26,6 +26,11 @@ const Entry kEntries[kAchievementCount] = {
   /* HonoredAncestor   */ {"Legacy",         "Inherited a trait from a past Bailey"},
   /* PhotoFan          */ {"Photo Fan",      "Took a photo"},
   /* CalledByName      */ {"Here, Boy!",     "Got Bailey's attention with your voice"},
+  /* BirthdayBoy       */ {"Birthday Boy",   "Visited Bailey on his birthday"},
+  /* WalkOfALifetime   */ {"Walk a Mile",    "Took 100 lifetime steps with Bailey"},
+  /* WishGranter       */ {"Wish Granter",   "Fulfilled 5 of Bailey's wishes"},
+  /* BiscuitTycoon     */ {"Biscuit Tycoon", "Earned 50 biscuits"},
+  /* SeasonalGreetings */ {"Season's Best",  "Visited on a holiday"},
 };
 }  // namespace
 

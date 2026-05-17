@@ -14,6 +14,7 @@
     MenuToggle: 4, PetTap: 5, Restart: 6, Stroke: 7, MenuNext: 8,
     CycleScene: 9, CycleCoat: 10, CycleAccessory: 11,
     TakePhoto: 12, MicTrigger: 13,
+    Walk: 14, TreatGive: 15, Brush: 16, CycleToy: 17,
   };
 
   // ---- Web Audio ----

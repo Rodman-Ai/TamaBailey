@@ -76,7 +76,32 @@ enum class GameMode : uint8_t {
   FetchResult    = 4,
   PickingCoat    = 5,
   PhotoMode      = 6,
+  Walking        = 7,   // Round 2: Nintendogs-style walk
 };
+
+// Round 2: 5 toys -- ball is unlocked by default. Index also indexes
+// into save's toy_owned bitmask.
+enum class Toy : uint8_t {
+  Ball = 0, Frisbee = 1, Rope = 2, SqueakyDuck = 3, Stick = 4, COUNT = 5,
+};
+const char* toy_name(Toy t);
+constexpr uint8_t kAllToysMask = (1u << (int)Toy::COUNT) - 1;
+
+// Round 2: 3 tiers of treats.
+enum class TreatTier : uint8_t { Biscuit = 0, Bacon = 1, Steak = 2, COUNT = 3 };
+const char* treat_name(TreatTier t);
+
+// Round 2: current "want" that Bailey is signaling.
+enum class Wish : uint8_t {
+  None = 0, Treat = 1, Walk = 2, Pet = 3, Fetch = 4, Brush = 5,
+};
+const char* wish_name(Wish w);
+
+// Round 2: 5 learned words mirroring trick milestones.
+enum class Word : uint8_t {
+  Name = 0, Sit = 1, Outside = 2, Treat = 3, Bedtime = 4, COUNT = 5,
+};
+const char* word_name(Word w);
 
 // Tricks (Phase 2). Auto-learned at age milestones (no rhythm mini-game).
 enum class Trick : uint8_t {
@@ -143,6 +168,18 @@ class Game {
   uint8_t   tricks_learned() const { return tricks_learned_; }
   uint64_t  fetch_catches()  const { return fetch_catches_; }
   uint32_t  fetch_state_ms() const { return mode_started_ms_; }
+  // Round 2 inspection
+  uint32_t  biscuits()       const { return biscuits_; }
+  uint8_t   toys_owned()     const { return toy_owned_; }
+  Toy       active_toy()     const { return (Toy)active_toy_; }
+  uint8_t   treats(TreatTier t) const { return treats_[(int)t]; }
+  Wish      current_wish()   const { return (Wish)wish_; }
+  uint16_t  walk_steps()     const { return walk_steps_; }
+  uint64_t  total_steps()    const { return total_steps_; }
+  uint8_t   vocab_learned()  const { return vocab_learned_; }
+  uint16_t  trick_perf(Trick t) const { return trick_perf_[(int)t]; }
+  bool      is_birthday()    const { return is_birthday_today_; }
+  bool      tucked_in()      const { return well_tucked_in_today_ != 0; }
 
   // Equip accessory (no-op if id not unlocked). 0 = unequip.
   void equip_accessory(uint8_t id);
@@ -186,6 +223,14 @@ class Game {
   void update_sickness(uint32_t dt_ms);
   void update_tricks();
   void try_cure_sickness();
+  // Round 2
+  void update_walk(uint32_t now_ms);
+  void update_wish(uint32_t now_ms);
+  void update_birthday(uint64_t now_unix_ms);
+  void update_bedtime(uint64_t now_unix_ms);
+  void update_vocab();
+  void grant_biscuits(uint32_t n);
+  void fulfill_wish_if_matches(Wish what);
 
   Pet      pet_;
   Settings settings_;
@@ -222,6 +267,25 @@ class Game {
   uint32_t last_weather_roll_day_ = 0;
   uint32_t sick_started_ms_  = 0;
   uint32_t last_fetch_result_ = 0;  // 1 = caught, 2 = missed, 0 = none
+
+  // Round 2 state
+  uint32_t biscuits_                  = 0;
+  uint8_t  toy_owned_                 = 1;   // ball owned by default
+  uint8_t  active_toy_                = 0;
+  uint8_t  treats_[3]                 = {0,0,0};
+  uint8_t  wish_                      = 0;   // Wish enum
+  uint64_t wish_started_ms_           = 0;
+  uint32_t birthday_celebrated_day_   = 0;
+  uint8_t  well_tucked_in_today_      = 0;
+  uint8_t  vocab_learned_             = 0;
+  uint16_t trick_perf_[5]             = {0,0,0,0,0};
+  uint64_t total_steps_               = 0;
+  uint8_t  mood_history_[7]           = {0,0,0,0,0,0,0};
+  uint8_t  mood_history_head_         = 0;
+  uint16_t walk_steps_                = 0;
+  uint16_t walk_target_               = 0;
+  bool     is_birthday_today_         = false;
+  uint32_t last_wish_check_day_       = 0;
 
   float    daylight_         = 1.0f;
   char     clock_str_[16]    = {0};

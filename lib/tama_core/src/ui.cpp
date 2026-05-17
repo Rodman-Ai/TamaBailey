@@ -387,7 +387,18 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   std::snprintf(buf, sizeof(buf), "Bath  : %3u / 100", pet.stats.cleanliness);
   r.drawText(x, y, buf, kBlue, 1); y += 12;
   std::snprintf(buf, sizeof(buf), "Rest  : %3u / 100", pet.stats.energy);
-  r.drawText(x, y, buf, kGreen, 1);
+  r.drawText(x, y, buf, kGreen, 1); y += 14;
+
+  // Round 2: biscuits + active toy + treat counts
+  std::snprintf(buf, sizeof(buf), "Biscuits: %u   Steps: %lu",
+                (unsigned)game.biscuits(), (unsigned long)game.total_steps());
+  r.drawText(x, y, buf, kYellow, 1); y += 10;
+  std::snprintf(buf, sizeof(buf), "Toy:%s  Treats:%u/%u/%u",
+                toy_name(game.active_toy()),
+                game.treats(TreatTier::Biscuit),
+                game.treats(TreatTier::Bacon),
+                game.treats(TreatTier::Steak));
+  r.drawText(x, y, buf, kWhite, 1);
 }
 
 void draw_menu_achievements(Renderer& r, const Game& game) {
@@ -537,6 +548,47 @@ void draw_sickness_overlay(Renderer& r) {
   r.drawText(kScreenW - 60, kStatsBarH + 6, "SICK!", kRed, 1);
 }
 
+// Wish / dream / thought bubble centered horizontally above Bailey.
+static void draw_thought_bubble(Renderer& r, const char* text, uint16_t color) {
+  int tw = text_width(text, 1) + 8;
+  int bx = kPetX + (kPetDrawW - tw) / 2;
+  int by = kPetY - 16;
+  // Bubble body
+  r.fillRect(bx, by, tw, 12, kWhite);
+  r.drawRect(bx, by, tw, 12, kGrayDark);
+  r.fillRect(bx + tw / 2 - 2, by + 12, 4, 3, kWhite);
+  r.fillRect(bx + tw / 2,     by + 15, 2, 2, kWhite);
+  r.drawText(bx + 4, by + 2, text, color, 1);
+}
+
+// Confetti dots scattered across the upper half (deterministic per now_ms
+// window so each frame looks different but stable per frame).
+static void draw_confetti(Renderer& r, uint32_t now_ms) {
+  uint32_t seed = 0xC0FFEE;
+  uint16_t cols[5] = {kRed, kYellow, kGreen, kBlue, kPink};
+  for (int i = 0; i < 30; ++i) {
+    seed = seed * 1664525u + 1013904223u + now_ms / 200;
+    int x = (int)((seed >> 4) % kScreenW);
+    int y = (int)(((seed >> 12) % (kScreenH - kStatusH - kStatsBarH)) + kStatsBarH);
+    uint16_t c = cols[(seed >> 20) % 5];
+    r.fillRect(x, y, 2, 3, c);
+  }
+}
+
+// Walking overlay: Bailey's silhouette is drawn at the normal position but
+// we render a small progress + step counter.
+static void draw_walk_progress(Renderer& r, const Game& game) {
+  // Progress bar at top of the play area.
+  int x0 = 20, y0 = kStatsBarH + 4, w = kScreenW - 40;
+  r.fillRect(x0, y0, w, 5, kBlack);
+  r.drawRect(x0 - 1, y0 - 1, w + 2, 7, kGrayLight);
+  int fill = w * game.walk_steps() / 20;
+  if (fill > 0) r.fillRect(x0, y0, fill, 5, kGreen);
+  char buf[32];
+  std::snprintf(buf, sizeof(buf), "WALK  %u/20  (B=step)", game.walk_steps());
+  r.drawText((kScreenW - text_width(buf, 1)) / 2, y0 + 10, buf, kYellow, 1);
+}
+
 void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   const Pet& pet = game.pet();
   float daylight = game.daylight();
@@ -552,15 +604,33 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   draw_coat_accents(r, game.coat_pattern());
   draw_accessory_overlay(r, game.accessory_id());
   draw_weather(r, (uint8_t)game.weather(), now_ms);
+
+  // Birthday confetti goes UNDER the footer overlay so the message still reads.
+  if (game.is_birthday()) draw_confetti(r, now_ms);
+
   draw_footer(r, pet, game.streak_days());
 
   // Mode-specific overlays
-  if (game.mode() != GameMode::Idle && game.mode() != GameMode::PickingCoat)
+  if (game.mode() == GameMode::Walking)
+    draw_walk_progress(r, game);
+  else if (game.mode() != GameMode::Idle && game.mode() != GameMode::PickingCoat)
     draw_fetch(r, game, now_ms);
   if (game.is_sick())
     draw_sickness_overlay(r);
   if (game.mode() == GameMode::PickingCoat)
     draw_coat_picker(r, game);
+
+  // Wish / dream bubble (does not show during fetch / walk / sick / menu).
+  if (game.mode() == GameMode::Idle && !game.is_sick()) {
+    if (pet.mood == Mood::Sleeping) {
+      const char* dreams[] = {"...bone", "...ball", "...treat", "...you"};
+      draw_thought_bubble(r, dreams[(now_ms / 1500) % 4], kSkyDeep);
+    } else if (game.current_wish() != Wish::None) {
+      draw_thought_bubble(r, wish_name(game.current_wish()), kPink);
+    } else if (game.is_birthday()) {
+      draw_thought_bubble(r, "Birthday!", kHeartRed);
+    }
+  }
 }
 
 void draw_menu_overlay(Renderer& r, const Game& game) {

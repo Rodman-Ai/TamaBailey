@@ -114,7 +114,9 @@ void thicken_outline(uint8_t* buf, int bw, int bh, uint8_t outline) {
   }
 }
 
-// Core hound silhouette: long body, big floppy ears, droopy posture.
+// Core hound silhouette: brown body with WHITE belly + paws + muzzle +
+// chest blaze, dark patches around the eyes, tan eyebrow markings.
+// Matches the real Bailey -- a tan/brown hound mix with white markings.
 // `frame_lift` shifts the body up by a pixel for the breathing frame.
 // `closed_eyes` for sleep, `tongue` for happy poses, `sad_mouth` for sad.
 // `size_scale` controls puppy vs adult vs senior proportions.
@@ -135,33 +137,51 @@ void draw_bailey(uint8_t* buf,
   const int body_ry = (int)(12 * size_scale);
   const int head_r  = (int)(11 * size_scale);
 
-  // Tail (curls behind right hip)
-  for (int i = 0; i < (int)(14 * size_scale); ++i) {
+  // Tail (curls behind right hip) -- brown body with a white tip.
+  const int tail_len = (int)(14 * size_scale);
+  for (int i = 0; i < tail_len; ++i) {
     int tx = cx + body_rx - 4 + i;
     int ty = cy - 2 - i / 2;
-    pset(buf, W, H, tx,     ty, body_color);
-    pset(buf, W, H, tx + 1, ty, body_color);
-    pset(buf, W, H, tx,     ty + 1, body_color);
+    uint8_t c = (i >= tail_len - 3) ? WH : body_color;
+    pset(buf, W, H, tx,     ty, c);
+    pset(buf, W, H, tx + 1, ty, c);
+    pset(buf, W, H, tx,     ty + 1, c);
   }
 
+  // Legs: brown upper half, WHITE paws (bottom 3 pixels).
+  auto draw_leg = [&](int x, int y, int w, int h) {
+    int paw_h = 3;
+    if (h <= paw_h) {
+      fill_rect(buf, W, H, x, y, w, h, WH);
+    } else {
+      fill_rect(buf, W, H, x, y, w, h - paw_h, body_color);
+      fill_rect(buf, W, H, x, y + h - paw_h, w, paw_h, WH);
+    }
+  };
   // Back legs
-  fill_rect(buf, W, H, cx + 4, cy + body_ry - 2, 4, 6, body_color);
-  fill_rect(buf, W, H, cx + 9, cy + body_ry - 2, 4, 6, body_color);
+  draw_leg(cx + 4, cy + body_ry - 2, 4, 6);
+  draw_leg(cx + 9, cy + body_ry - 2, 4, 6);
   // Front legs
-  fill_rect(buf, W, H, cx - 12, cy + body_ry - 2, 4, 7, body_color);
-  fill_rect(buf, W, H, cx -  7, cy + body_ry - 2, 4, 7, body_color);
+  draw_leg(cx - 12, cy + body_ry - 2, 4, 7);
+  draw_leg(cx -  7, cy + body_ry - 2, 4, 7);
 
   // Body
   fill_ellipse(buf, W, H, cx, cy, body_rx, body_ry, body_color);
-  // Cream belly patch
-  fill_ellipse(buf, W, H, cx - 2, cy + 4, body_rx - 8, body_ry - 5, CR);
+  // White belly patch (larger than before, more of an oval to the side)
+  fill_ellipse(buf, W, H, cx - 2, cy + 4, body_rx - 6, body_ry - 4, WH);
+  // White chest blaze: a narrow vertical stripe from belly toward the neck
+  for (int dy = -body_ry; dy <= body_ry - 5; ++dy) {
+    pset(buf, W, H, cx - body_rx + 6, cy + dy, WH);
+    pset(buf, W, H, cx - body_rx + 7, cy + dy, WH);
+  }
 
   // Head (offset left/forward of body)
   const int hx = cx - body_rx + 4;
   const int hy = cy - body_ry + 2;
   fill_ellipse(buf, W, H, hx, hy, head_r, head_r - 1, body_color);
 
-  // Floppy ears (drooping past the jaw on both sides of the head)
+  // Floppy ears (drooping past the jaw on both sides of the head) -- darker
+  // brown for the classic bandit-mask hound look.
   for (int i = 0; i < (int)(13 * size_scale); ++i) {
     int ex = hx - head_r + 1 - i / 3;
     int ey = hy - 2 + i;
@@ -179,8 +199,13 @@ void draw_bailey(uint8_t* buf,
     pset(buf, W, H, ex + 3, ey, OL);
   }
 
-  // Muzzle (cream patch on lower face)
-  fill_ellipse(buf, W, H, hx, hy + 4, 6, 4, CR);
+  // White muzzle (wraps lower face, larger than before)
+  fill_ellipse(buf, W, H, hx, hy + 4, 7, 5, WH);
+
+  // Dark patches around the eyes (bandit mask) - subtle, just a band.
+  for (int x = hx - 5; x <= hx + 5; ++x) {
+    if ((x + hy) % 2 == 0) pset(buf, W, H, x, hy - 2, OL);
+  }
 
   // Eyes
   if (closed_eyes) {
@@ -195,7 +220,13 @@ void draw_bailey(uint8_t* buf,
     pset(buf, W, H, hx + 3, hy - 2, BK);
   }
 
-  // Nose
+  // Tan eyebrow markings (above each eye)
+  pset(buf, W, H, hx - 4, hy - 3, highlight);
+  pset(buf, W, H, hx - 3, hy - 3, highlight);
+  pset(buf, W, H, hx + 3, hy - 3, highlight);
+  pset(buf, W, H, hx + 4, hy - 3, highlight);
+
+  // Nose (sits on white muzzle now)
   pset(buf, W, H, hx - 1, hy + 3, BK);
   pset(buf, W, H, hx,     hy + 3, BK);
   pset(buf, W, H, hx + 1, hy + 3, BK);
@@ -215,6 +246,7 @@ void draw_bailey(uint8_t* buf,
     if (tongue) {
       pset(buf, W, H, hx,     hy + 7, PK);
       pset(buf, W, H, hx + 1, hy + 7, PK);
+      pset(buf, W, H, hx,     hy + 8, PK);
     }
   }
 
