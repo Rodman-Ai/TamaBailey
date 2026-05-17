@@ -1,0 +1,11 @@
+{
+  "name": "tama_core",
+  "version": "0.1.0",
+  "description": "Hardware-agnostic Tamagotchi game core for TamaBailey.",
+  "keywords": ["game", "tamagotchi", "embedded"],
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "flags": ["-std=gnu++17"]
+  }
+}

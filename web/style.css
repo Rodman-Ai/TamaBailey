@@ -1,0 +1,100 @@
+:root {
+  color-scheme: dark;
+  --bg:        #15171a;
+  --panel:     #1f2227;
+  --accent:    #f0c060;
+  --accent-2:  #5c87d9;
+  --text:      #e8ebee;
+  --muted:     #8a8f96;
+  --shadow:    0 6px 22px rgba(0,0,0,0.45);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+  text-align: center;
+}
+
+h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: 0.5px; }
+.tagline { color: var(--muted); margin: 0 0 24px; }
+
+.device {
+  display: inline-block;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+canvas#screen {
+  display: block;
+  width: 480px;          /* 2x scale */
+  height: 480px;
+  max-width: 88vw;
+  max-height: 88vw;
+  background: black;
+  border-radius: 8px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 24px auto 8px;
+  max-width: 480px;
+}
+
+.btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid #2c3138;
+  background: linear-gradient(180deg, #2a2e34, #1c2026);
+  color: var(--text);
+  padding: 16px 6px;
+  font-size: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  transition: transform 60ms ease, background 80ms ease;
+  touch-action: manipulation;
+}
+.btn .key {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.btn:hover  { background: linear-gradient(180deg, #303640, #20262e); }
+.btn.held,
+.btn:active { transform: translateY(1px); background: linear-gradient(180deg, #1a1d22, #14171b); }
+
+.hints {
+  margin-top: 32px;
+  text-align: left;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 18px 22px;
+  box-shadow: var(--shadow);
+}
+.hints h2 { margin: 0 0 10px; font-size: 18px; color: var(--accent); }
+.hints ul { padding-left: 18px; margin: 0 0 12px; }
+.hints li { margin: 6px 0; line-height: 1.4; }
+.hints kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #11151a;
+  border: 1px solid #2c3138;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+.footnote { color: var(--muted); font-size: 13px; margin: 8px 0 0; }

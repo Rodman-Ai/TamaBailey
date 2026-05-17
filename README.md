@@ -1,99 +1,164 @@
 # TamaBailey
 
-A Tamagotchi-style desk pet of my dog Bailey, running on a Waveshare
-ESP32-S3 1.54" LCD development board.
+A Tamagotchi-style virtual pet of my hound dog **Bailey**. Runs on a
+Waveshare ESP32-S3-Touch-LCD-1.54 *and* in your browser via WebAssembly.
 
-This README covers the **scaffold / hello-world** stage. Gameplay (stats,
-decay, sprite animation, evolution, Preferences persistence) is not yet
-implemented — flash this first to confirm the display and buttons work.
+The same C++ game logic powers both -- there's no port and no drift.
+Hardware adapters live in `src/` (LovyanGFX + buttons + optional touch +
+Preferences); the browser adapter lives in `web/` (canvas 2D +
+localStorage). Both call into a hardware-agnostic core in `lib/tama_core/`.
+
+## Play it in your browser
+
+After the first push to `main`, the workflow in
+`.github/workflows/pages.yml` builds and deploys the WebAssembly bundle
+to GitHub Pages. Visit:
+
+> `https://<owner>.github.io/TamaBailey/`
+
+**One-time Pages setup:** in repo Settings -> Pages, set *Source* to
+"GitHub Actions". That's it; future pushes deploy automatically.
 
 ## Hardware
 
-- **Board:** [Waveshare ESP32-S3 1.54" LCD Development Board](https://www.waveshare.com/wiki/ESP32-S3-LCD-1.54)
+- **Board:** [Waveshare ESP32-S3-Touch-LCD-1.54](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.54)
   (ESP32-S3, 16 MB flash, 8 MB PSRAM)
-- **Display:** 240×240 IPS, ST7789 driver, 4-wire SPI, 262K color
-- **Inputs:** 3 onboard buttons (one is the BOOT button on GPIO0)
-- **USB:** native USB CDC for serial + flashing (no FTDI bridge)
+- **Display:** 240x240 IPS, ST7789 driver, 4-wire SPI
+- **Buttons:** 3 onboard tactile buttons (GPIO 0 / 5 / 4, active low)
+- **Touch (optional):** CST816 capacitive panel on I2C (GPIO 42/41/48/47)
+- **USB:** native USB CDC for serial + flashing
 
-### GPIO pin assignments
+All pin numbers live in [`include/pins.h`](include/pins.h) and were
+verified from Waveshare's own demo sketches at
+[`waveshareteam/ESP32-S3-Touch-LCD-1.54`](https://github.com/waveshareteam/ESP32-S3-Touch-LCD-1.54).
 
-All pin numbers live in [`include/pins.h`](include/pins.h). The LCD defaults
-mirror the closely-related ESP32-S3-LCD-1.47 and the button defaults are
-`GPIO0` (BOOT) + `GPIO1` + `GPIO2`. **These have not been confirmed against
-the 1.54" schematic** — please verify them once and edit that one file if
-anything is wrong. The hello-world prints all 3 button states to serial so
-you can spot a mis-mapped button immediately.
+## Gameplay
 
-## Setup
+| Input            | Action                                               |
+|------------------|------------------------------------------------------|
+| BTN A / `A`      | **Feed** Bailey (+30 food)                           |
+| BTN B / `B`      | **Play** with Bailey (+30 play, -10 rest)            |
+| BTN C / `C`      | **Clean** Bailey (+60 bath)                          |
+| Long-press (~0.8 s) any button | Toggle **status menu**                 |
+| Tap pet (touch / canvas click) | **Pet** Bailey (+5 play, 12 s cooldown) |
+| Tap stats bar                  | Toggle status menu                     |
+| `R` (web)                      | Restart when Bailey is gone            |
 
-1. Install [PlatformIO](https://platformio.org/install) — either the VS Code
-   extension or the standalone CLI (`pip install platformio`).
-2. Clone this repo and open it in PlatformIO.
-3. Copy the Wi-Fi credentials template (not used by the hello-world, but
-   needed once we wire up future features):
-   ```sh
-   cp include/secrets.h.example include/secrets.h
-   # then edit include/secrets.h with your SSID/password
-   ```
-   `include/secrets.h` is gitignored.
+- Four stats (food / play / bath / rest) decay over real time.
+- Rest regenerates while Bailey isn't actively playing.
+- Mood is driven by the stats: happy, hungry, dirty, sleeping, sad, gone.
+- Keep all stats >= 30 for 24 h to evolve Puppy -> Adult, 96 h -> Senior.
+- Neglect all stats to 0 for 60 minutes and Bailey is gone. Long-press
+  any button to hatch a fresh puppy.
 
-## Build & flash
+For testing, build with `-D BAILEY_FAST_DECAY=1` (or use the
+`esp32-s3-lcd-1_54-fast` PIO env) to collapse the 12 h / 24 h timers
+into 12 min / 24 min.
+
+## Build and flash (device)
 
 ```sh
-pio run                 # compile
-pio run -t upload       # compile + flash over USB
-pio device monitor      # 115200 baud serial monitor
+# Install PlatformIO CLI
+pip install platformio
+
+# Compile and flash (classic Tamagotchi pace)
+pio run -e esp32-s3-lcd-1_54 -t upload
+
+# Serial monitor
+pio device monitor
+
+# Demo build with fast stat decay
+pio run -e esp32-s3-lcd-1_54-fast -t upload
 ```
 
-If `pio run -t upload` can't find the board or reset stalls, see
-[Download mode](#download-mode) below.
+### Download mode
 
-## Download mode
+The ESP32-S3 auto-resets into the bootloader over USB CDC. If a flash
+fails: hold **BOOT**, tap **RESET**, release **BOOT**, then re-run the
+upload.
 
-The ESP32-S3 auto-resets into the bootloader over USB CDC, so you usually
-don't need to do anything manual. If upload fails:
+### Wi-Fi credentials (not used in MVP, but wired up)
 
-1. Hold **BOOT**.
-2. Tap **RESET** (also called **EN**).
-3. Release **BOOT**.
+```sh
+cp include/secrets.h.example include/secrets.h
+# Edit include/secrets.h with your SSID / password.
+# include/secrets.h is gitignored.
+```
 
-The board is now in download mode — re-run `pio run -t upload`. Tap
-**RESET** once more after flashing to run the firmware.
+## Build and run the web version locally
 
-## Verifying the hello-world
+```sh
+# Install and activate emsdk first (https://emscripten.org/docs/getting_started/downloads.html)
+cd path/to/emsdk && ./emsdk install latest && ./emsdk activate latest && source ./emsdk_env.sh
 
-After flashing, you should see:
+# Build the bundle
+cd path/to/TamaBailey
+bash web/build.sh
 
-- **On the display:** centered text `Hello, pet!`, a magenta accent line
-  below it, and three labelled tiles (`A` `B` `C`) at the bottom. A tile
-  fills green when you hold its button.
-- **On serial (115200 baud):** a line every 100 ms like
-  ```
-  BTN A=1 B=1 C=1
-  ```
-  A `1` means released, `0` means pressed.
+# Serve and open
+python3 -m http.server -d web/dist 8000
+# -> http://localhost:8000
+```
 
-### Troubleshooting
+Save state is stored in `localStorage` under `tama_bailey_save_v1`.
 
-- **Screen is blank / backlight off:** the LCD pins in `include/pins.h`
-  don't match your board. Cross-check against the schematic on the
-  [Waveshare wiki](https://www.waveshare.com/wiki/ESP32-S3-LCD-1.54)
-  and edit the file.
-- **Wrong button lights up when you press one:** swap the `PIN_BTN_A` /
-  `PIN_BTN_B` / `PIN_BTN_C` values in `include/pins.h`.
-- **Nothing on serial:** make sure `monitor_speed` matches (115200) and
-  that you've granted permission to the USB serial device on your OS.
+## Replacing the placeholder art with your own
+
+The sprites you see by default are drawn procedurally by
+[`lib/tama_core/src/sprites.cpp`](lib/tama_core/src/sprites.cpp).
+To swap in your own pixel art:
+
+1. Draw a 48x48 PNG (transparent background) of each pose you want to
+   replace. Stick to the 16-color palette in `tama/colors.h` for the
+   best fidelity.
+2. Convert each PNG to a C++ indexed-color array:
+   ```sh
+   pip install Pillow
+   python scripts/png_to_sprite.py assets/sprites/bailey_idle_a.png \
+     --name bailey_idle_a \
+     --output lib/tama_core/src/sprites_user.cpp
+   ```
+3. Wire your generated arrays into `pet_sprite()` by editing
+   `lib/tama_core/src/sprites.cpp` -- replace the relevant procedural
+   draw call with a `std::memcpy` from your array.
+
+Re-flash the device and rebuild the web bundle; both sides pick up the
+new art.
 
 ## Repository layout
 
 ```
 TamaBailey/
-├── platformio.ini           # PlatformIO config (esp32-s3-devkitc-1, Arduino)
-├── src/main.cpp             # hello-world sketch
+├── platformio.ini              # ESP32-S3 / Arduino / LovyanGFX build
 ├── include/
-│   ├── pins.h               # all GPIO defines — verify against schematic
-│   └── secrets.h.example    # Wi-Fi credentials template
-├── lib/                     # project-private libraries (empty for now)
-├── assets/sprites/          # pet sprite art (empty for now)
-└── docs/                    # design notes (empty for now)
+│   ├── pins.h                  # verified Waveshare 1.54" pin map
+│   └── secrets.h.example       # Wi-Fi creds template (unused in MVP)
+├── src/                        # ESP32 adapter
+│   ├── main.cpp
+│   ├── esp_renderer.{h,cpp}    # LovyanGFX-backed renderer
+│   ├── esp_storage.{h,cpp}     # Preferences-backed storage
+│   └── esp_input.{h,cpp}       # OneButton-backed input
+├── lib/tama_core/              # PURE C++17 GAME CORE (no Arduino/Em deps)
+│   ├── include/tama/*.h        # game, pet, stats, input, renderer ...
+│   └── src/*.cpp               # game logic, sprites, font, UI
+├── web/                        # browser adapter (Emscripten target)
+│   ├── main_web.cpp            # bailey_init / bailey_frame entry points
+│   ├── web_renderer.{h,cpp}    # canvas back-buffer
+│   ├── web_storage.h           # localStorage via EM_ASM
+│   ├── index.html style.css shell.js
+│   └── build.sh                # emcc wrapper
+├── scripts/png_to_sprite.py    # PNG -> indexed C++ array
+├── .github/workflows/
+│   ├── firmware.yml            # PlatformIO build on push/PR
+│   └── pages.yml               # Wasm build + Pages deploy on main
+├── assets/sprites/             # your own art lives here (empty)
+└── docs/
 ```
+
+## Known limitations (deferred)
+
+- No offline decay: while the device is powered down, Bailey's clock
+  freezes. Adding NTP-based catch-up on Wi-Fi join is a future task.
+- No sound: the board has I2S audio; could add bark/meow effects later.
+- One pet per save slot.
+- Placeholder art -- replace via the workflow above.

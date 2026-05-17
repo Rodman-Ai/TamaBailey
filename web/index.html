@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TamaBailey</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>TamaBailey</h1>
+    <p class="tagline">A virtual hound dog you can keep alive in your browser.</p>
+
+    <div class="device">
+      <canvas id="screen" width="240" height="240"></canvas>
+    </div>
+
+    <div class="controls" aria-label="Game controls">
+      <button data-input="Feed"  type="button" class="btn"><span class="key">A</span><span>Feed</span></button>
+      <button data-input="Play"  type="button" class="btn"><span class="key">B</span><span>Play</span></button>
+      <button data-input="Clean" type="button" class="btn"><span class="key">C</span><span>Clean</span></button>
+    </div>
+
+    <section class="hints">
+      <h2>How to play</h2>
+      <ul>
+        <li>Short-press / tap a button to <strong>Feed</strong>, <strong>Play</strong>, or <strong>Clean</strong>.</li>
+        <li>Hold any button for ~0.8 s to open the <strong>status menu</strong>.</li>
+        <li>Tap the dog on the canvas to <strong>pet</strong> Bailey (small happiness bump, 12 s cooldown).</li>
+        <li>Keyboard: <kbd>A</kbd> / <kbd>B</kbd> / <kbd>C</kbd>, hold for menu, <kbd>R</kbd> to restart if Bailey is gone.</li>
+        <li>State is saved in <code>localStorage</code> -- come back later and Bailey is still here.</li>
+      </ul>
+      <p class="footnote">Same game runs on a Waveshare ESP32-S3-Touch-LCD-1.54 device. See the repo README.</p>
+    </section>
+  </main>
+
+  <script src="tama.js"></script>
+  <script src="shell.js"></script>
+</body>
+</html>

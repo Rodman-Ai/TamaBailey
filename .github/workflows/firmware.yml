@@ -1,0 +1,42 @@
+name: Firmware build
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: [ 'web/**', 'docs/**', '**/*.md' ]
+  pull_request:
+    paths-ignore: [ 'web/**', 'docs/**', '**/*.md' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: PlatformIO build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            .pio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Compile (classic decay pace)
+        run: pio run -e esp32-s3-lcd-1_54
+
+      - name: Compile (fast decay pace -- demo build)
+        run: pio run -e esp32-s3-lcd-1_54-fast
