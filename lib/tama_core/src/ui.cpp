@@ -360,7 +360,9 @@ void draw_background(Renderer& r, float daylight) {
 
 // Accessory drawn over the pet's head/neck. accessory_id meanings:
 //   1 = red bandana, 2 = blue collar, 3 = party hat
-void draw_accessory_overlay(Renderer& r, uint8_t accessory_id) {
+// engraving (optional) is a 4-char tag rendered on the blue-collar tag.
+void draw_accessory_overlay(Renderer& r, uint8_t accessory_id,
+                            const char* engraving = nullptr) {
   if (accessory_id == 0) return;
   int cx = kPetX + kPetDrawW / 2;
   int cy = kPetY + 24 * kPetScale;
@@ -382,6 +384,11 @@ void draw_accessory_overlay(Renderer& r, uint8_t accessory_id) {
         r.fillRect(cx + i*kPetScale - 1, cy + 1*kPetScale,
                    kPetScale, kPetScale * 2, kBlue);
       r.fillRect(cx - 1, cy + 3*kPetScale, kPetScale * 2, kPetScale * 2, kYellow);
+      // Round 6 Phase 6B: engraved tag (4 chars from pet_name).
+      if (engraving) {
+        r.drawText(cx + 2 * kPetScale - 8, cy + 3 * kPetScale + 4,
+                   engraving, kBlack, 1);
+      }
       break;
     }
     case 3: { // party hat above head
@@ -1418,6 +1425,9 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   std::snprintf(buf, sizeof(buf), "Trainer Lv %u  (%u XP)",
                 (unsigned)game.trainer_level(), (unsigned)game.trainer_xp());
   r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
+  // Round 6 Phase 6B: trainer title (auto by XP, or chosen earned title).
+  std::snprintf(buf, sizeof(buf), "Title : %s", game.trainer_title());
+  r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   {
     uint64_t mins = game.time_played_ms() / 60000ULL;
     uint64_t hrs  = mins / 60ULL;
@@ -1484,6 +1494,17 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
     std::snprintf(buf, sizeof(buf), "Best friend: %04X",
                   (unsigned)(game.best_friend_hash() & 0xFFFFu));
     r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+  }
+  // Round 6 Phase 6B: aggregate friend-bond hearts. Only render once
+  // any bond has been earned (saves a row on a fresh save).
+  {
+    uint16_t total = 0;
+    for (int i = 0; i < (int)Friend::COUNT; ++i)
+      total += game.friend_bond((Friend)i);
+    if (total > 0) {
+      std::snprintf(buf, sizeof(buf), "Bonds: %u/40 hearts", (unsigned)total);
+      r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+    }
   }
   if (game.stories_heard() > 0) {
     std::snprintf(buf, sizeof(buf), "Stories: %u", (unsigned)game.stories_heard());
@@ -2176,7 +2197,8 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   draw_pet_sprite(r, pet, now_ms, game);
   if (pet.mood != Mood::MovingOut) {
     draw_coat_accents(r, game.coat_pattern());
-    draw_accessory_overlay(r, game.accessory_id());
+    draw_accessory_overlay(r, game.accessory_id(),
+                           game.accessory_id() == 2 ? game.collar_engraving() : nullptr);
   }
   draw_weather(r, game, now_ms);
 

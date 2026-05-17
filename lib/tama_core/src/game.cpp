@@ -296,6 +296,11 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v26 fields
     health_stat_     = s.health_stat;
     pet_weight_      = s.pet_weight;
+    // v27 fields
+    for (int i = 0; i < (int)Friend::COUNT; ++i)
+      friend_bond_levels_[i] = s.friend_bond_levels[i];
+    earned_titles_mask_ = s.earned_titles_mask;
+    chosen_title_id_    = s.chosen_title_id;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1043,11 +1048,15 @@ void Game::apply_input(Input in) {
         }
         // Only count + award on a fresh arrival, not a refresh.
         friend_visits_[(int)f]++;
+        // Round 6 Phase 6B: each fresh visit bumps the per-friend bond
+        // level up to a cap of 5 hearts.
+        if (friend_bond_levels_[(int)f] < 5) friend_bond_levels_[(int)f]++;
         unlock_achievement(AchievementId::PlayDate);
         bool met_all = true;
         for (int i = 0; i < (int)Friend::COUNT; ++i)
           if (friend_visits_[i] == 0) { met_all = false; break; }
         if (met_all) unlock_achievement(AchievementId::Socialite);
+        update_earned_titles();
       }
       // Pet animation pulse + clip
       pet_.current_action    = Action::Pet;
@@ -1416,6 +1425,9 @@ void Game::check_achievements() {
       pet_.stats.cleanliness == 100 && pet_.stats.energy == 100) {
     unlock_achievement(AchievementId::FullStats);
   }
+  // Round 6 Phase 6B: keep the earned-titles mask in sync with the
+  // underlying counters (bones / steps / Showstopper achievement).
+  update_earned_titles();
 }
 
 void Game::tick(uint32_t now_ms) {
@@ -1631,6 +1643,12 @@ void Game::force_save(Storage& storage) {
   s.health_stat             = health_stat_;
   s.pet_weight              = pet_weight_;
   s._pad26                  = 0;
+  // v27 additions
+  for (int i = 0; i < (int)Friend::COUNT; ++i)
+    s.friend_bond_levels[i] = friend_bond_levels_[i];
+  s.earned_titles_mask      = earned_titles_mask_;
+  s.chosen_title_id         = chosen_title_id_;
+  s._pad27                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2806,6 +2824,67 @@ const char* Game::horoscope_text() const {
     case 4: return "LUCKY";     // +biscuit grants
     default: return "";
   }
+}
+
+// Round 6 Phase 6B: title text. If an earned title is chosen, use that;
+// otherwise derive from trainer XP band.
+const char* Game::trainer_title() const {
+  if (chosen_title_id_ >= 1 && chosen_title_id_ <= 4 &&
+      (earned_titles_mask_ & (1u << (chosen_title_id_ - 1)))) {
+    switch (chosen_title_id_) {
+      case 1: return "Bone Hunter";
+      case 2: return "Soul Bond";
+      case 3: return "Walker";
+      case 4: return "Showstopper";
+    }
+  }
+  uint32_t xp = trainer_xp_;
+  if (xp >= 5000) return "Legend";
+  if (xp >= 2000) return "Master";
+  if (xp >= 500)  return "Pro";
+  if (xp >= 100)  return "Trainer";
+  return "Novice";
+}
+
+// Round 6 Phase 6B: bit0 Bone Hunter / 1 Soul Bond / 2 Walker / 3 Showstopper.
+void Game::update_earned_titles() {
+  uint8_t m = earned_titles_mask_;
+  if (bones_collected_ >= 50)                              m |= 1u << 0;
+  if (total_steps_     >= 500)                             m |= 1u << 2;
+  if (achievements_ & (1ull << (int)AchievementId::Showstopper)) m |= 1u << 3;
+  for (int i = 0; i < (int)Friend::COUNT; ++i) {
+    if (friend_visits_[i] >= 25) { m |= 1u << 1; break; }
+  }
+  if (m != earned_titles_mask_) {
+    earned_titles_mask_ = m;
+    dirty_ = true;
+  }
+}
+
+void Game::cycle_chosen_title() {
+  // Auto -> next earned title -> auto -> ...
+  for (int step = 1; step <= 5; ++step) {
+    uint8_t next = (uint8_t)((chosen_title_id_ + step) % 5);  // 0..4
+    if (next == 0 || (earned_titles_mask_ & (1u << (next - 1)))) {
+      chosen_title_id_ = next;
+      dirty_ = true;
+      return;
+    }
+  }
+}
+
+// Round 6 Phase 6B: 4-char engraving for accessory id 2 (blue collar).
+// Always 4 chars + NUL; pads with spaces if pet_name is shorter.
+const char* Game::collar_engraving() const {
+  static char buf[5];
+  for (int i = 0; i < 4; ++i) {
+    char c = pet_name_[i];
+    if (c == '\0') { buf[i] = ' '; }
+    else if (c >= 'a' && c <= 'z') buf[i] = (char)(c - 32);
+    else buf[i] = c;
+  }
+  buf[4] = '\0';
+  return buf;
 }
 
 }  // namespace tama

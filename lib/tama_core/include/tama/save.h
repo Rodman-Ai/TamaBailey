@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 26;
+constexpr uint16_t kSaveVersion  = 27;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -163,6 +163,11 @@ struct SaveData {
   uint8_t  health_stat;                    // 0..100; decays while sick, restored by cure
   uint8_t  pet_weight;                     // 0..100, neutral 50; tracks feed-vs-walk balance
   uint16_t _pad26;
+  // ---- v27 additions (Round 6 Phase 6B: bonds + titles) ----
+  uint8_t  friend_bond_levels[8];          // 0..5 heart bond per Friend slot
+  uint8_t  earned_titles_mask;             // bit0 Bone Hunter / 1 Soul Bond / 2 Walker / 3 Showstopper
+  uint8_t  chosen_title_id;                // 0=auto-by-XP, 1..4 = earned title
+  uint16_t _pad27;
 };
 #pragma pack(pop)
 

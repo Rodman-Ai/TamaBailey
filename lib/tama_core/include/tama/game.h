@@ -386,6 +386,24 @@ class Game {
   uint8_t   health_stat() const { return health_stat_; }
   uint8_t   pet_weight()  const { return pet_weight_; }
 
+  // Round 6 Phase 6B: friend bond level (0..5 hearts), per Friend slot.
+  uint8_t   friend_bond(Friend f) const {
+    int i = (int)f; if (i < 0 || i >= (int)Friend::COUNT) return 0;
+    return friend_bond_levels_[i];
+  }
+  // Round 6 Phase 6B: trainer title text. Auto-derived from XP unless
+  // an earned title has been chosen via cycle_chosen_title().
+  const char* trainer_title() const;
+  // Bitmask: bit0 Bone Hunter, bit1 Soul Bond, bit2 Walker, bit3 Showstopper.
+  uint8_t     earned_titles_mask() const { return earned_titles_mask_; }
+  // 0 = auto-by-XP; 1..4 = earned title id (only valid if bit set).
+  uint8_t     chosen_title_id()    const { return chosen_title_id_; }
+  // Cycle through 0 (auto) and earned title ids 1..4 that are unlocked.
+  void        cycle_chosen_title();
+  // Round 6 Phase 6B: 4-char engraving for collar accessory (uses
+  // first chars of pet_name; always upper-case ASCII; pad with spaces).
+  const char* collar_engraving() const;
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -764,6 +782,12 @@ class Game {
   uint8_t  pet_weight_      = 50;
   // Sickness-decay accumulator for the health stat (transient).
   uint32_t health_decay_acc_ms_ = 0;
+
+  // Round 6 Phase 6B: per-friend bond + earned-titles (persisted v27).
+  uint8_t  friend_bond_levels_[(int)Friend::COUNT] = {0,0,0,0,0,0,0,0};
+  uint8_t  earned_titles_mask_ = 0;
+  uint8_t  chosen_title_id_    = 0;
+  void     update_earned_titles();   // recompute mask from counters
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

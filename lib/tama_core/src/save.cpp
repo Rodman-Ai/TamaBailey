@@ -173,6 +173,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.pet_weight  = 50;
     s._pad26      = 0;
   }
+  if (s.version < 27) {
+    // v26 -> v27: no friend bonds, no earned titles, auto-XP title.
+    for (int i = 0; i < 8; ++i) s.friend_bond_levels[i] = 0;
+    s.earned_titles_mask = 0;
+    s.chosen_title_id    = 0;
+    s._pad27             = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
