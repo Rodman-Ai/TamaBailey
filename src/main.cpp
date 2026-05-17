@@ -44,12 +44,15 @@ void setup() {
     while (true) delay(1000);
   }
 
-  speaker.begin();
+  bool audio_ok = speaker.begin();
   mic.begin();
-  imu.begin();
+  bool imu_ok   = imu.begin();
   touch.begin();
   clock_.begin();
   game.init(storage, millis(), &clock_, &speaker);
+  // Surface init status as a small bottom-left HUD chip for debug.
+  game.set_hw_audio_status(audio_ok);
+  game.set_hw_imu_status(imu_ok);
   lcd.setBrightness(game.settings().brightness);
 
   static bailey::EspInput in(game);

@@ -1873,6 +1873,29 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   draw_footer(r, game);
 
+  // Round 4: hardware init status chip in the bottom-left. Tiny
+  // scale-1 text so it doesn't compete with the mood footer. Only
+  // shown when at least one subsystem has reported a status (so the
+  // web build, which never sets either, doesn't get the chip).
+  if (game.hw_imu_status() != Game::HwUnknown ||
+      game.hw_audio_status() != Game::HwUnknown) {
+    auto status_str = [](uint8_t s) -> const char* {
+      return s == Game::HwOk ? "OK" : s == Game::HwFail ? "FAIL" : "--";
+    };
+    auto status_col = [](uint8_t s) -> uint16_t {
+      return s == Game::HwOk ? kGreen : s == Game::HwFail ? kRed : kGrayLight;
+    };
+    int x = 2;
+    int y = kScreenH - kStatusH - 10;
+    r.drawText(x,      y, "IMU:", kGrayLight, 1);
+    r.drawText(x + 24, y, status_str(game.hw_imu_status()),
+               status_col(game.hw_imu_status()), 1);
+    int gap = (game.hw_imu_status() == Game::HwFail) ? 48 : 40;
+    r.drawText(x + gap,      y, "AUD:", kGrayLight, 1);
+    r.drawText(x + gap + 24, y, status_str(game.hw_audio_status()),
+               status_col(game.hw_audio_status()), 1);
+  }
+
   // Mode-specific overlays
   if (game.mode() == GameMode::Walking)
     draw_walk_progress(r, game);

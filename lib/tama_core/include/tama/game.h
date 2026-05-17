@@ -287,6 +287,15 @@ class Game {
   // (highest = most recent) since Round 2/3 IDs were appended.
   int latest_achievement(int idx) const;
 
+  // Hardware init status for on-screen debug indicator. 0 = unknown
+  // (default, e.g. on web), 1 = OK, 2 = FAIL. Set by the platform
+  // adapter after the corresponding subsystem's begin() returns.
+  enum HwStatus : uint8_t { HwUnknown = 0, HwOk = 1, HwFail = 2 };
+  uint8_t   hw_imu_status()    const { return hw_imu_status_; }
+  uint8_t   hw_audio_status()  const { return hw_audio_status_; }
+  void      set_hw_imu_status(bool ok)   { hw_imu_status_   = ok ? HwOk : HwFail; }
+  void      set_hw_audio_status(bool ok) { hw_audio_status_ = ok ? HwOk : HwFail; }
+
   // Round 4: time-of-day + day index exposed for footer phrase
   // rotation. today_day_index() is 0 when no clock has been synced.
   uint32_t  today_day_index() const { return today_day_index_; }
@@ -567,6 +576,10 @@ class Game {
   // Once-per-Christmas auto-scene flag (transient): which day_index
   // we last auto-switched to Snow Park.
   uint32_t last_xmas_auto_scene_day_ = 0;
+
+  // Hardware init status (transient, set by the platform adapter).
+  uint8_t  hw_imu_status_   = HwUnknown;
+  uint8_t  hw_audio_status_ = HwUnknown;
 };
 
 }  // namespace tama
