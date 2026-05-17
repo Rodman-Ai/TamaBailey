@@ -152,7 +152,14 @@ void draw_bailey(uint8_t* buf,
                  int  tail_length      = 14,
                  bool has_chest_blaze  = true,
                  uint8_t belly_color   = WH,
-                 bool pointy_ears      = false) {
+                 bool pointy_ears      = false,
+                 // Round 3: appearance suppressors for friends whose breed
+                 // doesn't share Bailey's white markings.
+                 bool white_paws       = true,
+                 bool white_muzzle     = true,
+                 bool white_face_blaze = true,
+                 // Long curly tail for golden retrievers / Korean Jindos.
+                 bool tail_curl        = false) {
   std::memset(buf, TR, W * H);
 
   const int cx = W / 2;
@@ -167,22 +174,44 @@ void draw_bailey(uint8_t* buf,
   // last 3 white px) within the 48x48 buffer regardless of tail_length;
   // straight diagonal paths used to run off-screen for the longer
   // Adult/Senior tail and silently clipped the entire white tip.
+  //
+  // With tail_curl=true we instead trace a two-segment arc that goes
+  // up-right for the first half then loops back UP-LEFT over the
+  // spine, producing the golden-retriever / Jindo silhouette.
   const int tail_len = (int)(tail_length * size_scale);
   for (int i = 0; i < tail_len; ++i) {
     float t = (float)(i + 1) / (float)tail_len;
-    int dx = (int)(8.0f * t * (2.0f - t));    // 0..8, eases out
-    int dy = -(int)((float)tail_len * 0.85f * t);
+    int dx, dy;
+    if (tail_curl) {
+      int half = tail_len / 2;
+      if (i < half) {
+        float u = (float)i / (float)half;       // 0..1 in first segment
+        dx = (int)(7.0f * u * size_scale);
+        dy = -(int)((float)half * u);
+      } else {
+        float u = (float)(i - half) / (float)half;  // 0..1 in second
+        dx = (int)((7.0f - 14.0f * u) * size_scale);   // 7 -> -7
+        dy = -(int)((float)half * (1.0f + 0.35f * u));
+      }
+    } else {
+      dx = (int)(8.0f * t * (2.0f - t));        // 0..8, eases out
+      dy = -(int)((float)tail_len * 0.85f * t);
+    }
     int tx = cx + body_rx - 4 + dx;
     int ty = cy - 2 + dy;
-    uint8_t c = (i >= tail_len - 3) ? WH : body_color;
+    bool is_tip = (i >= tail_len - 3);
+    uint8_t c = (is_tip && white_face_blaze) ? WH : body_color;
     pset(buf, W, H, tx,     ty, c);
     pset(buf, W, H, tx + 1, ty, c);
     pset(buf, W, H, tx,     ty + 1, c);
   }
 
-  // Legs: WHITE all the way up (matches real Bailey's white legs + paws).
+  // Legs: WHITE all the way up (matches real Bailey's white legs +
+  // paws). Friends whose breed doesn't share Bailey's white paws
+  // pass white_paws=false to paint the legs in body_color instead.
+  uint8_t leg_color = white_paws ? WH : body_color;
   auto draw_leg = [&](int x, int y, int w, int h) {
-    fill_rect(buf, W, H, x, y, w, h, WH);
+    fill_rect(buf, W, H, x, y, w, h, leg_color);
   };
   // Sit: hind legs render as short stubby paws tucked under the body
   // (height 3) instead of being hidden entirely.
@@ -257,8 +286,11 @@ void draw_bailey(uint8_t* buf,
     }
   }
 
-  // White muzzle (wraps lower face, larger than before)
-  fill_ellipse(buf, W, H, hx, hy + 4, 7, 5, WH);
+  // White muzzle (wraps lower face, larger than before). Suppressed
+  // for friends without a white muzzle -- a same-color patch keeps
+  // the muzzle silhouette but blends into the head.
+  fill_ellipse(buf, W, H, hx, hy + 4, 7, 5,
+               white_muzzle ? WH : body_color);
 
   // Dark patches around the eyes (bandit mask) - subtle, just a band.
   // Skips the center 3 columns so the white facial blaze can run through.
@@ -268,11 +300,14 @@ void draw_bailey(uint8_t* buf,
   }
 
   // White facial blaze: classic stripe running from the forehead down
-  // between the eyes to the muzzle (the nose will overdraw on top later).
-  for (int y = hy - head_r + 2; y <= hy + 2; ++y) {
-    pset(buf, W, H, hx - 1, y, WH);
-    pset(buf, W, H, hx,     y, WH);
-    pset(buf, W, H, hx + 1, y, WH);
+  // between the eyes to the muzzle (the nose will overdraw on top
+  // later). Suppressed for friends whose breed doesn't have one.
+  if (white_face_blaze) {
+    for (int y = hy - head_r + 2; y <= hy + 2; ++y) {
+      pset(buf, W, H, hx - 1, y, WH);
+      pset(buf, W, H, hx,     y, WH);
+      pset(buf, W, H, hx + 1, y, WH);
+    }
   }
 
   // Eyes
@@ -534,20 +569,61 @@ static void overlay_long_fur(uint8_t* buf, int /*w*/, int /*h*/) {
 
 void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
   float scale = friend_size_scale(f);
-  // Per-friend skin: body / highlight / blaze / belly / ear-style.
+  // Per-friend skin: body / highlight / blaze / belly / ear-style +
+  // Round 3 markings suppressors and tail shape.
   uint8_t body, hi, belly = WH;
-  bool    blaze       = true;
-  bool    pointy_ear  = false;
+  bool    blaze         = true;
+  bool    pointy_ear    = false;
+  bool    white_paws    = true;
+  bool    white_muzzle  = true;
+  bool    white_blaze   = true;
+  bool    tail_curl     = false;
+  int     tail_len      = 14;
   switch (f) {
-    case Friend::Ollie:    body = BD; hi = HL; break;
-    case Friend::Mitchell: body = WH; hi = GR; break;
-    case Friend::Enzo:     body = DG; hi = OL; blaze = false; belly = DG; break;
-    case Friend::Lincoln:  body = YL; hi = OR; belly = CR; break;
-    case Friend::Ruben:    body = DG; hi = GR; blaze = false; belly = DG; break;
-    case Friend::Francie:  body = BK; hi = DG; break;  // tuxedo overlay covers the rest
-    case Friend::Bomi:     body = HL; hi = OR; blaze = false; pointy_ear = true; break;
-    case Friend::Noshy:    body = DG; hi = GR; blaze = false; belly = DG; break;
-    default:               body = BD; hi = HL; break;
+    // Brindle mix: brown coat with brindle stripes, no white anywhere.
+    case Friend::Ollie:
+      body = BD; hi = HL;
+      white_paws = false; white_muzzle = false; white_blaze = false;
+      break;
+    // Havanese: small white fluffy dog.
+    case Friend::Mitchell:
+      body = WH; hi = GR;
+      break;
+    // Rottweiler: black + tan, no white markings.
+    case Friend::Enzo:
+      body = DG; hi = OL; blaze = false; belly = DG;
+      white_paws = false; white_muzzle = false; white_blaze = false;
+      break;
+    // Golden retriever: long fur, long curly tail, no white anywhere.
+    case Friend::Lincoln:
+      body = YL; hi = OR; belly = CR;
+      white_paws = false; white_muzzle = false; white_blaze = false;
+      tail_curl = true; tail_len = 22;
+      break;
+    // Portuguese water dog: solid BLACK curly coat (was dark-gray).
+    case Friend::Ruben:
+      body = BK; hi = GR; blaze = false; belly = BK;
+      white_paws = false; white_muzzle = false; white_blaze = false;
+      break;
+    // Boston Terrier: pointy ears, tuxedo overlay still draws the
+    // white chest wedge so the breed signature is preserved.
+    case Friend::Francie:
+      body = BK; hi = DG;
+      pointy_ear = true;
+      break;
+    // Korean Jindo: all-white body (was light-brown), pointy ears,
+    // long curly tail over the spine.
+    case Friend::Bomi:
+      body = WH; hi = OR; blaze = false;
+      pointy_ear = true;
+      tail_curl = true; tail_len = 22;
+      break;
+    case Friend::Noshy:
+      body = DG; hi = GR; blaze = false; belly = DG;
+      break;
+    default:
+      body = BD; hi = HL;
+      break;
   }
 
   // Map PetPose -> the same BehaviorMode + flags draw_pose would pick.
@@ -563,12 +639,14 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
 
   if (pose == PetPose::Gone) {
     draw_bailey(buf, 0, false, false, false, scale, body, hi, BM_Default,
-                /*ear_len*/13, /*body_rx_delta*/0, /*tail_len*/14,
-                blaze, belly, pointy_ear);
+                /*ear_len*/13, /*body_rx_delta*/0, tail_len,
+                blaze, belly, pointy_ear,
+                white_paws, white_muzzle, white_blaze, tail_curl);
   } else {
     draw_bailey(buf, lift, eyes_sh, tongue, sad, scale, body, hi, mode,
-                /*ear_len*/13, /*body_rx_delta*/0, /*tail_len*/14,
-                blaze, belly, pointy_ear);
+                /*ear_len*/13, /*body_rx_delta*/0, tail_len,
+                blaze, belly, pointy_ear,
+                white_paws, white_muzzle, white_blaze, tail_curl);
   }
 
   switch (f) {
