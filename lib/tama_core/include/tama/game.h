@@ -18,6 +18,15 @@ namespace tama {
 #define BAILEY_FAST_DECAY 0
 #endif
 
+// Memorial wall UI + history ring-buffer write on death. Disabled by
+// default; rebuild with -D BAILEY_MEMORIAL_WALL=1 to bring it back.
+// The MenuTab::Memorial enum value stays defined either way (for ABI
+// stability and the switch fall-through in ui.cpp); only the active
+// rendering / writing code is gated.
+#ifndef BAILEY_MEMORIAL_WALL
+#define BAILEY_MEMORIAL_WALL 0
+#endif
+
 // Base decay/regen tunables (multiplier defaults to settings.decay_mult/10).
 #if BAILEY_FAST_DECAY
 constexpr uint32_t kBaseMsPerHungerPoint      =   7200;

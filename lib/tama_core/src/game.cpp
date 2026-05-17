@@ -202,14 +202,17 @@ void Game::apply_input(Input in) {
   // selector, long-press is escape.
   if (menu_open_ && (in == Input::Feed || in == Input::Play || in == Input::Clean)) {
     int t = (int)menu_tab_ + 1;
-    if (t > (int)MenuTab::Memorial) t = 0;
+    constexpr int kLastTab = BAILEY_MEMORIAL_WALL ? (int)MenuTab::Memorial
+                                                  : (int)MenuTab::Sync;
+    if (t > kLastTab) t = 0;
     menu_tab_ = (MenuTab)t;
     return;
   }
 
   if (pet_.stage == LifeStage::Gone) {
     if (in == Input::Restart || in == Input::MenuToggle) {
-      // Record memorial before reset (Phase 3).
+#if BAILEY_MEMORIAL_WALL
+      // Record memorial before reset.
       SaveData::MemorialEntry m{};
       m.coat              = coat_pattern_;
       m.trait             = personality_trait_;
@@ -219,6 +222,7 @@ void Game::apply_input(Input in) {
       memorial_[memorial_head_] = m;
       memorial_head_ = (uint8_t)((memorial_head_ + 1) % 5);
       if (memorial_count_ < 5) memorial_count_++;
+#endif
 
       // Reset pet but keep settings and achievements and inherit one trait.
       uint8_t parent_trait = personality_trait_;
@@ -336,7 +340,9 @@ void Game::apply_input(Input in) {
     case Input::MenuNext:
       if (menu_open_) {
         int t = (int)menu_tab_ + 1;
-        if (t > (int)MenuTab::Memorial) t = 0;
+        constexpr int kLastTab = BAILEY_MEMORIAL_WALL ? (int)MenuTab::Memorial
+                                                      : (int)MenuTab::Sync;
+        if (t > kLastTab) t = 0;
         menu_tab_ = (MenuTab)t;
       }
       break;

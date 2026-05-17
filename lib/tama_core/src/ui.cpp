@@ -316,10 +316,16 @@ void draw_footer(Renderer& r, const Pet& pet, uint16_t streak_days) {
 }
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
-  const char* labels[5] = {"STATS", "BADGES", "OPTIONS", "SYNC", "MEM"};
+#if BAILEY_MEMORIAL_WALL
+  const char* labels[] = {"STATS", "BADGES", "OPTIONS", "SYNC", "MEM"};
+  constexpr int n_tabs = 5;
+#else
+  const char* labels[] = {"STATS", "BADGES", "OPTIONS", "SYNC"};
+  constexpr int n_tabs = 4;
+#endif
   int x = 10;
   int y = 14 + kStatsBarH;
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < n_tabs; ++i) {
     bool active = (int)game.menu_tab() == i;
     uint16_t bg = active ? kYellow : kGrayDark;
     uint16_t fg = active ? kBlack  : kGrayLight;
@@ -331,6 +337,7 @@ void draw_menu_tabs(Renderer& r, const Game& game) {
   }
 }
 
+#if BAILEY_MEMORIAL_WALL
 void draw_menu_memorial(Renderer& r, const Game& game) {
   int x = 22;
   int y = 14 + kStatsBarH + 22;
@@ -352,6 +359,7 @@ void draw_menu_memorial(Renderer& r, const Game& game) {
     y += 10;
   }
 }
+#endif  // BAILEY_MEMORIAL_WALL
 
 void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   int x = 22;
@@ -569,7 +577,14 @@ void draw_menu_overlay(Renderer& r, const Game& game) {
     case Game::MenuTab::Achievements: draw_menu_achievements(r, game); break;
     case Game::MenuTab::Settings:     draw_menu_options(r, game); break;
     case Game::MenuTab::Sync:         draw_menu_sync(r, game); break;
-    case Game::MenuTab::Memorial:     draw_menu_memorial(r, game); break;
+    case Game::MenuTab::Memorial:
+#if BAILEY_MEMORIAL_WALL
+      draw_menu_memorial(r, game);
+#else
+      // Memorial wall disabled at build time; fall through to Stats.
+      draw_menu_stats(r, pet, game);
+#endif
+      break;
   }
 
   r.drawText(14, kScreenH - kStatusH - 14, "Long-press: close  |  short: next tab",

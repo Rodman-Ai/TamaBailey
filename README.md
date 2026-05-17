@@ -164,7 +164,8 @@ TamaBailey/
   Clever learns tricks 2x faster.
 - **Memorial wall** -- when Bailey passes, a record (peak stage,
   lifespan, badges earned) is added to a ring buffer of up to 5
-  past lives. View them in the new MEM tab in the status menu.
+  past lives. View them in the MEM tab in the status menu.
+  *Off by default; rebuild with `-D BAILEY_MEMORIAL_WALL=1` to enable.*
 - **Multi-generation inheritance** -- when you start a fresh puppy,
   there's a 50% chance to inherit the previous Bailey's personality
   trait. Unlocks the HonoredAncestor badge.
