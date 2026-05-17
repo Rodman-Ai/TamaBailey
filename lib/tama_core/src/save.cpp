@@ -131,6 +131,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.trainer_xp     = 0;
     s.time_played_ms = 0;
   }
+  if (s.version < 20) {
+    // v19 -> v20: zero active-streak counter.
+    s.active_streak_days = 0;
+    s._pad20             = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

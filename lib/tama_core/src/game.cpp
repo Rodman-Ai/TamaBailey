@@ -274,6 +274,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v19 fields
     trainer_xp_        = s.trainer_xp;
     time_played_ms_    = s.time_played_ms;
+    // v20 fields
+    active_streak_days_ = s.active_streak_days;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1037,7 +1039,12 @@ void Game::apply_input(Input in) {
       xp = 4; break;
     default: break;
   }
-  if (xp > 0) award_xp(xp);
+  if (xp > 0) {
+    award_xp(xp);
+    // Round 5 Phase C2: count this as a "user action" toward today's
+    // daily goal (cap to avoid wrap on long sessions).
+    if (today_actions_ < 999) today_actions_++;
+  }
 }
 
 void Game::apply_decay(uint32_t dt_ms) {
@@ -1432,6 +1439,9 @@ void Game::force_save(Storage& storage) {
   // v19 additions
   s.trainer_xp              = trainer_xp_;
   s.time_played_ms          = time_played_ms_;
+  // v20 additions
+  s.active_streak_days      = active_streak_days_;
+  s._pad20                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1558,6 +1568,30 @@ void Game::award_xp(uint32_t n) {
   if (next > 9999) next = 9999;
   trainer_xp_ = next;
   dirty_ = true;
+}
+
+uint8_t Game::skill_intelligence() const {
+  // Sum of trick performance counters * 4 + learned-tricks bit count * 5.
+  uint32_t sum = 0;
+  for (int i = 0; i < (int)Trick::COUNT; ++i) sum += trick_perf_[i];
+  uint32_t learned = (uint32_t)__builtin_popcount(tricks_learned_);
+  uint32_t v = sum * 4 + learned * 5;
+  if (v > 100) v = 100;
+  return (uint8_t)v;
+}
+
+uint8_t Game::skill_stamina() const {
+  // 100 lifetime steps = 50 points; 1000 steps = max.
+  uint64_t v = total_steps_ / 10;
+  if (v > 100) v = 100;
+  return (uint8_t)v;
+}
+
+uint8_t Game::skill_charm() const {
+  // 50 lifetime pets = 50; 100 = max.
+  uint64_t v = total_pets_;
+  if (v > 100) v = 100;
+  return (uint8_t)v;
 }
 
 void Game::set_pet_name(const char* name) {
@@ -1995,6 +2029,14 @@ void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
 
   // Reset bedtime flag once per day (was tied to a noon check before).
   well_tucked_in_today_ = 0;
+
+  // Round 5 Phase C2: bump active streak iff yesterday hit the daily
+  // action goal; otherwise reset to 0.
+  if (today_actions_ >= kDailyActionGoal) {
+    if (active_streak_days_ < 9999) active_streak_days_++;
+  } else {
+    active_streak_days_ = 0;
+  }
 
   today_day_index_     = day;
   today_happiness_sum_ = 0;

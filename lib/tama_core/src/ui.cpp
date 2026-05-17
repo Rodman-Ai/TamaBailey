@@ -1381,6 +1381,24 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned long)hrs, (unsigned long)(mins % 60));
     r.drawText(x, y, buf, kGrayLight, 1); y += kInfoStep;
   }
+  // Round 5 Phase C2: daily action goal + active streak.
+  {
+    uint16_t today = game.today_actions();
+    uint16_t cap   = Game::kDailyActionGoal;
+    bool met = today >= cap;
+    std::snprintf(buf, sizeof(buf), "Today: %u/%u%s  Active: %ud",
+                  (unsigned)(today > cap ? cap : today), (unsigned)cap,
+                  met ? " *" : "",
+                  (unsigned)game.active_streak_days());
+    r.drawText(x, y, buf, met ? kGreen : kYellow, 1); y += kInfoStep;
+  }
+  // Round 5 Phase C2: derived skill stats (IQ / stamina / charm), 0..100.
+  {
+    std::snprintf(buf, sizeof(buf), "IQ %u  Stamina %u  Charm %u",
+                  game.skill_intelligence(), game.skill_stamina(),
+                  game.skill_charm());
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+  }
 
   // Round 3: best-friend bond from the last sync code consumed.
   if (game.best_friend_hash() != 0) {

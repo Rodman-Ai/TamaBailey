@@ -325,6 +325,19 @@ class Game {
   uint32_t  trainer_level()   const;     // derived from xp
   uint64_t  time_played_ms()  const { return time_played_ms_; }
 
+  // Round 5 Phase C2: daily action goal + active streak.
+  // today_actions count resets on day rollover; goal is hardcoded 5.
+  static constexpr uint16_t kDailyActionGoal = 5;
+  uint16_t  today_actions()       const { return today_actions_; }
+  uint16_t  active_streak_days()  const { return active_streak_days_; }
+
+  // Round 5 Phase C2: derived skill stats (no persistence). Each is
+  // 0..100. Intelligence reflects trick mastery, stamina reflects
+  // lifetime walking, charm reflects total pets.
+  uint8_t   skill_intelligence() const;
+  uint8_t   skill_stamina()      const;
+  uint8_t   skill_charm()        const;
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -615,6 +628,9 @@ class Game {
   uint32_t trainer_xp_     = 0;
   uint64_t time_played_ms_ = 0;
   void     award_xp(uint32_t n);
+
+  // Round 5 Phase C2: persistent active-streak counter (v20).
+  uint16_t active_streak_days_ = 0;
 };
 
 }  // namespace tama
