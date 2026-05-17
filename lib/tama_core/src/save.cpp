@@ -218,6 +218,14 @@ bool save_validate_and_migrate(SaveData& s) {
     s.extra_coats_unlocked = 0;
     s._pad32               = 0;
   }
+  if (s.version < 33) {
+    // v32 -> v33: no gifts received, zero weekly progress, no perks.
+    for (int i = 0; i < 8; ++i) s.friend_last_gift[i] = 0;
+    s.weekly_steps_progress      = 0;
+    s.weekly_last_awarded_week   = 0;
+    s.trainer_perks_mask         = 0;
+    s._pad33[0] = s._pad33[1] = s._pad33[2] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

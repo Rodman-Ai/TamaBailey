@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 32;
+constexpr uint16_t kSaveVersion  = 33;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -196,6 +196,12 @@ struct SaveData {
   uint8_t  accessory_size;                 // 0 small / 1 default / 2 large
   uint8_t  extra_coats_unlocked;           // bitmask: bit0 Cream(5) / bit1 Merle(6) / bit2 Husky(7)
   uint8_t  _pad32;
+  // ---- v33 additions (Round 6 Phase 6H: gift log + weekly + perks) ----
+  uint8_t  friend_last_gift[8];            // per-friend last gift item id (0..5)
+  uint32_t weekly_steps_progress;          // steps walked since last week-rollover
+  uint32_t weekly_last_awarded_week;       // week_index (day_index/7) of last reward
+  uint8_t  trainer_perks_mask;             // bit0 Bigger Bites, bit1 Best Pals, bit2 Lucky Streak
+  uint8_t  _pad33[3];
 };
 #pragma pack(pop)
 

@@ -1503,6 +1503,27 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)qid, (unsigned)game.quest_history_count());
     r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6H: weekly challenge progress.
+  {
+    uint32_t prog = game.weekly_steps_progress();
+    uint32_t tgt  = game.weekly_steps_target();
+    uint32_t pct  = prog > tgt ? 100 : (prog * 100 / tgt);
+    std::snprintf(buf, sizeof(buf), "Week: %u/%u steps%s",
+                  (unsigned)prog, (unsigned)tgt,
+                  game.weekly_challenge_awarded() ? " *" : "");
+    (void)pct;
+    r.drawText(x, y, buf, game.weekly_challenge_awarded() ? kGreen : kSky, 1);
+    y += kInfoStep;
+  }
+  // Round 6 Phase 6H: skill-tree perks owned.
+  if (game.trainer_perks_mask() != 0) {
+    char p[8] = "    ";
+    if (game.perk_unlocked(0)) p[0] = 'F';   // Bigger Bites
+    if (game.perk_unlocked(1)) p[1] = 'B';   // Best Pals
+    if (game.perk_unlocked(2)) p[2] = 'L';   // Lucky Streak
+    std::snprintf(buf, sizeof(buf), "Perks : [%s]", p);
+    r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());

@@ -479,6 +479,36 @@ class Game {
     dirty_ = true;
   }
 
+  // Round 6 Phase 6H: per-friend last gift received (item id 0..5).
+  // 0 = none, 1 = ball, 2 = treat, 3 = bone, 4 = sticker, 5 = biscuit.
+  uint8_t  friend_last_gift(Friend f) const {
+    int i = (int)f;
+    if (i < 0 || i >= (int)Friend::COUNT) return 0;
+    return friend_last_gift_[i];
+  }
+  // Returns the human-readable name for a gift id ("none" if 0).
+  static const char* gift_name(uint8_t id);
+
+  // Weekly steps challenge: 200 steps in a week awards +20 biscuits.
+  // (Easier than the daily quest's 30-step goal so it actually fires
+  // for casual players; a fresh pet's 80 energy budget covers ~70
+  // steps in a single walk, so 3 sessions over the week is the target.)
+  uint32_t weekly_steps_target()   const { return 200; }
+  uint32_t weekly_steps_progress() const { return weekly_steps_progress_; }
+  bool     weekly_challenge_complete() const {
+    return weekly_steps_progress_ >= weekly_steps_target();
+  }
+  bool     weekly_challenge_awarded() const;
+
+  // Trainer skill tree: 3 spendable perks @ 100 XP each.
+  uint8_t  trainer_perks_mask()    const { return trainer_perks_mask_; }
+  bool     perk_unlocked(uint8_t bit) const {
+    return (trainer_perks_mask_ & (1u << bit)) != 0;
+  }
+  // bit: 0 Bigger Bites (+2 hunger on Feed), 1 Best Pals (+1 bond cap),
+  //      2 Lucky Streak (+1 biscuit per achievement)
+  bool     buy_perk(uint8_t bit);     // returns true on success
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -895,6 +925,12 @@ class Game {
   uint8_t  collar_badge_id_      = 0;
   uint8_t  accessory_size_       = 1;
   uint8_t  extra_coats_unlocked_ = 0;
+
+  // Round 6 Phase 6H: per-friend gift log + weekly challenge + perks (v33).
+  uint8_t  friend_last_gift_[(int)Friend::COUNT] = {0,0,0,0,0,0,0,0};
+  uint32_t weekly_steps_progress_    = 0;
+  uint32_t weekly_last_awarded_week_ = 0;
+  uint8_t  trainer_perks_mask_       = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

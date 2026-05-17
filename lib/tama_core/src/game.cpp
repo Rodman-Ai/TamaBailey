@@ -325,6 +325,12 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     collar_badge_id_         = s.collar_badge_id;
     accessory_size_          = s.accessory_size;
     extra_coats_unlocked_    = s.extra_coats_unlocked;
+    // v33 fields
+    for (int i = 0; i < (int)Friend::COUNT; ++i)
+      friend_last_gift_[i]   = s.friend_last_gift[i];
+    weekly_steps_progress_    = s.weekly_steps_progress;
+    weekly_last_awarded_week_ = s.weekly_last_awarded_week;
+    trainer_perks_mask_       = s.trainer_perks_mask;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -392,7 +398,8 @@ void Game::unlock_achievement(AchievementId id) {
   if (unlock(achievements_, id)) {
     play_clip(ClipId::Achieve);
     // Round 2: pay out 2 biscuits per achievement unlock.
-    biscuits_ += 2;
+    // Round 6 Phase 6H: Lucky Streak perk (bit 2) bumps the payout by 1.
+    biscuits_ += perk_unlocked(2) ? 3 : 2;
     if (biscuits_ >= 50) {
       // Set the bit directly (avoid recursion through unlock_achievement).
       uint64_t b = achievement_bit(AchievementId::BiscuitTycoon);
@@ -597,6 +604,7 @@ void Game::apply_input(Input in) {
       if (well_tucked_in_today_) boost *= 2;  // bedtime routine bonus
       if (horoscope_id() == 2) boost += 10;   // HUNGRY: bigger feed boost
       if (coat_pattern_ == 1) boost += 5;     // Tan coat: hearty appetite
+      if (perk_unlocked(0))   boost += 2;     // Round 6 Phase 6H: Bigger Bites perk
       pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + boost);
       // Round 6 Phase 6A: each feed nudges weight up by 1.
       if (pet_weight_ < 100) pet_weight_++;
@@ -743,6 +751,8 @@ void Game::apply_input(Input in) {
         walk_steps_++;
         total_steps_++;
         walk_today_steps_++;
+        // Round 6 Phase 6H: weekly-challenge accumulator.
+        if (weekly_steps_progress_ < 0xFFFF0000u) weekly_steps_progress_++;
         // Round 6 Phase 6A: every 20 steps trims 1 weight.
         if ((total_steps_ % 20) == 0 && pet_weight_ > 0) pet_weight_--;
         pet_.stats.energy = clamp_stat((int)pet_.stats.energy - 1);
@@ -1077,8 +1087,10 @@ void Game::apply_input(Input in) {
         // Only count + award on a fresh arrival, not a refresh.
         friend_visits_[(int)f]++;
         // Round 6 Phase 6B: each fresh visit bumps the per-friend bond
-        // level up to a cap of 5 hearts.
-        if (friend_bond_levels_[(int)f] < 5) friend_bond_levels_[(int)f]++;
+        // level. Cap is normally 5 hearts; Best Pals perk (bit 1)
+        // raises it to 6.
+        uint8_t cap = perk_unlocked(1) ? 6 : 5;
+        if (friend_bond_levels_[(int)f] < cap) friend_bond_levels_[(int)f]++;
         // Round 6 Phase 6E: stamp this friend's last-visit day (only
         // meaningful when we have a synced clock) and lock in the
         // soul-bonded friend the first time anyone reaches 25 visits.
@@ -1086,6 +1098,18 @@ void Game::apply_input(Input in) {
           friend_last_visit_day_[(int)f] = today_day_index_;
         if (soul_bond_friend_id_ == 0xFF && friend_visits_[(int)f] >= 25)
           soul_bond_friend_id_ = (uint8_t)f;
+        // Round 6 Phase 6H: friend brings a small gift (rotates 1..5).
+        // Deterministic from the per-friend visit counter so the
+        // RNG state is unchanged (other tests rely on stable ambient
+        // spawn probabilities).
+        uint8_t gift = (uint8_t)(1 + ((friend_visits_[(int)f] - 1) % 5));
+        friend_last_gift_[(int)f] = gift;
+        switch (gift) {
+          case 2: treats_[0]++;     break;   // biscuit treat
+          case 3: bones_collected_++; break; // bone
+          case 5: grant_biscuits(1); break;  // single biscuit
+          default: break;                     // ball/sticker are visual
+        }
         unlock_achievement(AchievementId::PlayDate);
         bool met_all = true;
         for (int i = 0; i < (int)Friend::COUNT; ++i)
@@ -1740,6 +1764,13 @@ void Game::force_save(Storage& storage) {
   s.accessory_size          = accessory_size_;
   s.extra_coats_unlocked    = extra_coats_unlocked_;
   s._pad32                  = 0;
+  // v33 additions
+  for (int i = 0; i < (int)Friend::COUNT; ++i)
+    s.friend_last_gift[i]   = friend_last_gift_[i];
+  s.weekly_steps_progress    = weekly_steps_progress_;
+  s.weekly_last_awarded_week = weekly_last_awarded_week_;
+  s.trainer_perks_mask       = trainer_perks_mask_;
+  s._pad33[0] = s._pad33[1] = s._pad33[2] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -3002,6 +3033,27 @@ bool Game::daily_quest_awarded_today() const {
 void Game::update_daily_quest(uint64_t now_unix_ms) {
   (void)now_unix_ms;
   if (today_day_index_ == 0) return;
+  // Round 6 Phase 6H: weekly challenge rolls over every 7 days; if the
+  // current week is new, reset the progress accumulator. The reward is
+  // payable once per week when progress >= target.
+  uint32_t this_week = today_day_index_ / 7;
+  if (this_week != weekly_last_awarded_week_ && weekly_challenge_complete()) {
+    grant_biscuits(20);
+    weekly_last_awarded_week_ = this_week;
+    weekly_steps_progress_    = 0;
+    dirty_ = true;
+  }
+  // Auto-reset progress on a new week even if the goal wasn't met.
+  static uint32_t s_week_tracker = 0;
+  if (s_week_tracker != this_week) {
+    if (s_week_tracker != 0 && this_week > s_week_tracker &&
+        weekly_last_awarded_week_ != this_week) {
+      weekly_steps_progress_ = 0;
+      dirty_ = true;
+    }
+    s_week_tracker = this_week;
+  }
+
   if (daily_quest_awarded_today()) return;
   if (!daily_quest_complete()) return;
   grant_biscuits(5);
@@ -3074,6 +3126,36 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6H: gift name lookup for the friend gift log.
+const char* Game::gift_name(uint8_t id) {
+  switch (id) {
+    case 0: return "none";
+    case 1: return "ball";
+    case 2: return "treat";
+    case 3: return "bone";
+    case 4: return "sticker";
+    case 5: return "biscuit";
+    default: return "";
+  }
+}
+
+bool Game::weekly_challenge_awarded() const {
+  if (today_day_index_ == 0) return false;
+  return weekly_last_awarded_week_ == today_day_index_ / 7;
+}
+
+// Round 6 Phase 6H: spend 100 XP to unlock perk bit (0..2).
+bool Game::buy_perk(uint8_t bit) {
+  if (bit > 2) return false;
+  uint8_t mask = (uint8_t)(1u << bit);
+  if (trainer_perks_mask_ & mask) return false;       // already owned
+  if (trainer_xp_ < 100) return false;                // can't afford
+  trainer_xp_ -= 100;
+  trainer_perks_mask_ |= mask;
+  dirty_ = true;
+  return true;
 }
 
 // Round 6 Phase 6F: weekly XP bonus from active streak.
