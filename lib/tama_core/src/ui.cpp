@@ -1514,7 +1514,16 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   std::snprintf(buf, sizeof(buf), "Bath  : %3u / 100", pet.stats.cleanliness);
   r.drawText(x, y, buf, kBlue, 1); y += 12;
   std::snprintf(buf, sizeof(buf), "Rest  : %3u / 100", pet.stats.energy);
-  r.drawText(x, y, buf, kGreen, 1); y += 14;
+  r.drawText(x, y, buf, kGreen, 1); y += 12;
+  // Round 6 Phase 6A: health + weight indicators.
+  std::snprintf(buf, sizeof(buf), "Health: %3u / 100", (unsigned)game.health_stat());
+  r.drawText(x, y, buf, kRed, 1); y += 12;
+  {
+    uint8_t w = game.pet_weight();
+    const char* wl = w < 30 ? "Slim" : (w > 70 ? "Chubby" : "Normal");
+    std::snprintf(buf, sizeof(buf), "Weight: %-6s (%3u)", wl, (unsigned)w);
+    r.drawText(x, y, buf, kPink, 1); y += 14;
+  }
 
   // Round 2: biscuits + active toy + treat counts
   std::snprintf(buf, sizeof(buf), "Biscuits: %u   Steps: %lu",

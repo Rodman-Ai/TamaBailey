@@ -293,6 +293,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     memory_iq_       = s.memory_iq;
     vet_visits_      = s.vet_visits;
     stick_chases_    = s.stick_chases;
+    // v26 fields
+    health_stat_     = s.health_stat;
+    pet_weight_      = s.pet_weight;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -566,6 +569,8 @@ void Game::apply_input(Input in) {
       if (horoscope_id() == 2) boost += 10;   // HUNGRY: bigger feed boost
       if (coat_pattern_ == 1) boost += 5;     // Tan coat: hearty appetite
       pet_.stats.hunger = clamp_stat((int)pet_.stats.hunger + boost);
+      // Round 6 Phase 6A: each feed nudges weight up by 1.
+      if (pet_weight_ < 100) pet_weight_++;
       pet_.current_action = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Yip);
@@ -709,6 +714,8 @@ void Game::apply_input(Input in) {
         walk_steps_++;
         total_steps_++;
         walk_today_steps_++;
+        // Round 6 Phase 6A: every 20 steps trims 1 weight.
+        if ((total_steps_ % 20) == 0 && pet_weight_ > 0) pet_weight_--;
         pet_.stats.energy = clamp_stat((int)pet_.stats.energy - 1);
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 1);
         // 1/8 chance to find an item per step (1/4 on CURIOUS horoscope days).
@@ -768,6 +775,8 @@ void Game::apply_input(Input in) {
       if (gourmet_active()) boost = boost * 5 / 4;  // GOURMET buff: +25 %
       pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + boost);
       pet_.stats.hunger    = clamp_stat((int)pet_.stats.hunger    + food);
+      // Round 6 Phase 6A: treats put on weight faster (+2).
+      if (pet_weight_ <= 98) pet_weight_ += 2; else pet_weight_ = 100;
       pet_.current_action  = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Yip);
@@ -1618,6 +1627,10 @@ void Game::force_save(Storage& storage) {
   s.memory_iq               = memory_iq_;
   s.vet_visits              = vet_visits_;
   s.stick_chases            = stick_chases_;
+  // v26 additions
+  s.health_stat             = health_stat_;
+  s.pet_weight              = pet_weight_;
+  s._pad26                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1935,6 +1948,23 @@ void Game::update_sickness(uint32_t dt_ms) {
   } else {
     sick_started_ms_ = 0;
   }
+  // Round 6 Phase 6A: while sick, health drains ~10 points per simulated
+  // game-hour (or per 6 s in BAILEY_FAST_DECAY mode).
+  if (sickness_ != 0 && health_stat_ > 0) {
+    health_decay_acc_ms_ += dt_ms;
+#if BAILEY_FAST_DECAY
+    constexpr uint32_t kHealthStepMs = 600;          // 1 pt every 0.6 s
+#else
+    constexpr uint32_t kHealthStepMs = 6u * 60 * 1000; // 1 pt every 6 min
+#endif
+    while (health_decay_acc_ms_ >= kHealthStepMs && health_stat_ > 0) {
+      health_decay_acc_ms_ -= kHealthStepMs;
+      health_stat_--;
+      dirty_ = true;
+    }
+  } else {
+    health_decay_acc_ms_ = 0;
+  }
 }
 
 void Game::try_cure_sickness() {
@@ -1942,6 +1972,9 @@ void Game::try_cure_sickness() {
   sickness_ = 0;
   sick_started_ms_ = 0;
   pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 10);
+  // Round 6 Phase 6A: cure restores 50 health (clamped at 100).
+  uint32_t h = (uint32_t)health_stat_ + 50;
+  health_stat_ = (uint8_t)(h > 100 ? 100 : h);
   play_clip(ClipId::Heart);
   unlock_achievement(AchievementId::SurvivedSickness);
   dirty_ = true;

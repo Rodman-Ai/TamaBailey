@@ -382,6 +382,10 @@ class Game {
   uint8_t     wall_poster()       const { return wall_poster_; }
   void        cycle_wall_poster()       { wall_poster_ = (wall_poster_ + 1) % 4; dirty_ = true; }
 
+  // Round 6 Phase 6A: health (0..100) + pet weight (0..100, 50 neutral).
+  uint8_t   health_stat() const { return health_stat_; }
+  uint8_t   pet_weight()  const { return pet_weight_; }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -754,6 +758,12 @@ class Game {
   uint8_t  memory_iq_       = 0;
   uint8_t  vet_visits_      = 0;
   uint16_t stick_chases_    = 0;
+
+  // Round 6 Phase 6A: health + weight (persisted v26).
+  uint8_t  health_stat_     = 100;
+  uint8_t  pet_weight_      = 50;
+  // Sickness-decay accumulator for the health stat (transient).
+  uint32_t health_decay_acc_ms_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

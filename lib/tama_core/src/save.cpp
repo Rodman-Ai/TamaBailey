@@ -167,6 +167,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.vet_visits     = 0;
     s.stick_chases   = 0;
   }
+  if (s.version < 26) {
+    // v25 -> v26: full health, neutral weight.
+    s.health_stat = 100;
+    s.pet_weight  = 50;
+    s._pad26      = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
