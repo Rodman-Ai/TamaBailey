@@ -137,20 +137,26 @@ void draw_bailey(uint8_t* buf,
                  bool tongue,
                  bool sad_mouth,
                  float size_scale,
-                 uint8_t body_color = BD,
-                 uint8_t highlight  = HL,
-                 BehaviorMode mode  = BM_Default) {
+                 uint8_t body_color    = BD,
+                 uint8_t highlight     = HL,
+                 BehaviorMode mode     = BM_Default,
+                 int  ear_length       = 13,
+                 int  body_rx_delta    = 0,
+                 int  tail_length      = 14,
+                 bool has_chest_blaze  = true,
+                 uint8_t belly_color   = WH,
+                 bool pointy_ears      = false) {
   std::memset(buf, TR, W * H);
 
   const int cx = W / 2;
   const int cy = H / 2 + 6 - frame_lift;
 
-  const int body_rx = (int)(18 * size_scale);
+  const int body_rx = (int)(18 * size_scale) + body_rx_delta;
   const int body_ry = (int)(12 * size_scale);
   const int head_r  = (int)(11 * size_scale);
 
-  // Tail (curls behind right hip) -- brown body with a white tip.
-  const int tail_len = (int)(14 * size_scale);
+  // Tail (curls behind right hip) -- body color with a white tip.
+  const int tail_len = (int)(tail_length * size_scale);
   for (int i = 0; i < tail_len; ++i) {
     int tx = cx + body_rx - 4 + i;
     int ty = cy - 2 - i / 2;
@@ -164,23 +170,28 @@ void draw_bailey(uint8_t* buf,
   auto draw_leg = [&](int x, int y, int w, int h) {
     fill_rect(buf, W, H, x, y, w, h, WH);
   };
-  // Sit: hind legs tuck out of sight; front legs stay extended.
-  if (mode != BM_Sit) {
-    draw_leg(cx + 4, cy + body_ry - 2, 4, 6);
-    draw_leg(cx + 9, cy + body_ry - 2, 4, 6);
-  }
+  // Sit: hind legs render as short stubby paws tucked under the body
+  // (height 3) instead of being hidden entirely.
+  int hind_h = (mode == BM_Sit) ? 3 : 6;
+  draw_leg(cx + 4, cy + body_ry - 2, 4, hind_h);
+  draw_leg(cx + 9, cy + body_ry - 2, 4, hind_h);
   // Front legs
   draw_leg(cx - 12, cy + body_ry - 2, 4, 7);
   draw_leg(cx -  7, cy + body_ry - 2, 4, 7);
 
   // Body
   fill_ellipse(buf, W, H, cx, cy, body_rx, body_ry, body_color);
-  // White belly patch (larger than before, more of an oval to the side)
-  fill_ellipse(buf, W, H, cx - 2, cy + 4, body_rx - 6, body_ry - 4, WH);
-  // White chest blaze: a narrow vertical stripe from belly toward the neck
-  for (int dy = -body_ry; dy <= body_ry - 5; ++dy) {
-    pset(buf, W, H, cx - body_rx + 6, cy + dy, WH);
-    pset(buf, W, H, cx - body_rx + 7, cy + dy, WH);
+  // Belly patch -- skip when the belly color matches the body (e.g.
+  // Enzo's solid rott silhouette, Ruben's solid PWD silhouette).
+  if (belly_color != body_color) {
+    fill_ellipse(buf, W, H, cx - 2, cy + 4, body_rx - 6, body_ry - 4, belly_color);
+  }
+  // Chest blaze: a narrow vertical white stripe from belly to the neck.
+  if (has_chest_blaze) {
+    for (int dy = -body_ry; dy <= body_ry - 5; ++dy) {
+      pset(buf, W, H, cx - body_rx + 6, cy + dy, WH);
+      pset(buf, W, H, cx - body_rx + 7, cy + dy, WH);
+    }
   }
 
   // Head (offset left/forward of body). For Bark, lift the head a couple
@@ -190,23 +201,46 @@ void draw_bailey(uint8_t* buf,
   if (mode == BM_Bark) hy -= 3;
   fill_ellipse(buf, W, H, hx, hy, head_r, head_r - 1, body_color);
 
-  // Floppy ears (drooping past the jaw on both sides of the head) -- darker
-  // brown for the classic bandit-mask hound look.
-  for (int i = 0; i < (int)(13 * size_scale); ++i) {
-    int ex = hx - head_r + 1 - i / 3;
-    int ey = hy - 2 + i;
-    pset(buf, W, H, ex,     ey, OL);
-    pset(buf, W, H, ex + 1, ey, body_color);
-    pset(buf, W, H, ex + 2, ey, body_color);
-    pset(buf, W, H, ex + 3, ey, highlight);
-  }
-  for (int i = 0; i < (int)(13 * size_scale); ++i) {
-    int ex = hx + head_r - 4 + i / 3;
-    int ey = hy - 1 + i;
-    pset(buf, W, H, ex,     ey, highlight);
-    pset(buf, W, H, ex + 1, ey, body_color);
-    pset(buf, W, H, ex + 2, ey, body_color);
-    pset(buf, W, H, ex + 3, ey, OL);
+  if (pointy_ears) {
+    // Pointy upright ears (Jindo-style) -- two small triangles pointing
+    // up from the top of the head.
+    int len = (int)(7 * size_scale);
+    for (int i = 0; i < len; ++i) {
+      int width = len - i;
+      // Left ear
+      int lx = hx - head_r + 2;
+      for (int j = 0; j < width; ++j) {
+        pset(buf, W, H, lx + j, hy - head_r + 1 - i, body_color);
+      }
+      pset(buf, W, H, lx, hy - head_r + 1 - i, OL);
+      pset(buf, W, H, lx + width - 1, hy - head_r + 1 - i, OL);
+      // Right ear
+      int rx = hx + head_r - 2 - width + 1;
+      for (int j = 0; j < width; ++j) {
+        pset(buf, W, H, rx + j, hy - head_r + 1 - i, body_color);
+      }
+      pset(buf, W, H, rx, hy - head_r + 1 - i, OL);
+      pset(buf, W, H, rx + width - 1, hy - head_r + 1 - i, OL);
+    }
+  } else {
+    // Floppy ears (drooping past the jaw on both sides of the head).
+    int len = (int)(ear_length * size_scale);
+    for (int i = 0; i < len; ++i) {
+      int ex = hx - head_r + 1 - i / 3;
+      int ey = hy - 2 + i;
+      pset(buf, W, H, ex,     ey, OL);
+      pset(buf, W, H, ex + 1, ey, body_color);
+      pset(buf, W, H, ex + 2, ey, body_color);
+      pset(buf, W, H, ex + 3, ey, highlight);
+    }
+    for (int i = 0; i < len; ++i) {
+      int ex = hx + head_r - 4 + i / 3;
+      int ey = hy - 1 + i;
+      pset(buf, W, H, ex,     ey, highlight);
+      pset(buf, W, H, ex + 1, ey, body_color);
+      pset(buf, W, H, ex + 2, ey, body_color);
+      pset(buf, W, H, ex + 3, ey, OL);
+    }
   }
 
   // White muzzle (wraps lower face, larger than before)
@@ -414,6 +448,45 @@ static void overlay_tan_points(uint8_t* buf, int /*w*/, int /*h*/) {
   for (int dx =  3; dx <=  5; ++dx) buf[hy * W + (cx - 8 + dx + 4)] = HL;
 }
 
+static void overlay_tuxedo(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Francie: Boston Terrier tuxedo -- white wedge on the upper chest
+  // and dark patches around the eyes (the BT mask). Bailey's white
+  // belly + paws stay; we just add the chest wedge + eye darkening.
+  const int cx = W / 2;
+  const int cy = H / 2 + 6;
+  // White chest wedge
+  for (int y = cy - 6; y <= cy + 4; ++y) {
+    int half = 2 + (cy + 4 - y) / 2;
+    for (int x = cx - half; x <= cx + half; ++x) {
+      if (buf[y * W + x] != TR) pset(buf, W, H, x, y, WH);
+    }
+  }
+  // Darken around the eye band (mask look)
+  int hx = cx - 14;
+  int hy = cy - 10;
+  for (int dx = -6; dx <= 6; ++dx) {
+    int x = hx + dx;
+    if ((dx + 6) & 1) continue;
+    if (buf[(hy - 1) * W + x] != TR) pset(buf, W, H, x, hy - 1, OL);
+  }
+}
+
+static void overlay_nose_star(uint8_t* buf, int /*w*/, int /*h*/) {
+  // Noshy: 3-px white cross over the nose tip. The nose is drawn at
+  // (hx-1..hx+1, hy+3) + (hx, hy+4) inside draw_bailey -- compute the
+  // same coordinates here.
+  const int cx = W / 2;
+  const int cy = H / 2 + 6;
+  const int body_rx = (int)(18 * 1.0f);
+  const int hx = cx - body_rx + 4;
+  const int hy = cy - 12 + 2;
+  pset(buf, W, H, hx,     hy + 3, WH);
+  pset(buf, W, H, hx - 1, hy + 4, WH);
+  pset(buf, W, H, hx,     hy + 4, WH);
+  pset(buf, W, H, hx + 1, hy + 4, WH);
+  pset(buf, W, H, hx,     hy + 5, WH);
+}
+
 static void overlay_curly_coat(uint8_t* buf, int /*w*/, int /*h*/) {
   // Ruben: tight curls -- flip ~25% of body pixels to outline color in
   // a high-frequency checker pattern, suggesting curly fur without
@@ -447,14 +520,19 @@ static void overlay_long_fur(uint8_t* buf, int /*w*/, int /*h*/) {
 
 void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
   float scale = friend_size_scale(f);
-  // Body / highlight color choices per friend.
-  uint8_t body, hi;
+  // Per-friend skin: body / highlight / blaze / belly / ear-style.
+  uint8_t body, hi, belly = WH;
+  bool    blaze       = true;
+  bool    pointy_ear  = false;
   switch (f) {
     case Friend::Ollie:    body = BD; hi = HL; break;
-    case Friend::Mitchell: body = WH; hi = GR; break;   // little fluffy white
-    case Friend::Enzo:     body = DG; hi = OL; break;   // near-black rott
-    case Friend::Lincoln:  body = YL; hi = OR; break;   // golden tones
-    case Friend::Ruben:    body = DG; hi = GR; break;   // PWD: dark with mid-gray highlight
+    case Friend::Mitchell: body = WH; hi = GR; break;
+    case Friend::Enzo:     body = DG; hi = OL; blaze = false; belly = DG; break;
+    case Friend::Lincoln:  body = YL; hi = OR; belly = CR; break;
+    case Friend::Ruben:    body = DG; hi = GR; blaze = false; belly = DG; break;
+    case Friend::Francie:  body = BK; hi = DG; break;  // tuxedo overlay covers the rest
+    case Friend::Bomi:     body = HL; hi = OR; blaze = false; pointy_ear = true; break;
+    case Friend::Noshy:    body = DG; hi = GR; blaze = false; belly = DG; break;
     default:               body = BD; hi = HL; break;
   }
 
@@ -470,10 +548,13 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
                                 BM_Default;
 
   if (pose == PetPose::Gone) {
-    // Friends don't get a tombstone -- fall back to a calm Idle pose.
-    draw_bailey(buf, 0, false, false, false, scale, body, hi, BM_Default);
+    draw_bailey(buf, 0, false, false, false, scale, body, hi, BM_Default,
+                /*ear_len*/13, /*body_rx_delta*/0, /*tail_len*/14,
+                blaze, belly, pointy_ear);
   } else {
-    draw_bailey(buf, lift, eyes_sh, tongue, sad, scale, body, hi, mode);
+    draw_bailey(buf, lift, eyes_sh, tongue, sad, scale, body, hi, mode,
+                /*ear_len*/13, /*body_rx_delta*/0, /*tail_len*/14,
+                blaze, belly, pointy_ear);
   }
 
   switch (f) {
@@ -481,22 +562,63 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
     case Friend::Enzo:     overlay_tan_points(buf, W, H); break;
     case Friend::Lincoln:  overlay_long_fur(buf, W, H); break;
     case Friend::Ruben:    overlay_curly_coat(buf, W, H); break;
-    case Friend::Mitchell: /* no overlay; the body color does the work */ break;
+    case Friend::Francie:  overlay_tuxedo(buf, W, H); break;
+    case Friend::Noshy:    overlay_curly_coat(buf, W, H);
+                           overlay_nose_star(buf, W, H); break;
+    case Friend::Mitchell:
+    case Friend::Bomi:     break;  // body color + ears do the work
     default: break;
   }
 }
 
-void draw_pose(uint8_t* buf, PetPose pose, float size_scale) {
+// Per-life-stage Bailey config (ear length, body trim, tail length).
+struct BaileyConfig {
+  int ear_length;
+  int body_rx_delta;
+  int tail_length;
+};
+
+static BaileyConfig bailey_config_for_stage(int stage) {
+  // stage: 0=Puppy, 1=Adult, 2=Senior, 3=legacy Gone
+  switch (stage) {
+    case 0:  return BaileyConfig{13,  0, 14};
+    case 1:  return BaileyConfig{ 9, -2, 18};
+    case 2:  return BaileyConfig{ 9, -2, 18};
+    default: return BaileyConfig{13,  0, 14};
+  }
+}
+
+void draw_pose(uint8_t* buf, PetPose pose, float size_scale,
+               int stage = 0) {
+  BaileyConfig c = bailey_config_for_stage(stage);
   switch (pose) {
-    case PetPose::IdleA:   draw_bailey(buf, 0, false, false, false, size_scale); break;
-    case PetPose::IdleB:   draw_bailey(buf, 1, false, false, false, size_scale); break;
-    case PetPose::Eating:  draw_bailey(buf, 0, false, false, false, size_scale); break;
-    case PetPose::Playing: draw_bailey(buf, 1, false, true,  false, size_scale); break;
-    case PetPose::Sleep:   draw_bailey(buf, 0, true,  false, false, size_scale); break;
-    case PetPose::Sad:     draw_bailey(buf, 0, false, false, true,  size_scale); break;
-    case PetPose::Sit:     draw_bailey(buf, 0, false, false, false, size_scale, BD, HL, BM_Sit);  break;
-    case PetPose::Bark:    draw_bailey(buf, 0, false, false, false, size_scale, BD, HL, BM_Bark); break;
-    case PetPose::Pant:    draw_bailey(buf, 0, false, true,  false, size_scale, BD, HL, BM_Pant); break;
+    case PetPose::IdleA:   draw_bailey(buf, 0, false, false, false, size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::IdleB:   draw_bailey(buf, 1, false, false, false, size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Eating:  draw_bailey(buf, 0, false, false, false, size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Playing: draw_bailey(buf, 1, false, true,  false, size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Sleep:   draw_bailey(buf, 0, true,  false, false, size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Sad:     draw_bailey(buf, 0, false, false, true,  size_scale,
+                                       BD, HL, BM_Default,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Sit:     draw_bailey(buf, 0, false, false, false, size_scale,
+                                       BD, HL, BM_Sit,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Bark:    draw_bailey(buf, 0, false, false, false, size_scale,
+                                       BD, HL, BM_Bark,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+    case PetPose::Pant:    draw_bailey(buf, 0, false, true,  false, size_scale,
+                                       BD, HL, BM_Pant,
+                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
     case PetPose::COUNT:   break;
     case PetPose::Gone: {
       std::memset(buf, TR, W * H);
@@ -532,9 +654,9 @@ void sprites_init() {
     float scale = kStageScale[s];
     for (int p = 0; p < (int)PetPose::COUNT; ++p) {
       if (p == (int)PetPose::Gone)
-        draw_pose(g_pet[s][p], PetPose::Gone, scale);
+        draw_pose(g_pet[s][p], PetPose::Gone, scale, s);
       else
-        draw_pose(g_pet[s][p], (PetPose)p, scale);
+        draw_pose(g_pet[s][p], (PetPose)p, scale, s);
     }
   }
   // Stage 3 (legacy Gone) sprites: all the gone pose for safety.

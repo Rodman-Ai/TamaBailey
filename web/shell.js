@@ -23,6 +23,7 @@
     PlayWithFriendOllie: 28, PlayWithFriendMitchell: 29,
     PlayWithFriendEnzo: 30, PlayWithFriendLincoln: 31,
     PlayWithFriendRuben: 32,
+    PlayWithFriendFrancie: 33, PlayWithFriendBomi: 34, PlayWithFriendNoshy: 35,
   };
 
   // ---- Web Audio ----

@@ -352,7 +352,7 @@ class Game {
   uint8_t  actions_cursor_            = 0;
   uint8_t  voice_trick_kind_          = 0;
   uint32_t voice_trick_started_ms_    = 0;
-  uint32_t friend_visits_[(int)Friend::COUNT] = {0,0,0,0,0};
+  uint32_t friend_visits_[(int)Friend::COUNT] = {0,0,0,0,0,0,0,0};
   // Round 2 Phase 3 transient state
   uint32_t today_day_index_           = 0;
   uint32_t today_happiness_sum_       = 0;

@@ -663,7 +663,10 @@ void Game::apply_input(Input in) {
     case Input::PlayWithFriendMitchell:
     case Input::PlayWithFriendEnzo:
     case Input::PlayWithFriendLincoln:
-    case Input::PlayWithFriendRuben: {
+    case Input::PlayWithFriendRuben:
+    case Input::PlayWithFriendFrancie:
+    case Input::PlayWithFriendBomi:
+    case Input::PlayWithFriendNoshy: {
       Friend f;
       if (in == Input::PlayWithFriend) {
         // Hash now -> pick one of the five friends.
@@ -1256,9 +1259,9 @@ void Game::update_walk(uint32_t now_ms) {
   if (!in_transition() && mode_ == GameMode::Idle && npc_visit_kind_ == 0) {
     uint32_t r = (now_ms ^ 0x5A5A5A5A) * 2654435761u;
 #if BAILEY_FAST_DECAY
-    constexpr uint32_t kInvProb = 200;       // dense in fast mode
+    constexpr uint32_t kInvProb = 60;        // very dense in fast mode
 #else
-    constexpr uint32_t kInvProb = 10000;     // ~once / 3 min at 60fps
+    constexpr uint32_t kInvProb = 3000;      // ~once / ~50 s at 60fps
 #endif
     if ((r % kInvProb) == 0) {
       npc_visit_kind_ = (uint8_t)(1 + ((r >> 8) % (int)Friend::COUNT));
@@ -1345,17 +1348,17 @@ void Game::update_ambient(uint32_t now_ms) {
 
   uint32_t elapsed = now_ms - ambient_started_ms_;
 
-  // Drive walking behavior's x-offset every tick (interpolates smoothly).
-  if (ambient_behavior_ == 1) {
-    // 4-second slide; ramp x_offset from 0 -> 32 (or -32) then back.
-    float t = (float)elapsed / 4000.0f;
+  // Walk (slow) and Run (fast) both drive an x-offset that traces a
+  // triangle wave 0 -> max -> 0 over a window.
+  if (ambient_behavior_ == 1 || ambient_behavior_ == 5) {
+    bool is_run = (ambient_behavior_ == 5);
+    float window = is_run ? 2000.0f : 4000.0f;
+    int   max_off = is_run ? 48 : 32;
+    float t = (float)elapsed / window;
     if (t > 1.0f) t = 1.0f;
-    int max_off = 32;
-    // Triangle wave: 0 -> max at t=0.5 -> 0 at t=1
     int off = (int)(max_off * (1.0f - fabsf(t * 2 - 1.0f)));
     ambient_x_offset_ = (int16_t)(off * ambient_walk_dir_);
     if (t >= 1.0f) {
-      // Walk done -> back to stand for the rest of the interval.
       ambient_behavior_ = 0;
       ambient_x_offset_ = 0;
     }
@@ -1369,20 +1372,21 @@ void Game::update_ambient(uint32_t now_ms) {
     uint32_t r = (now_ms * 2654435761u) >> 11;
     uint8_t  pct = (uint8_t)(r % 100);
     uint8_t  next;
-    if      (pct < 50) next = 0;  // stand
-    else if (pct < 70) next = 1;  // walk
-    else if (pct < 85) next = 2;  // sit
-    else if (pct < 95) next = 3;  // pant
-    else               next = 4;  // bark
+    if      (pct < 30) next = 0;  // stand    30%
+    else if (pct < 50) next = 1;  // walk     20%
+    else if (pct < 65) next = 5;  // run      15%
+    else if (pct < 75) next = 2;  // sit      10%
+    else if (pct < 85) next = 6;  // lie down 10%
+    else if (pct < 95) next = 3;  // pant     10%
+    else               next = 4;  // bark      5%
 
     ambient_behavior_ = next;
-    if (next == 1) {
+    if (next == 1 || next == 5) {
       ambient_walk_dir_ = (r & 1) ? 1 : -1;
     } else {
       ambient_x_offset_ = 0;
     }
     if (next == 4) {
-      // Bark plays the Wuff clip.
       play_clip(ClipId::Wuff);
     }
   }

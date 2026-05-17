@@ -12,7 +12,10 @@ enum class Friend : uint8_t {
   Enzo     = 2,   // rottweiler, same size as Bailey
   Lincoln  = 3,   // golden retriever, bigger than Bailey
   Ruben    = 4,   // Portuguese water dog, slightly bigger than Bailey
-  COUNT    = 5,
+  Francie  = 5,   // Boston Terrier, small (tuxedo)
+  Bomi     = 6,   // Korean Jindo, medium (pointy ears)
+  Noshy    = 7,   // Black Cockapoo with a white star on his nose
+  COUNT    = 8,
 };
 
 const char* friend_name(Friend f);

@@ -263,9 +263,13 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
             case 1: // walking -- alternate breathing frames faster
               pose = ((now_ms / 250) & 1) ? PetPose::IdleB : PetPose::IdleA;
               break;
-            case 2: pose = PetPose::Sit;  break;
-            case 3: pose = PetPose::Pant; break;
-            case 4: pose = PetPose::Bark; break;
+            case 2: pose = PetPose::Sit;     break;
+            case 3: pose = PetPose::Pant;    break;
+            case 4: pose = PetPose::Bark;    break;
+            case 5: // run -- alternate frames very fast
+              pose = ((now_ms / 100) & 1) ? PetPose::IdleB : PetPose::IdleA;
+              break;
+            case 6: pose = PetPose::Sleep;   break;   // lie down
             default:
               pose = ((now_ms / kIdleFrameMs) & 1) ? PetPose::IdleB : PetPose::IdleA;
               break;
@@ -1101,14 +1105,78 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   r.drawHLine(0, kStatsBarH, kScreenW, kGrayLight);
   draw_stats_bar(r, pet, game.clock_string());
 
+  // Draw any visiting friends FIRST so Bailey draws on top of them --
+  // his silhouette (especially the left-side hind leg) stays whole even
+  // when slot 0 parks against the left edge and overlaps him.
+  struct VisitorRender {
+    bool     active;
+    Friend   f;
+    int      fx, fy;
+    uint32_t elapsed;
+    int      slot;
+  };
+  VisitorRender vis[kMaxVisitors] = {};
+  for (int slot = 0; slot < kMaxVisitors; ++slot) {
+    vis[slot].active = false;
+    vis[slot].slot   = slot;
+    if (game.npc_visit_kind(slot) == 0) continue;
+    uint32_t elapsed = now_ms - game.npc_visit_ms(slot);
+    if (elapsed >= kFriendVisitMs) continue;
+    Friend f = (Friend)((game.npc_visit_kind(slot) - 1) % (int)Friend::COUNT);
+    int parked_x = (slot == 0) ? 4 : (kScreenW - kPetDrawW - 4);
+    int off_x    = (slot == 0) ? -kPetDrawW : kScreenW;
+    int fx;
+    if (elapsed < 800) {
+      float u = (float)elapsed / 800.0f;
+      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));
+    } else if (elapsed > kFriendVisitMs - 800) {
+      float u = (float)(kFriendVisitMs - elapsed) / 800.0f;
+      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));
+    } else {
+      fx = parked_x;
+    }
+    int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
+    PetPose fpose = ((now_ms / 350 + slot) & 1) ? PetPose::IdleB : PetPose::IdleA;
+    r.drawSprite(fx, fy, kPetW, kPetH,
+                 friend_sprite(f, fpose), kSpritePalette, kPetScale);
+    vis[slot] = {true, f, fx, fy, elapsed, slot};
+  }
+
   draw_pet_sprite(r, pet, now_ms, game);
-  // Skip coat / accessory overlays during MovingOut (Bailey is sliding
-  // off; the fixed-position overlays would be left behind).
   if (pet.mood != Mood::MovingOut) {
     draw_coat_accents(r, game.coat_pattern());
     draw_accessory_overlay(r, game.accessory_id());
   }
   draw_weather(r, (uint8_t)game.weather(), now_ms);
+
+  // Now draw the visitor labels + hearts ON TOP of Bailey so the name
+  // strip is still readable when there's overlap.
+  bool any_visitor = false;
+  for (int slot = 0; slot < kMaxVisitors; ++slot) {
+    if (!vis[slot].active) continue;
+    any_visitor = true;
+    if (vis[slot].elapsed < 2000) {
+      const char* name = friend_name(vis[slot].f);
+      int tw = text_width(name, 1);
+      int lx = vis[slot].fx + (kPetDrawW - tw) / 2;
+      if (lx < 2) lx = 2;
+      if (lx + tw + 4 > kScreenW) lx = kScreenW - tw - 4;
+      r.fillRect(lx - 2, vis[slot].fy - 12, tw + 4, 10, kBlack);
+      r.drawText(lx, vis[slot].fy - 11, name, kYellow, 1);
+    }
+    if (((now_ms / 600 + slot) & 1) &&
+        vis[slot].elapsed > 500 && vis[slot].elapsed < kFriendVisitMs - 500) {
+      int hx = (slot == 0) ? ((vis[slot].fx + kPetDrawW + kPetX) / 2)
+                           : ((vis[slot].fx + kPetX + kPetDrawW) / 2);
+      int hy = kPetY + 18 - (int)((now_ms / 30) % 24);
+      r.fillRect(hx,     hy,     3, 2, kHeartRed);
+      r.fillRect(hx - 1, hy + 1, 5, 2, kHeartRed);
+      r.fillRect(hx,     hy + 3, 3, 1, kHeartRed);
+    }
+  }
+  if (any_visitor) {
+    r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
+  }
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
   if (game.is_birthday()) draw_confetti(r, now_ms);
@@ -1128,57 +1196,6 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     for (int x = 4; x < kScreenW; x += 8) {
       r.fillRect(x, kStatsBarH + 1, 3, 3, cols[(x / 8) % 5]);
     }
-  }
-
-  // NPC visitor: a small silhouette dog walks across the bottom of the
-  // play area for 4 s.
-  bool any_visitor = false;
-  for (int slot = 0; slot < kMaxVisitors; ++slot) {
-    if (game.npc_visit_kind(slot) == 0) continue;
-    uint32_t elapsed = now_ms - game.npc_visit_ms(slot);
-    if (elapsed >= kFriendVisitMs) continue;
-    any_visitor = true;
-    Friend f = (Friend)((game.npc_visit_kind(slot) - 1) % (int)Friend::COUNT);
-    // Slot 0 slides in from the LEFT and parks at the left edge.
-    // Slot 1 slides in from the RIGHT and parks at the right edge.
-    int parked_x = (slot == 0) ? 4 : (kScreenW - kPetDrawW - 4);
-    int off_x    = (slot == 0) ? -kPetDrawW : kScreenW;
-    int fx;
-    if (elapsed < 800) {
-      float u = (float)elapsed / 800.0f;
-      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));   // ease-out
-    } else if (elapsed > kFriendVisitMs - 800) {
-      float u = (float)(kFriendVisitMs - elapsed) / 800.0f;
-      fx = (int)(off_x + (parked_x - off_x) * u * (2.0f - u));
-    } else {
-      fx = parked_x;
-    }
-    int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
-    PetPose fpose = ((now_ms / 350 + slot) & 1) ? PetPose::IdleB : PetPose::IdleA;
-    r.drawSprite(fx, fy, kPetW, kPetH,
-                 friend_sprite(f, fpose), kSpritePalette, kPetScale);
-    // Per-slot name label for the first 2 s.
-    if (elapsed < 2000) {
-      const char* name = friend_name(f);
-      int tw = text_width(name, 1);
-      int lx = fx + (kPetDrawW - tw) / 2;
-      if (lx < 2) lx = 2;
-      if (lx + tw + 4 > kScreenW) lx = kScreenW - tw - 4;
-      r.fillRect(lx - 2, fy - 12, tw + 4, 10, kBlack);
-      r.drawText(lx, fy - 11, name, kYellow, 1);
-    }
-    // Heart between Bailey and the friend.
-    if (((now_ms / 600 + slot) & 1) && elapsed > 500 && elapsed < kFriendVisitMs - 500) {
-      int hx = (slot == 0) ? ((fx + kPetDrawW + kPetX) / 2)
-                           : ((fx + kPetX + kPetDrawW) / 2);
-      int hy = kPetY + 18 - (int)((now_ms / 30) % 24);
-      r.fillRect(hx,     hy,     3, 2, kHeartRed);
-      r.fillRect(hx - 1, hy + 1, 5, 2, kHeartRed);
-      r.fillRect(hx,     hy + 3, 3, 1, kHeartRed);
-    }
-  }
-  if (any_visitor) {
-    r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
   }
 
   draw_footer(r, game);

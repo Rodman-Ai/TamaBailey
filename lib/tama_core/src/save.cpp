@@ -57,6 +57,12 @@ bool save_validate_and_migrate(SaveData& s) {
     // v4 -> v5: zero the new Ruben slot.
     s.friend_visits[4] = 0;
   }
+  if (s.version < 6) {
+    // v5 -> v6: zero the new Francie / Bomi / Noshy slots.
+    s.friend_visits[5] = 0;
+    s.friend_visits[6] = 0;
+    s.friend_visits[7] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
