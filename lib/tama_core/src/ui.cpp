@@ -1167,19 +1167,21 @@ void draw_footer(Renderer& r, const Game& game) {
       msg = body;
     }
   }
-  // Round 5: 2-line footer with word-wrap at 20 chars per line.
-  // Always render at scale 1 so longer phrases fit. We find the last
-  // space at-or-before column 20; if there's no space, hard-break.
-  // Single-line messages render centered on a single midline; longer
-  // messages split into two centered lines.
-  constexpr int kMaxLineChars = 20;
+  // Round 5 revision: drop the bottom-right Stage/age/streak chip
+  // (still visible in the Stats tab) and bring back the bigger
+  // scale-2 mood text. 2-line word-wrap stays so long phrases like
+  // "Bailey is having a great day!" don't clip. Cap at 19 chars per
+  // line -- 20 * 12 px = 240 px = edge-to-edge at scale 2, so 19
+  // leaves a small margin.
+  constexpr int kMaxLineChars = 19;
   int msg_len = 0;
   while (msg[msg_len] != '\0' && msg_len < 47) ++msg_len;
   if (msg_len <= kMaxLineChars) {
-    // Fits on one line, centered around the midline.
-    int tw = text_width(msg, 1);
+    // Fits on one line, centered in the 36 px footer (scale-2 text
+    // is 16 px tall, sits at y0+10..y0+26).
+    int tw = text_width(msg, 2);
     int tx = (kScreenW - tw) / 2;
-    r.drawText(tx, y0 + 8, msg, kWhite, 1);
+    r.drawText(tx, y0 + 10, msg, kWhite, 2);
   } else {
     // Find the split point: last space in [0, kMaxLineChars], else
     // hard-break at kMaxLineChars.
@@ -1187,8 +1189,6 @@ void draw_footer(Renderer& r, const Game& game) {
     for (int i = kMaxLineChars; i > 0; --i) {
       if (msg[i] == ' ') { split = i; break; }
     }
-    // Copy the two halves (we own msg_buf if we wrote it, but msg
-    // may also point to a bank string -- copy into stack buffers).
     char line1[24], line2[24];
     int l1 = split;
     if (l1 > 23) l1 = 23;
@@ -1200,18 +1200,11 @@ void draw_footer(Renderer& r, const Game& game) {
     if (l2 > 23) l2 = 23;
     for (int i = 0; i < l2; ++i) line2[i] = msg[start2 + i];
     line2[l2] = '\0';
-    int tw1 = text_width(line1, 1);
-    int tw2 = text_width(line2, 1);
-    r.drawText((kScreenW - tw1) / 2, y0 + 4,  line1, kWhite, 1);
-    r.drawText((kScreenW - tw2) / 2, y0 + 14, line2, kWhite, 1);
+    int tw1 = text_width(line1, 2);
+    int tw2 = text_width(line2, 2);
+    r.drawText((kScreenW - tw1) / 2, y0 + 2,  line1, kWhite, 2);
+    r.drawText((kScreenW - tw2) / 2, y0 + 18, line2, kWhite, 2);
   }
-
-  char info[40];
-  uint32_t age_min = (uint32_t)(pet.age_ms / 60000ULL);
-  std::snprintf(info, sizeof(info), "%s  %lum  S%u",
-                stage_text(pet.stage), (unsigned long)age_min,
-                (unsigned)game.streak_days());
-  r.drawText(kScreenW - text_width(info, 1) - 4, y0 + kStatusH - 10, info, kGrayLight, 1);
 }
 
 void draw_menu_tabs(Renderer& r, const Game& game) {
