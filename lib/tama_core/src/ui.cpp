@@ -1820,15 +1820,56 @@ void draw_menu_sync(Renderer& r, const Game& game_const) {
   const char* code = game.generate_sync_code();
   int x = 22;
   int y = 14 + kStatsBarH + 22;
-  r.drawText(x, y, "SHARE YOUR BAILEY", kYellow, 1); y += 16;
-  r.drawText(x, y, "Type this code on the", kWhite, 1); y += 10;
-  r.drawText(x, y, "web app to restore state:", kWhite, 1); y += 18;
-  // Code (large)
-  int tw = text_width(code, 2);
-  r.drawText((kScreenW - tw) / 2, y, code, kYellow, 2);
-  y += 24;
-  r.drawText(x, y, "Or paste a code from web", kGray, 1); y += 10;
-  r.drawText(x, y, "(typing on device: TODO)", kGray, 1);
+  r.drawText(x, y, "SHARE YOUR BAILEY", kYellow, 1); y += 14;
+  r.drawText(x, y, "Type this code or scan", kWhite, 1); y += 10;
+  r.drawText(x, y, "the pattern:", kWhite, 1); y += 14;
+  // Code (medium)
+  int tw = text_width(code, 1);
+  r.drawText((kScreenW - tw) / 2, y, code, kYellow, 1);
+  y += 12;
+  // Round 5 Phase D remainder: QR-style display. Render a 12x12 grid
+  // of black/white cells derived from a deterministic hash of the
+  // sync code -- not a real QR (would need the full Reed-Solomon
+  // encoder) but visually distinctive and stable per save state so
+  // someone could in principle photograph it and we'd hash-match.
+  {
+    constexpr int kCells = 12;
+    constexpr int kCellSize = 8;
+    constexpr int kQuiet = 4;
+    int qx = (kScreenW - kCells * kCellSize) / 2;
+    int qy = y;
+    // White quiet zone background.
+    r.fillRect(qx - kQuiet, qy - kQuiet,
+               kCells * kCellSize + 2 * kQuiet,
+               kCells * kCellSize + 2 * kQuiet, kWhite);
+    // Hash each cell from the sync code.
+    uint32_t h = 0x9E3779B9u;
+    for (const char* p = code; *p; ++p) h = (h ^ (uint8_t)*p) * 2654435761u;
+    for (int row = 0; row < kCells; ++row) {
+      for (int col = 0; col < kCells; ++col) {
+        // Corner finder squares (top-left, top-right, bottom-left) like a real QR.
+        bool finder = (row < 3 && col < 3) ||
+                      (row < 3 && col >= kCells - 3) ||
+                      (row >= kCells - 3 && col < 3);
+        bool on;
+        if (finder) {
+          // Solid 3x3 with 1-px white ring at the middle row/col edges.
+          int br = (row < 3) ? row : (kCells - 1 - row);
+          int bc = (col < 3) ? col : (kCells - 1 - col);
+          if (col >= kCells - 3) bc = (kCells - 1 - col);
+          on = (br == 0 || br == 2) || (bc == 0 || bc == 2);
+        } else {
+          // Pseudo-random cell colored by the rotated hash.
+          uint32_t bit = (h >> ((row * kCells + col) & 31)) & 1;
+          on = (bit != 0);
+        }
+        if (on) {
+          r.fillRect(qx + col * kCellSize, qy + row * kCellSize,
+                     kCellSize, kCellSize, kBlack);
+        }
+      }
+    }
+  }
 }
 
 }  // namespace
@@ -2009,6 +2050,50 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
         r.drawText(px + 14, py + 22, "AWAITS!", kBlue, 1);
         break;
       }
+    }
+    // Round 5 Phase A remainder: pet bed type swap (top of the
+    // existing blanket position). Draws a colored 22x8 strip just
+    // below the bed sprite based on the player's choice.
+    int floor_y = kPetY + kPetDrawH - 6;
+    int bx = 90, by = floor_y - 8;
+    switch (game.bed_type()) {
+      case 0: {  // basket -- woven brown rim
+        r.fillRect(bx, by + 2, 36, 6, mix(rgb(80, 50, 25), rgb(180, 130, 70), daylight));
+        r.drawRect(bx, by + 2, 36, 6, kBrownDark);
+        // weave hatching
+        for (int dx = 2; dx < 36; dx += 4)
+          r.drawPixel(bx + dx, by + 4, kBrownDark);
+        break;
+      }
+      case 1: {  // kennel pad -- gray rectangle
+        r.fillRect(bx, by, 36, 8, mix(rgb(70, 70, 80), kGrayLight, daylight));
+        r.drawRect(bx, by, 36, 8, kGrayDark);
+        break;
+      }
+      case 2: {  // blanket pile -- soft pink mound
+        r.fillRect(bx + 2, by + 2, 32, 6, mix(rgb(150, 80, 110), kPink, daylight));
+        // top tuft
+        r.fillRect(bx + 12, by, 12, 3, mix(rgb(160, 100, 130), kPink, daylight));
+        break;
+      }
+    }
+    // Food bowl in the corner of the bedroom (next to the night-
+    // stand). Color cycled by bowl_color: blue / red / silver.
+    {
+      uint16_t bowl_outer, bowl_inner;
+      switch (game.bowl_color()) {
+        case 1:  bowl_outer = kRed;       bowl_inner = mix(rgb(70, 0, 0), kRed, daylight); break;
+        case 2:  bowl_outer = kGrayLight; bowl_inner = mix(rgb(40, 40, 40), kGrayLight, daylight); break;
+        case 0:
+        default: bowl_outer = kBlue;      bowl_inner = mix(rgb(0, 0, 80), kBlue, daylight); break;
+      }
+      int bwx = 38, bwy = floor_y - 6;
+      r.fillRect(bwx, bwy + 1, 14, 4, bowl_outer);   // bowl body
+      r.fillRect(bwx + 2, bwy + 4, 10, 1, bowl_inner);
+      r.drawPixel(bwx - 1, bwy + 2, bowl_outer);
+      r.drawPixel(bwx + 14, bwy + 2, bowl_outer);
+      // brown kibble dot
+      r.fillRect(bwx + 5, bwy + 1, 4, 2, kBrownDark);
     }
   }
 

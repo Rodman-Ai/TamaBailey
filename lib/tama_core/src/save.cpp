@@ -153,6 +153,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.postcards_received   = 0;
     s._pad23               = 0;
   }
+  if (s.version < 24) {
+    // v23 -> v24: default bed (basket) + bowl (blue).
+    s.bed_type   = 0;
+    s.bowl_color = 0;
+    s._pad24     = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

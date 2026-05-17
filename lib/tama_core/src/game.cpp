@@ -284,6 +284,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v23 fields
     last_postcard_msg_id_ = s.last_postcard_msg_id;
     postcards_received_   = s.postcards_received;
+    // v24 fields
+    bed_type_   = s.bed_type   < 3 ? s.bed_type   : 0;
+    bowl_color_ = s.bowl_color < 3 ? s.bowl_color : 0;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1494,6 +1497,10 @@ void Game::force_save(Storage& storage) {
   s.last_postcard_msg_id    = last_postcard_msg_id_;
   s.postcards_received      = postcards_received_;
   s._pad23                  = 0;
+  // v24 additions
+  s.bed_type                = bed_type_;
+  s.bowl_color              = bowl_color_;
+  s._pad24                  = 0;
 
   storage.save(s);
   dirty_ = false;

@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 23;
+constexpr uint16_t kSaveVersion  = 24;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -149,6 +149,10 @@ struct SaveData {
   uint8_t  last_postcard_msg_id;           // 0..15 message bank index
   uint8_t  postcards_received;             // lifetime count (caps at 255)
   uint16_t _pad23;
+  // ---- v24 additions (Round 5 Phase A remainder: bed + bowl) ----
+  uint8_t  bed_type;                       // 0 basket / 1 kennel pad / 2 blanket
+  uint8_t  bowl_color;                     // 0 blue / 1 red / 2 silver
+  uint16_t _pad24;
 };
 #pragma pack(pop)
 

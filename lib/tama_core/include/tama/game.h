@@ -378,6 +378,14 @@ class Game {
   uint8_t     wall_poster()       const { return wall_poster_; }
   void        cycle_wall_poster()       { wall_poster_ = (wall_poster_ + 1) % 4; dirty_ = true; }
 
+  // Round 5 Phase A remainder: bed type + food bowl color cyclers.
+  // bed_type: 0 basket / 1 kennel pad / 2 blanket pile (in scene 4).
+  // bowl_color: 0 blue / 1 red / 2 silver (rendered in scene 4 too).
+  uint8_t     bed_type()    const { return bed_type_; }
+  uint8_t     bowl_color()  const { return bowl_color_; }
+  void        cycle_bed_type()   { bed_type_   = (bed_type_   + 1) % 3; dirty_ = true; }
+  void        cycle_bowl_color() { bowl_color_ = (bowl_color_ + 1) % 3; dirty_ = true; }
+
   // Round 5 Phase C1: progression + lifetime counters.
   // XP awarded per user action; level = sqrt(xp / 10), capped at 30.
   uint32_t  trainer_xp()      const { return trainer_xp_; }
@@ -718,6 +726,10 @@ class Game {
   // Round 5 Phase D remainder: postcards (persisted v23).
   uint8_t  last_postcard_msg_id_ = 0xFF;
   uint8_t  postcards_received_   = 0;
+
+  // Round 5 Phase A remainder: bed + bowl decor (persisted v24).
+  uint8_t  bed_type_   = 0;
+  uint8_t  bowl_color_ = 0;
 };
 
 }  // namespace tama
