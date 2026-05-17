@@ -1232,6 +1232,10 @@ void draw_footer(Renderer& r, const Game& game) {
     int idx = game.move_out_family_idx() & 7;
     std::snprintf(msg_buf, sizeof(msg_buf), "Moved in w/ the %s", kFamilyNames[idx]);
     msg = msg_buf;
+  } else if (v0 == Game::kMysteryVisitorKind ||
+             v1 == Game::kMysteryVisitorKind) {
+    std::snprintf(msg_buf, sizeof(msg_buf), "A mystery dog visits...");
+    msg = msg_buf;
   } else if (v0 != 0 && v1 != 0) {
     std::snprintf(msg_buf, sizeof(msg_buf), "%s and %s are visiting",
                   friend_name((Friend)(v0 - 1)),
@@ -1947,10 +1951,13 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   for (int slot = 0; slot < kMaxVisitors; ++slot) {
     vis[slot].active = false;
     vis[slot].slot   = slot;
-    if (game.npc_visit_kind(slot) == 0) continue;
+    uint8_t kind = game.npc_visit_kind(slot);
+    if (kind == 0) continue;
     uint32_t elapsed = now_ms - game.npc_visit_ms(slot);
     if (elapsed >= kFriendVisitMs) continue;
-    Friend f = (Friend)((game.npc_visit_kind(slot) - 1) % (int)Friend::COUNT);
+    bool mystery = (kind == Game::kMysteryVisitorKind);
+    Friend f = mystery ? Friend::Ollie
+                       : (Friend)((kind - 1) % (int)Friend::COUNT);
     int parked_x = (slot == 0) ? 4 : (kScreenW - kPetDrawW - 4);
     int off_x    = (slot == 0) ? -kPetDrawW : kScreenW;
     int fx;
@@ -1964,9 +1971,17 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
       fx = parked_x;
     }
     int fy = kPetY + (int)((1.0f - friend_size_scale(f)) * kPetDrawH);
-    PetPose fpose = ((now_ms / 350 + slot) & 1) ? PetPose::IdleB : PetPose::IdleA;
-    r.drawSprite(fx, fy, kPetW, kPetH,
-                 friend_sprite(f, fpose), kSpritePalette, kPetScale);
+    if (mystery) {
+      // Mystery visitor: solid black silhouette + question mark in
+      // its position instead of a named friend sprite.
+      r.fillRect(fx + 8, fy + 12, kPetDrawW - 16, kPetDrawH - 18, kBlack);
+      r.fillRect(fx + 18, fy + 4, kPetDrawW - 36, 16, kBlack);
+      r.drawText(fx + kPetDrawW / 2 - 3, fy + 10, "?", kWhite, 2);
+    } else {
+      PetPose fpose = ((now_ms / 350 + slot) & 1) ? PetPose::IdleB : PetPose::IdleA;
+      r.drawSprite(fx, fy, kPetW, kPetH,
+                   friend_sprite(f, fpose), kSpritePalette, kPetScale);
+    }
     vis[slot] = {true, f, fx, fy, elapsed, slot};
   }
 
@@ -1984,7 +1999,8 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     if (!vis[slot].active) continue;
     any_visitor = true;
     if (vis[slot].elapsed < 2000) {
-      const char* name = friend_name(vis[slot].f);
+      bool mystery = (game.npc_visit_kind(slot) == Game::kMysteryVisitorKind);
+      const char* name = mystery ? "???" : friend_name(vis[slot].f);
       int tw = text_width(name, 1);
       int lx = vis[slot].fx + (kPetDrawW - tw) / 2;
       if (lx < 2) lx = 2;
@@ -2043,6 +2059,15 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
   if (game.is_birthday()) draw_confetti(r, now_ms);
+  // Round 5 Phase D2: 1 s gold-frame flash after a Take-Photo press.
+  if (game.photo_flash_active()) {
+    int y0 = kStatsBarH + 1;
+    int yh = kScreenH - kStatsBarH - kStatusH - 1;
+    // 4 px gold border around the play area.
+    for (int b = 0; b < 4; ++b) {
+      r.drawRect(b, y0 + b, kScreenW - b * 2, yh - b * 2, kYellow);
+    }
+  }
   // Round 5 Phase D1: New Year fireworks -- 3 colored bursts radiating
   // from random points across the upper half during the 5 s window
   // after the Jan 1 roll-over.

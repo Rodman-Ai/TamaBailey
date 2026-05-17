@@ -38,6 +38,7 @@ const Entry kEntries[kAchievementCount] = {
   /* MasterDigger      */ {"Master Digger",  "Caught 10 dig prompts mid-walk"},
   /* Showstopper       */ {"Showstopper",    "Performed a trick 10+ times -- dog show legend"},
   /* HideAndSeekChamp  */ {"Where's Bailey?","Won 5 rounds of hide & seek"},
+  /* MysteryMet        */ {"Mystery Dog",    "A mystery dog stopped by"},
 };
 }  // namespace
 

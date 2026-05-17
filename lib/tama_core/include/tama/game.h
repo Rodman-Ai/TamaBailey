@@ -307,6 +307,18 @@ class Game {
   bool      fireworks_active() const {
     return last_tick_ms_ < new_year_fireworks_until_ms_;
   }
+  // Round 5 Phase D2: photo flash + mystery visitor.
+  bool      photo_flash_active() const {
+    return last_tick_ms_ < photo_flash_until_ms_;
+  }
+  // The mystery visitor is a non-canonical guest. When npc_visit_kind()
+  // returns kMysteryVisitorKind it should render as a silhouette and
+  // the footer shows "A mystery dog visits...".
+  static constexpr uint8_t kMysteryVisitorKind = 255;
+  bool      mystery_visitor_active() const {
+    return npc_visit_kind_ == kMysteryVisitorKind ||
+           npc_visit_kind2_ == kMysteryVisitorKind;
+  }
 
   // Round 5 Phase A: personalization. Pet name + birthday are
   // persisted and configurable. Defaults are "Bailey" + Jan 13.
@@ -618,6 +630,9 @@ class Game {
   // Round 5 Phase D1: once-per-year New Year fireworks timer (transient).
   uint32_t last_new_year_day_          = 0;
   uint32_t new_year_fireworks_until_ms_ = 0;
+
+  // Round 5 Phase D2: photo-snap flash timer (transient).
+  uint32_t photo_flash_until_ms_       = 0;
 
   // Hardware init status (transient, set by the platform adapter).
   uint8_t  hw_imu_status_   = HwUnknown;

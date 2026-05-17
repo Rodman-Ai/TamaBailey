@@ -40,9 +40,11 @@ enum class AchievementId : uint8_t {
   MasterDigger      = 29,  // 10 successful walk-digs
   Showstopper       = 30,  // mastered any single trick (perf >= 10)
   HideAndSeekChamp  = 31,  // won 5 rounds of hide & seek
+  // Round 5 additions
+  MysteryMet        = 32,  // a mystery dog visited during ambient spawn
 };
 
-constexpr int kAchievementCount = 32;
+constexpr int kAchievementCount = 33;
 static_assert(kAchievementCount <= 64, "bitmask is 64 bits");
 
 const char* achievement_name(AchievementId id);

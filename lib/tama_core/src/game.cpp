@@ -790,6 +790,9 @@ void Game::apply_input(Input in) {
       // Phase 3 photo mode handled on the web side via canvas.toDataURL.
       // Core just records the achievement.
       unlock_achievement(AchievementId::PhotoFan);
+      // Round 5 Phase D2: 1 s gold-frame flash on-screen so the user
+      // gets immediate "snap!" feedback.
+      photo_flash_until_ms_ = last_tick_ms_ + 1000;
       dirty_ = true;
       break;
     case Input::CycleAge: {
@@ -1769,16 +1772,24 @@ void Game::update_walk(uint32_t now_ms) {
     constexpr uint32_t kInvProb = 3000;      // ~once / ~50 s at 60fps
 #endif
     if ((rng_next() % kInvProb) == 0) {
-      int friend_a = (int)(rng_next() % (int)Friend::COUNT);
-      npc_visit_kind_ = (uint8_t)(friend_a + 1);
-      npc_visit_ms_   = now_ms;
-      // Half the time, bring a second different friend along, but only
-      // if slot 1 isn't already taken by a player-invite.
-      if (npc_visit_kind2_ == 0 && (rng_next() & 1u)) {
-        int friend_b = (int)(rng_next() % (uint32_t)((int)Friend::COUNT - 1));
-        if (friend_b >= friend_a) friend_b++;   // uniform over the other 7
-        npc_visit_kind2_ = (uint8_t)(friend_b + 1);
-        npc_visit_ms2_   = now_ms;
+      // Round 5 Phase D2: 1 % chance of a mystery dog instead of a
+      // named friend. Mystery visitor is solo (no slot 1 friend).
+      if ((rng_next() % 100) == 0) {
+        npc_visit_kind_ = kMysteryVisitorKind;   // 255 sentinel
+        npc_visit_ms_   = now_ms;
+        unlock_achievement(AchievementId::MysteryMet);
+      } else {
+        int friend_a = (int)(rng_next() % (int)Friend::COUNT);
+        npc_visit_kind_ = (uint8_t)(friend_a + 1);
+        npc_visit_ms_   = now_ms;
+        // Half the time, bring a second different friend along, but
+        // only if slot 1 isn't already taken by a player-invite.
+        if (npc_visit_kind2_ == 0 && (rng_next() & 1u)) {
+          int friend_b = (int)(rng_next() % (uint32_t)((int)Friend::COUNT - 1));
+          if (friend_b >= friend_a) friend_b++;   // uniform over the other 7
+          npc_visit_kind2_ = (uint8_t)(friend_b + 1);
+          npc_visit_ms2_   = now_ms;
+        }
       }
       dirty_ = true;
     }
