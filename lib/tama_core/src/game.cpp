@@ -859,8 +859,13 @@ void Game::apply_input(Input in) {
 void Game::apply_decay(uint32_t dt_ms) {
   if (in_transition()) return;
 
+  // Sleep schedule: halve effective decay during sleep hours (when
+  // auto_sleep is on). Doubling thresholds = halving the rate.
+  bool sleeping = is_sleep_hour() && settings_.auto_sleep;
+
   // Decay multiplier from settings (decay_mult / 10).
   uint32_t mult_num = settings_.decay_mult == 0 ? 10 : settings_.decay_mult;
+  if (sleeping) mult_num = (mult_num + 1) / 2;        // half-speed decay
   // Slower-decay multiplier means MORE ms per point.
   auto scaled = [&](uint32_t base) {
     // dt_ms_effective = dt_ms * (10 / mult); applied as accumulator divisor.
@@ -925,8 +930,16 @@ void Game::apply_decay(uint32_t dt_ms) {
 
 void Game::update_mood() {
   if (in_transition()) return;  // keep the transition mood pinned
-  if (pet_.stats.energy < 20)        { pet_.mood = Mood::Sleeping; return; }
+  // Urgent states always win, even at night.
   if (pet_.stats.any_zero())         { pet_.mood = Mood::Sad; return; }
+  if (pet_.stats.cleanliness < 20)   { pet_.mood = Mood::Dirty; return; }
+  if (pet_.stats.hunger < 20)        { pet_.mood = Mood::Hungry; return; }
+  // Sleep schedule: during the night window, Bailey defaults to Sleeping.
+  if (is_sleep_hour() && settings_.auto_sleep) {
+    pet_.mood = Mood::Sleeping;
+    return;
+  }
+  if (pet_.stats.energy < 20)        { pet_.mood = Mood::Sleeping; return; }
   if (pet_.stats.cleanliness < 30)   { pet_.mood = Mood::Dirty; return; }
   if (pet_.stats.hunger < 30)        { pet_.mood = Mood::Hungry; return; }
   if (pet_.stats.all_above(50))      { pet_.mood = Mood::Happy; return; }
@@ -978,6 +991,15 @@ void Game::update_evolution(uint32_t dt_ms) {
   }
 }
 
+bool Game::is_sleep_hour() const {
+  if (!have_local_hour_) return false;
+  // Window crosses midnight if bedtime > wake.
+  if (kBedtimeHour > kWakeHour) {
+    return current_hour_ >= kBedtimeHour || current_hour_ < kWakeHour;
+  }
+  return current_hour_ >= kBedtimeHour && current_hour_ < kWakeHour;
+}
+
 void Game::update_daylight(uint32_t now_ms) {
   if (clock_ && clock_->is_synced()) {
     uint64_t u = clock_->now_unix_ms();
@@ -992,12 +1014,8 @@ void Game::update_daylight(uint32_t now_ms) {
     else                   d = 0.05f;
     daylight_ = d;
     std::snprintf(clock_str_, sizeof(clock_str_), "%02d:%02d", lt.hour, lt.minute);
-
-    // Auto-sleep at night (energy drains fast at night, encouraging rest)
-    if (settings_.auto_sleep && (lt.hour >= 22 || lt.hour < 6) &&
-        pet_.stats.energy > 30 && !in_transition()) {
-      // Gentle nudge: don't suddenly knock them out, but let energy fall.
-    }
+    current_hour_     = (uint8_t)lt.hour;
+    have_local_hour_  = true;
   } else {
     // Fallback: 24-min synthetic cycle so day/night still happens visually.
     float t = (float)(now_ms % (24u * 60u * 1000u)) / (24.0f * 60.0f * 1000.0f);
@@ -1056,10 +1074,12 @@ void Game::tick(uint32_t now_ms) {
 
   if (!in_transition()) pet_.age_ms += dt;
 
+  // update_daylight caches current_hour_, which apply_decay and
+  // update_mood both consult for sleep-schedule behavior; run it first.
+  update_daylight(now_ms);
   apply_decay(dt);
   update_evolution(dt);
   update_mood();
-  update_daylight(now_ms);
   check_achievements();
   update_fetch_mode(now_ms);
   update_walk(now_ms);

@@ -60,6 +60,11 @@ constexpr uint32_t kFriendVisitMs             = 36000;
 // Maximum number of friend dogs that can be visiting Bailey at once.
 constexpr int      kMaxVisitors               = 2;
 
+// Sleep schedule window (24h clock). During these hours, decay slows 50%
+// and Bailey defaults to Sleeping mood (when auto_sleep is on).
+constexpr uint8_t  kBedtimeHour               = 22;
+constexpr uint8_t  kWakeHour                  = 7;
+
 constexpr uint32_t kEnergyCostPlay   = 10;
 constexpr uint32_t kActionEatBoost   = 30;
 constexpr uint32_t kActionPlayBoost  = 30;
@@ -405,6 +410,10 @@ class Game {
   uint16_t walk_today_steps_  = 0;   // persisted (save v7)
   uint8_t  last_walk_find_kind_ = 0; // transient, no save
   uint32_t last_walk_find_ms_   = 0; // transient, no save
+  uint8_t  current_hour_        = 12; // cached from clock, used by sleep
+                                      // schedule + horoscope hooks; transient
+  bool     have_local_hour_     = false;
+  bool     is_sleep_hour() const;
 };
 
 }  // namespace tama

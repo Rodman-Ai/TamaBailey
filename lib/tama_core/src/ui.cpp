@@ -962,7 +962,9 @@ void draw_menu_options(Renderer& r, const Game& game) {
   std::snprintf(buf, sizeof(buf), "TZ offset : %d min", (int)s.tz_offset_min);
   r.drawText(x, y, buf, kWhite, 1); y += 12;
 
-  std::snprintf(buf, sizeof(buf), "Auto-sleep: %s", s.auto_sleep ? "on" : "off");
+  std::snprintf(buf, sizeof(buf), "Auto-sleep: %s  (%02u-%02u)",
+                s.auto_sleep ? "on" : "off",
+                (unsigned)kBedtimeHour, (unsigned)kWakeHour);
   r.drawText(x, y, buf, kWhite, 1); y += 12;
 
   std::snprintf(buf, sizeof(buf), "Mic       : %s", s.mic_enabled ? "on" : "off");
