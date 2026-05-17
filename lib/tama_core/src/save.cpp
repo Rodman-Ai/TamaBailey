@@ -91,6 +91,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.dig_successes = 0;
     s._pad12        = 0;
   }
+  if (s.version < 13) {
+    // v12 -> v13: no seasonal accessories unlocked yet.
+    s.seasonal_unlocks = 0;
+    s._pad13[0] = s._pad13[1] = s._pad13[2] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

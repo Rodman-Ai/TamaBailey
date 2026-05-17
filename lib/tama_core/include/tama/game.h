@@ -236,6 +236,9 @@ class Game {
   // Round 3 Phase 3: Best-friend bond (paired via sync code).
   uint32_t best_friend_hash() const { return best_friend_hash_; }
 
+  // Round 3 Phase 3G: Seasonal accessories (auto-unlocked on holiday).
+  uint8_t  seasonal_unlocks() const { return seasonal_unlocks_; }
+
   // Round 3 Phase 3F: Walk dig mini-game.
   uint16_t  dig_successes()      const { return dig_successes_; }
   bool      dig_prompt_active()  const {
@@ -495,6 +498,10 @@ class Game {
   // dig-prompt timer (cleared when A scores or window expires).
   uint16_t dig_successes_           = 0;
   uint32_t dig_prompt_until_ms_     = 0;
+
+  // Seasonal accessory unlocks (bitmap): bit0 pumpkin, bit1 santa,
+  // bit2 shamrock. Persistent once granted (wear year-round).
+  uint8_t  seasonal_unlocks_        = 0;
 };
 
 }  // namespace tama

@@ -177,6 +177,48 @@ void draw_accessory_overlay(Renderer& r, uint8_t accessory_id) {
       r.fillRect(hx + 6*kPetScale, hy - 4, kPetScale*3, kPetScale*3, kYellow);
       break;
     }
+    case 4: { // pumpkin hat: round orange dome with green stem
+      int hx = kPetX + 10 * kPetScale;
+      int hy = kPetY + 0;
+      // Dome (12 wide x 8 tall ovalish).
+      for (int row = 0; row < 8; ++row) {
+        int inset = (row < 2) ? 2 : (row > 5 ? 1 : 0);
+        for (int col = inset; col < 12 - inset; ++col)
+          r.fillRect(hx + col*kPetScale, hy + row*kPetScale,
+                     kPetScale, kPetScale, kOrange);
+      }
+      // Vertical ridges (darker orange).
+      r.fillRect(hx + 5*kPetScale, hy + 1*kPetScale, kPetScale, kPetScale*6, kBrownDark);
+      r.fillRect(hx + 7*kPetScale, hy + 1*kPetScale, kPetScale, kPetScale*6, kBrownDark);
+      // Stem.
+      r.fillRect(hx + 5*kPetScale, hy - 2*kPetScale, kPetScale*2, kPetScale*2, kGrassDark);
+      break;
+    }
+    case 5: { // santa hat: red triangle + white pom + white brim
+      int hx = kPetX + 12 * kPetScale;
+      int hy = kPetY - 2;
+      for (int row = 0; row < 10; ++row) {
+        int width = (10 - row);
+        for (int col = 0; col < width; ++col)
+          r.fillRect(hx + col*kPetScale + (10-width)*kPetScale/2,
+                     hy + row*kPetScale, kPetScale, kPetScale, kRed);
+      }
+      // White brim.
+      r.fillRect(hx - 1, hy + 9*kPetScale, kPetScale*12, kPetScale*2, kWhite);
+      // White pom.
+      r.fillRect(hx + 4*kPetScale, hy - 3, kPetScale*3, kPetScale*3, kWhite);
+      break;
+    }
+    case 6: { // shamrock collar: green strap with leaf charm
+      for (int i = -8; i <= 8; ++i)
+        r.fillRect(cx + i*kPetScale - 1, cy + 1*kPetScale,
+                   kPetScale, kPetScale * 2, kGrassDark);
+      // Leaf charm (three small bumps).
+      r.fillRect(cx - 2*kPetScale, cy + 3*kPetScale, kPetScale*2, kPetScale*2, kGreen);
+      r.fillRect(cx + 0,             cy + 3*kPetScale, kPetScale*2, kPetScale*2, kGreen);
+      r.fillRect(cx - 1*kPetScale,   cy + 5*kPetScale, kPetScale*2, kPetScale*2, kGreen);
+      break;
+    }
   }
 }
 

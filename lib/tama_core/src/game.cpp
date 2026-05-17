@@ -241,6 +241,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     stories_heard_           = s.stories_heard;
     // v12 fields
     dig_successes_           = s.dig_successes;
+    // v13 fields
+    seasonal_unlocks_        = s.seasonal_unlocks;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -719,8 +721,9 @@ void Game::apply_input(Input in) {
     }
     case Input::CycleAccessory: {
       // Cycle through unlocked ones only (0=bare always allowed).
-      for (uint8_t try_n = 0; try_n < 4; ++try_n) {
-        uint8_t cand = (uint8_t)((accessory_id_ + 1 + try_n) % 4);
+      // 7 = 4 base (none/bandana/collar/hat) + 3 seasonal.
+      for (uint8_t try_n = 0; try_n < 7; ++try_n) {
+        uint8_t cand = (uint8_t)((accessory_id_ + 1 + try_n) % 7);
         if (accessory_unlocked(cand)) {
           equip_accessory(cand);
           break;
@@ -1272,6 +1275,9 @@ void Game::force_save(Storage& storage) {
   // v12 additions
   s.dig_successes           = dig_successes_;
   s._pad12                  = 0;
+  // v13 additions
+  s.seasonal_unlocks        = seasonal_unlocks_;
+  s._pad13[0] = s._pad13[1] = s._pad13[2] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1529,8 +1535,14 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   bool birthday  = (lt.month == BAILEY_BIRTHDAY_MONTH && lt.day == BAILEY_BIRTHDAY_DAY);
   bool halloween = (lt.month == 10 && lt.day == 31);
   bool christmas = (lt.month == 12 && lt.day == 25);
+  bool stpatrick = (lt.month == 3  && lt.day == 17);
   is_birthday_today_ = birthday;
-  active_holiday_    = birthday ? 1 : (halloween ? 2 : (christmas ? 3 : 0));
+  // Holiday IDs: 0 none, 1 birthday, 2 halloween, 3 christmas, 4 st-patrick
+  active_holiday_    = birthday ? 1 : (halloween ? 2 : (christmas ? 3 : (stpatrick ? 4 : 0)));
+  // Auto-unlock the seasonal accessory the first time we see the day.
+  if (halloween) seasonal_unlocks_ |= 0x1;   // pumpkin
+  if (christmas) seasonal_unlocks_ |= 0x2;   // santa hat
+  if (stpatrick) seasonal_unlocks_ |= 0x4;   // shamrock collar
 
   if (birthday) {
     uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
@@ -1542,7 +1554,7 @@ void Game::update_birthday(uint64_t now_unix_ms) {
       dirty_ = true;
     }
   }
-  if (halloween || christmas) {
+  if (halloween || christmas || stpatrick) {
     unlock_achievement(AchievementId::SeasonalGreetings);
     if (christmas) weather_ = (uint8_t)Weather::Snow;
   }
@@ -1818,12 +1830,16 @@ bool Game::buy_item(uint8_t i) {
 
 bool Game::accessory_unlocked(uint8_t id) const {
   // Mapping: id 1 (bandana) -> First Pet; id 2 (collar) -> 3-day streak;
-  // id 3 (party hat) -> EvolvedToAdult.
+  // id 3 (party hat) -> EvolvedToAdult; ids 4-6 seasonal (auto-unlock
+  // on Halloween / Christmas / St. Patrick's, persistent thereafter).
   switch (id) {
     case 0: return true;  // bare
     case 1: return is_unlocked(achievements_, AchievementId::FirstPet);
     case 2: return is_unlocked(achievements_, AchievementId::Streak3Days);
     case 3: return is_unlocked(achievements_, AchievementId::EvolvedToAdult);
+    case 4: return (seasonal_unlocks_ & 0x1) != 0;   // pumpkin
+    case 5: return (seasonal_unlocks_ & 0x2) != 0;   // santa hat
+    case 6: return (seasonal_unlocks_ & 0x4) != 0;   // shamrock collar
     default: return false;
   }
 }
