@@ -155,10 +155,32 @@ TamaBailey/
 └── docs/
 ```
 
+## What's in (Phase 1)
+
+- **Web audio** -- bark / wuff / splash / heart / snore / whimper /
+  sneeze / fanfare / achievement / sad clips are synthesized in C++ and
+  played via the Web Audio API on the browser side.
+- **Wi-Fi + NTP** on device: fill in `include/secrets.h` (copy from the
+  `.example`) and Bailey gets a real day/night cycle and offline decay
+  catch-up.
+- **Day/night cycle** with sky / grass tinting and a moon at night
+  / sun at noon. Falls back to a 24-minute synthetic loop if NTP is
+  unavailable.
+- **Settings menu** -- volume, brightness, decay-rate multiplier,
+  timezone offset, auto-sleep, mic toggle.
+- **Achievements** -- 20 unlockables shown in a Badges tab.
+- **Daily login streak** -- visit on consecutive days for a happiness
+  bonus.
+- **Sync code** -- shareable 13-char alphanumeric code (or
+  `?bailey=<code>` URL) that snapshots state between device and web.
+
 ## Known limitations (deferred)
 
-- No offline decay: while the device is powered down, Bailey's clock
-  freezes. Adding NTP-based catch-up on Wi-Fi join is a future task.
-- No sound: the board has I2S audio; could add bark/meow effects later.
-- One pet per save slot.
+- **Device audio (ES8311 codec)** -- Phase 1 ships an audio abstraction
+  and synthesized PCM clips that work in the browser; the device's
+  ES8311+I2S integration lands in a follow-up. Logging-only stub for now.
+- **Touch petting on device** -- web supports click + drag to pet; the
+  device's CST816 driver lands in Phase 2.
+- One pet per save slot at a time (memorial wall in Phase 3 preserves
+  previous lives).
 - Placeholder art -- replace via the workflow above.

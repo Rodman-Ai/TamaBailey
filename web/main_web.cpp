@@ -1,7 +1,8 @@
-// Emscripten entry: runs the same tama::Game as the ESP32, with a
-// WebRenderer that pushes pixels into an HTML canvas via JS.
+// Emscripten entry: runs the same tama::Game as the ESP32, with web-side
+// renderer / clock / speaker / storage.
 
 #include <cstdint>
+#include <cstring>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -12,26 +13,47 @@ static double emscripten_get_now() { return 0.0; }
 #endif
 
 #include "tama/game.h"
+#include "web_audio.h"
+#include "web_clock.h"
 #include "web_renderer.h"
 #include "web_storage.h"
 
 namespace {
 bailey::WebRenderer renderer;
 bailey::WebStorage  storage;
+bailey::WebClock    clock_;
+bailey::WebSpeaker  speaker;
 tama::Game          game;
+bool                spectator_mode = false;
 }  // namespace
 
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
 void bailey_input(int code) {
+  if (spectator_mode) return;  // spectator can watch but not interact
   game.enqueue(static_cast<tama::Input>(code));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void bailey_init() {
   uint32_t now = (uint32_t)emscripten_get_now();
-  game.init(storage, now);
+  game.init(storage, now, &clock_, &speaker);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int bailey_apply_sync_code(const char* code) {
+  return game.apply_sync_code(code) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* bailey_generate_sync_code() {
+  return game.generate_sync_code();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void bailey_set_spectator(int on) {
+  spectator_mode = on != 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -40,11 +62,11 @@ void bailey_frame() {
   game.tick(now);
   game.draw(renderer);
   renderer.present();
-  game.maybe_save(storage);
+  if (!spectator_mode) game.maybe_save(storage);
 }
 
 }  // extern "C"
 
 #ifndef __EMSCRIPTEN__
-int main() { return 0; }  // sanity-build path for native compile checks
+int main() { return 0; }
 #endif

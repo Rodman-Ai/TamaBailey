@@ -11,6 +11,10 @@
     <h1>TamaBailey</h1>
     <p class="tagline">A virtual hound dog you can keep alive in your browser.</p>
 
+    <div id="spectatorBanner" class="spectator-banner">
+      You're watching a friend's Bailey. Actions disabled.
+    </div>
+
     <div class="device">
       <canvas id="screen" width="240" height="240"></canvas>
     </div>
@@ -21,16 +25,22 @@
       <button data-input="Clean" type="button" class="btn"><span class="key">C</span><span>Clean</span></button>
     </div>
 
+    <div class="share-row">
+      <button id="shareBtn" type="button" class="link-btn">Share Bailey</button>
+      <button id="pasteBtn" type="button" class="link-btn">Restore from code</button>
+    </div>
+
     <section class="hints">
       <h2>How to play</h2>
       <ul>
         <li>Short-press / tap a button to <strong>Feed</strong>, <strong>Play</strong>, or <strong>Clean</strong>.</li>
-        <li>Hold any button for ~0.8 s to open the <strong>status menu</strong>.</li>
-        <li>Tap the dog on the canvas to <strong>pet</strong> Bailey (small happiness bump, 12 s cooldown).</li>
-        <li>Keyboard: <kbd>A</kbd> / <kbd>B</kbd> / <kbd>C</kbd>, hold for menu, <kbd>R</kbd> to restart if Bailey is gone.</li>
-        <li>State is saved in <code>localStorage</code> -- come back later and Bailey is still here.</li>
+        <li>Hold any button for ~0.8 s to open the <strong>status menu</strong>. Tap a stat / press a button again to cycle tabs.</li>
+        <li>Tap the dog on the canvas to <strong>pet</strong> Bailey, or drag across him for continuous strokes.</li>
+        <li>Keyboard: <kbd>A</kbd> / <kbd>B</kbd> / <kbd>C</kbd>; hold for menu; <kbd>N</kbd> next tab; <kbd>R</kbd> restart when Bailey is gone.</li>
+        <li>Bailey grows up over real time: 24 h healthy &rarr; Adult, 96 h &rarr; Senior. Neglect kills him.</li>
+        <li>State is saved in <code>localStorage</code>. <em>Share Bailey</em> generates a URL friends can open to see your pup.</li>
       </ul>
-      <p class="footnote">Same game runs on a Waveshare ESP32-S3-Touch-LCD-1.54 device. See the repo README.</p>
+      <p class="footnote">Same game runs on a Waveshare ESP32-S3-Touch-LCD-1.54. See the repo README.</p>
     </section>
   </main>
 
