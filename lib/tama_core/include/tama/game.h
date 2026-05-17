@@ -311,6 +311,25 @@ class Game {
   bool      photo_flash_active() const {
     return last_tick_ms_ < photo_flash_until_ms_;
   }
+
+  // Round 5 Phase B: trick combo + firefly mini-game.
+  // Combo: 3 distinct tricks within 30 s -> +20 % happiness on actions
+  // for 60 s. Stacks multiplicatively with the Gourmet buff.
+  bool      trick_combo_active() const {
+    return last_tick_ms_ < trick_combo_until_ms_;
+  }
+  uint32_t  trick_combo_remaining_ms() const {
+    return trick_combo_active() ? trick_combo_until_ms_ - last_tick_ms_ : 0;
+  }
+  // Firefly: appears during low-daylight hours and despawns after
+  // 3 s. PetTap during the window catches it.
+  bool      firefly_active() const {
+    return firefly_spawn_ms_ != 0 &&
+           last_tick_ms_ - firefly_spawn_ms_ < 3000;
+  }
+  int16_t   firefly_x() const { return firefly_x_; }
+  int16_t   firefly_y() const { return firefly_y_; }
+  uint16_t  fireflies_caught() const { return fireflies_caught_; }
   // The mystery visitor is a non-canonical guest. When npc_visit_kind()
   // returns kMysteryVisitorKind it should render as a silhouette and
   // the footer shows "A mystery dog visits...".
@@ -388,6 +407,8 @@ class Game {
   // Round 4: periodic snore audio cue while pet is Sleeping (every 6 s).
   void      maybe_trigger_snore(uint32_t now_ms);
   uint32_t  last_snore_ms() const { return last_snore_ms_; }
+  // Round 5 Phase B: firefly spawn rolled each tick during low daylight.
+  void      maybe_spawn_firefly(uint32_t now_ms);
 
   // Equip accessory (no-op if id not unlocked). 0 = unequip.
   void equip_accessory(uint8_t id);
@@ -633,6 +654,17 @@ class Game {
 
   // Round 5 Phase D2: photo-snap flash timer (transient).
   uint32_t photo_flash_until_ms_       = 0;
+
+  // Round 5 Phase B: trick combo bonus (transient).
+  uint8_t  recent_tricks_mask_         = 0;  // bits 0..4 -> Trick enum
+  uint32_t recent_tricks_first_ms_     = 0;
+  uint32_t trick_combo_until_ms_       = 0;
+  // Firefly mini-game: spawn position + timestamp (transient) +
+  // lifetime catch count (persisted v21).
+  uint32_t firefly_spawn_ms_           = 0;
+  int16_t  firefly_x_                  = 0;
+  int16_t  firefly_y_                  = 0;
+  uint16_t fireflies_caught_           = 0;
 
   // Hardware init status (transient, set by the platform adapter).
   uint8_t  hw_imu_status_   = HwUnknown;

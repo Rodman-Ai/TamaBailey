@@ -136,6 +136,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.active_streak_days = 0;
     s._pad20             = 0;
   }
+  if (s.version < 21) {
+    // v20 -> v21: zero firefly counter.
+    s.fireflies_caught = 0;
+    s._pad21           = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

@@ -276,6 +276,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     time_played_ms_    = s.time_played_ms;
     // v20 fields
     active_streak_days_ = s.active_streak_days;
+    // v21 fields
+    fireflies_caught_   = s.fireflies_caught;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -600,11 +602,24 @@ void Game::apply_input(Input in) {
       dirty_ = true;
       break;
     case Input::PetTap: {
+      // Round 5 Phase B: a firefly in flight is caught by ANY tap,
+      // regardless of the pet-tap cooldown. +5 happiness, +1 bone
+      // every 5 catches as a small extra reward.
+      if (firefly_active()) {
+        fireflies_caught_++;
+        pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + 5);
+        if (fireflies_caught_ % 5 == 0) bones_collected_++;
+        firefly_spawn_ms_ = 0;     // clear
+        play_clip(ClipId::Yip);
+        dirty_ = true;
+        return;
+      }
       uint32_t since = last_tick_ms_ - pet_.last_pet_ms;
       if (since >= kPetCooldownMs || pet_.last_pet_ms == 0) {
         uint32_t pet_boost = kActionPetBoost;
         if (coat_pattern_ == 3) pet_boost += 5;   // Tri-color: extra cuddly
         if (gourmet_active())   pet_boost = pet_boost * 5 / 4;
+        if (trick_combo_active()) pet_boost = pet_boost * 6 / 5;   // +20 %
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + pet_boost);
         pet_.current_action = Action::Pet;
         pet_.action_started_ms = last_tick_ms_;
@@ -856,6 +871,21 @@ void Game::apply_input(Input in) {
       Trick t = kMap[kind];
       trick_perf_[(int)t]++;
       if (trick_perf_[(int)t] >= 10) unlock_achievement(AchievementId::Showstopper);
+      // Round 5 Phase B: trick combo tracking. Reset the 30-s window
+      // if it's stale; OR the bit for this trick; activate the bonus
+      // when 3 distinct tricks have been performed.
+      if (last_tick_ms_ - recent_tricks_first_ms_ > 30000) {
+        recent_tricks_mask_     = 0;
+        recent_tricks_first_ms_ = last_tick_ms_;
+      }
+      uint8_t bit = (uint8_t)(1u << (int)t);
+      if ((recent_tricks_mask_ & bit) == 0) {
+        recent_tricks_mask_ |= bit;
+        if (__builtin_popcount(recent_tricks_mask_) >= 3) {
+          trick_combo_until_ms_ = last_tick_ms_ + 60000;
+          recent_tricks_mask_   = 0;   // reset so next 3 also count
+        }
+      }
       pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness + 5);
       pet_.current_action    = Action::Pet;
       pet_.action_started_ms = last_tick_ms_;
@@ -1293,6 +1323,7 @@ void Game::tick(uint32_t now_ms) {
   update_ambient(now_ms);
   maybe_trigger_lightning(now_ms);
   maybe_trigger_snore(now_ms);
+  maybe_spawn_firefly(now_ms);
 
   // Streak check + weather roll + birthday/bedtime whenever we have a
   // synced clock.
@@ -1446,6 +1477,9 @@ void Game::force_save(Storage& storage) {
   // v20 additions
   s.active_streak_days      = active_streak_days_;
   s._pad20                  = 0;
+  // v21 additions
+  s.fireflies_caught        = fireflies_caught_;
+  s._pad21                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1622,6 +1656,26 @@ void Game::set_birthday(uint8_t month, uint8_t day) {
   birthday_month_ = month;
   birthday_day_   = day;
   dirty_          = true;
+}
+
+void Game::maybe_spawn_firefly(uint32_t now_ms) {
+  // Round 5 Phase B: spawn a firefly during low-daylight (evening /
+  // night) at a low rate. Cleared either by player PetTap (catch) or
+  // by the 3 s firefly-active timer expiring naturally.
+  if (firefly_active()) return;
+  if (mode_ != GameMode::Idle) return;
+  if (daylight_ > 0.4f) return;
+#if BAILEY_FAST_DECAY
+  constexpr uint32_t kInvProb = 200;
+#else
+  constexpr uint32_t kInvProb = 4000;
+#endif
+  if ((rng_next() % kInvProb) != 0) return;
+  // Pick a spot in the play area (upper third so it looks like it's
+  // hovering above the floor line).
+  firefly_x_ = (int16_t)(40 + (rng_next() % 160));
+  firefly_y_ = (int16_t)(60 + (rng_next() % 60));
+  firefly_spawn_ms_ = now_ms;
 }
 
 void Game::maybe_trigger_snore(uint32_t now_ms) {

@@ -1259,6 +1259,11 @@ void draw_footer(Renderer& r, const Game& game) {
     std::snprintf(msg_buf, sizeof(msg_buf), "GOURMET %u:%02u",
                   (unsigned)(rem / 60), (unsigned)(rem % 60));
     msg = msg_buf;
+  } else if (game.trick_combo_active()) {
+    uint32_t rem = game.trick_combo_remaining_ms() / 1000;
+    std::snprintf(msg_buf, sizeof(msg_buf), "TRICK COMBO %u:%02u",
+                  (unsigned)(rem / 60), (unsigned)(rem % 60));
+    msg = msg_buf;
   } else {
     // Round 4: rotating mood-text bank + time-of-day prefix.
     // Round 5: substitute custom pet name into the body.
@@ -2121,6 +2126,19 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   }
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.
+  // Round 5 Phase B: firefly spawn. Tiny pulsing yellow dot at the
+  // game's recorded x/y for the 3 s the bug is in the air.
+  if (game.firefly_active()) {
+    int fx = game.firefly_x();
+    int fy = game.firefly_y();
+    int  bob = (int)((now_ms / 80) % 6) - 3;   // -3..+2 px drift
+    uint16_t col = ((now_ms / 120) & 1) ? kYellow : kOrange;
+    r.fillRect(fx + bob, fy, 3, 3, col);
+    // Soft glow halo
+    r.drawPixel(fx + bob - 1, fy + 1, col);
+    r.drawPixel(fx + bob + 3, fy + 1, col);
+  }
+
   if (game.is_birthday()) draw_confetti(r, now_ms);
   // Round 5 Phase D2: 1 s gold-frame flash after a Take-Photo press.
   if (game.photo_flash_active()) {
