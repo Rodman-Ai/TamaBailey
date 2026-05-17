@@ -36,6 +36,7 @@ const Entry kEntries[kAchievementCount] = {
   /* Pawmates          */ {"Pawmates",       "Bonded with another player's Bailey"},
   /* Goodnight         */ {"Goodnight",      "Told Bailey 10 bedtime stories"},
   /* MasterDigger      */ {"Master Digger",  "Caught 10 dig prompts mid-walk"},
+  /* Showstopper       */ {"Showstopper",    "Performed a trick 10+ times -- dog show legend"},
 };
 }  // namespace
 

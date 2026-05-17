@@ -807,6 +807,7 @@ void Game::apply_input(Input in) {
       };
       Trick t = kMap[kind];
       trick_perf_[(int)t]++;
+      if (trick_perf_[(int)t] >= 10) unlock_achievement(AchievementId::Showstopper);
       pet_.stats.happiness   = clamp_stat((int)pet_.stats.happiness + 5);
       pet_.current_action    = Action::Pet;
       pet_.action_started_ms = last_tick_ms_;
@@ -1793,6 +1794,7 @@ void Game::perform_random_trick() {
     int i = ((int)(r >> 4) + try_n) % (int)Trick::COUNT;
     if (tricks_learned_ & (1u << i)) {
       trick_perf_[i]++;
+      if (trick_perf_[i] >= 10) unlock_achievement(AchievementId::Showstopper);
       dirty_ = true;
       return;
     }
