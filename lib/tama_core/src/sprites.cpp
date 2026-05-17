@@ -148,15 +148,9 @@ void draw_bailey(uint8_t* buf,
     pset(buf, W, H, tx,     ty + 1, c);
   }
 
-  // Legs: brown upper half, WHITE paws (bottom 3 pixels).
+  // Legs: WHITE all the way up (matches real Bailey's white legs + paws).
   auto draw_leg = [&](int x, int y, int w, int h) {
-    int paw_h = 3;
-    if (h <= paw_h) {
-      fill_rect(buf, W, H, x, y, w, h, WH);
-    } else {
-      fill_rect(buf, W, H, x, y, w, h - paw_h, body_color);
-      fill_rect(buf, W, H, x, y + h - paw_h, w, paw_h, WH);
-    }
+    fill_rect(buf, W, H, x, y, w, h, WH);
   };
   // Back legs
   draw_leg(cx + 4, cy + body_ry - 2, 4, 6);
@@ -203,8 +197,18 @@ void draw_bailey(uint8_t* buf,
   fill_ellipse(buf, W, H, hx, hy + 4, 7, 5, WH);
 
   // Dark patches around the eyes (bandit mask) - subtle, just a band.
+  // Skips the center 3 columns so the white facial blaze can run through.
   for (int x = hx - 5; x <= hx + 5; ++x) {
+    if (x >= hx - 1 && x <= hx + 1) continue;
     if ((x + hy) % 2 == 0) pset(buf, W, H, x, hy - 2, OL);
+  }
+
+  // White facial blaze: classic stripe running from the forehead down
+  // between the eyes to the muzzle (the nose will overdraw on top later).
+  for (int y = hy - head_r + 2; y <= hy + 2; ++y) {
+    pset(buf, W, H, hx - 1, y, WH);
+    pset(buf, W, H, hx,     y, WH);
+    pset(buf, W, H, hx + 1, y, WH);
   }
 
   // Eyes
