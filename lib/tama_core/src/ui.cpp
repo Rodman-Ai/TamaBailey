@@ -1462,6 +1462,15 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.hide_seek_wins());
     r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   }
+  // Round 6 Phase 6D: vet history -- last cure age in days.
+  if (game.vet_history_count() > 0) {
+    uint32_t today = game.today_day_index();
+    uint32_t last  = game.vet_history_day(0);
+    uint32_t ago   = (today > last) ? (today - last) : 0;
+    std::snprintf(buf, sizeof(buf), "Vet: %u cures (last %ud ago)",
+                  (unsigned)game.vet_history_count(), (unsigned)ago);
+    r.drawText(x, y, buf, kRed, 1); y += kInfoStep;
+  }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
     const char* m = Game::postcard_message(game.last_postcard_msg_id());
@@ -1543,8 +1552,13 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
     uint8_t w = game.pet_weight();
     const char* wl = w < 30 ? "Slim" : (w > 70 ? "Chubby" : "Normal");
     std::snprintf(buf, sizeof(buf), "Weight: %-6s (%3u)", wl, (unsigned)w);
-    r.drawText(x, y, buf, kPink, 1); y += 14;
+    r.drawText(x, y, buf, kPink, 1); y += 12;
   }
+  // Round 6 Phase 6D: exercise score (from today's walk steps).
+  std::snprintf(buf, sizeof(buf), "Exer  : %3u / 100%s",
+                (unsigned)game.exercise_stat(),
+                game.auto_feeder_owned() ? "  AF" : "");
+  r.drawText(x, y, buf, kSky, 1); y += 14;
 
   // Round 2: biscuits + active toy + treat counts
   std::snprintf(buf, sizeof(buf), "Biscuits: %u   Steps: %lu",
@@ -1757,7 +1771,7 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 
   struct Row { const char* name; bool owned; uint32_t price; };
   // Catalog mirrors Game::buy_item indices.
-  const Row rows[19] = {
+  const Row rows[20] = {
     {"Ball",          (game.toys_owned() & 1)  != 0, game.shop_price(0)},
     {"Frisbee",       (game.toys_owned() & 2)  != 0, game.shop_price(1)},
     {"Rope",          (game.toys_owned() & 4)  != 0, game.shop_price(2)},
@@ -1777,14 +1791,15 @@ void draw_menu_shop(Renderer& r, const Game& game) {
     {"Rubber duck",   (game.bath_toys_owned() & 1) != 0, game.shop_price(16)},
     {"Toy boat",      (game.bath_toys_owned() & 2) != 0, game.shop_price(17)},
     {"Toy fish",      (game.bath_toys_owned() & 4) != 0, game.shop_price(18)},
+    {"Auto-feeder",   game.auto_feeder_owned(),         game.shop_price(19)},
   };
   // Show 6 rows around the cursor
   uint8_t cur = game.shop_cursor();
   int start = (cur > 2) ? (cur - 2) : 0;
-  if (start > 13) start = 13;
+  if (start > 14) start = 14;
   for (int i = 0; i < 6; ++i) {
     int idx = start + i;
-    if (idx >= 19) break;
+    if (idx >= 20) break;
     bool sel = idx == cur;
     if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
     if (idx == 15) {

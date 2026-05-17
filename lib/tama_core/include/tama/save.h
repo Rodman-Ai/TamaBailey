@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 28;
+constexpr uint16_t kSaveVersion  = 29;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -173,6 +173,12 @@ struct SaveData {
   uint8_t  diary_head;                     // write index 0..6
   uint32_t cherry_blossom_last_day;        // day_index of last +5 biscuit grant
   uint8_t  _pad28[3];
+  // ---- v29 additions (Round 6 Phase 6D: vet history + auto-feeder) ----
+  uint32_t vet_history_days[5];            // day_index of each of the last 5 cure rituals
+  uint8_t  vet_history_head;               // ring buffer write head
+  uint8_t  vet_history_count;              // 0..5; saturates
+  uint8_t  auto_feeder_owned;              // 0 = not owned, 1 = owned (purchased from shop)
+  uint8_t  _pad29;
 };
 #pragma pack(pop)
 

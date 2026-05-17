@@ -187,6 +187,14 @@ bool save_validate_and_migrate(SaveData& s) {
     s.cherry_blossom_last_day = 0;
     s._pad28[0] = s._pad28[1] = s._pad28[2] = 0;
   }
+  if (s.version < 29) {
+    // v28 -> v29: empty vet history, no auto-feeder owned.
+    for (int i = 0; i < 5; ++i) s.vet_history_days[i] = 0;
+    s.vet_history_head  = 0;
+    s.vet_history_count = 0;
+    s.auto_feeder_owned = 0;
+    s._pad29            = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

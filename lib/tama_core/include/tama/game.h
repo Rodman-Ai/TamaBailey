@@ -410,6 +410,17 @@ class Game {
   // Text for a diary message-bank id (0..7); nullptr for out-of-range.
   static const char* diary_text(uint8_t id);
 
+  // Round 6 Phase 6D: derived exercise score (0..100) from
+  // walk_today_steps; resets at midnight along with the underlying
+  // counter.
+  uint8_t  exercise_stat() const;
+  // Vet visit history: last 5 successful cures. Returns 0 for empty.
+  uint8_t  vet_history_count() const { return vet_history_count_; }
+  uint32_t vet_history_day(uint8_t age_idx) const;   // 0 = most recent
+  // Auto-feeder: a purchasable shop item that slowly restores hunger
+  // (when active and hunger < 60).
+  bool     auto_feeder_owned() const { return auto_feeder_owned_ != 0; }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -799,6 +810,14 @@ class Game {
   uint8_t  diary_entries_[7]   = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
   uint8_t  diary_head_         = 0;
   uint32_t cherry_blossom_last_day_ = 0;
+
+  // Round 6 Phase 6D: vet history + auto-feeder (persisted v29).
+  uint32_t vet_history_days_[5] = {0,0,0,0,0};
+  uint8_t  vet_history_head_    = 0;
+  uint8_t  vet_history_count_   = 0;
+  uint8_t  auto_feeder_owned_   = 0;
+  // Transient accumulator for auto-feeder hunger restoration.
+  uint32_t auto_feeder_acc_ms_  = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

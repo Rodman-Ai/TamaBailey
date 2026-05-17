@@ -305,6 +305,11 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     for (int i = 0; i < 7; ++i) diary_entries_[i] = s.diary_entries[i];
     diary_head_                = s.diary_head;
     cherry_blossom_last_day_   = s.cherry_blossom_last_day;
+    // v29 fields
+    for (int i = 0; i < 5; ++i) vet_history_days_[i] = s.vet_history_days[i];
+    vet_history_head_   = s.vet_history_head;
+    vet_history_count_  = s.vet_history_count;
+    auto_feeder_owned_  = s.auto_feeder_owned;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -422,7 +427,7 @@ void Game::apply_input(Input in) {
     if (menu_tab_ == MenuTab::Shop) {
       if (in == Input::Feed) { buy_item(shop_cursor_); return; }
       if (in == Input::Play) {
-        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 19);
+        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 20);
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
@@ -1296,6 +1301,26 @@ void Game::apply_decay(uint32_t dt_ms) {
     }
     if (pet_.stats.energy == 100) energy_accum_ = 0;
   }
+
+  // Round 6 Phase 6D: auto-feeder slowly tops up hunger to 60 while
+  // owned + idle. One point per "auto-feeder step" (5 min normal /
+  // 2 s in BAILEY_FAST_DECAY). Only fires when hunger is below 60 so
+  // it can't compete with treats for the obesity loop.
+  if (auto_feeder_owned_ && pet_.stats.hunger < 60) {
+    auto_feeder_acc_ms_ += dt_ms;
+#if BAILEY_FAST_DECAY
+    constexpr uint32_t kAutoFeedStep = 2000;
+#else
+    constexpr uint32_t kAutoFeedStep = 5u * 60 * 1000;
+#endif
+    while (auto_feeder_acc_ms_ >= kAutoFeedStep && pet_.stats.hunger < 60) {
+      auto_feeder_acc_ms_ -= kAutoFeedStep;
+      pet_.stats.hunger++;
+      dirty_ = true;
+    }
+  } else {
+    auto_feeder_acc_ms_ = 0;
+  }
 }
 
 void Game::update_mood() {
@@ -1658,6 +1683,12 @@ void Game::force_save(Storage& storage) {
   s.diary_head              = diary_head_;
   s.cherry_blossom_last_day = cherry_blossom_last_day_;
   s._pad28[0] = s._pad28[1] = s._pad28[2] = 0;
+  // v29 additions
+  for (int i = 0; i < 5; ++i) s.vet_history_days[i] = vet_history_days_[i];
+  s.vet_history_head        = vet_history_head_;
+  s.vet_history_count       = vet_history_count_;
+  s.auto_feeder_owned       = auto_feeder_owned_;
+  s._pad29                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2002,6 +2033,14 @@ void Game::try_cure_sickness() {
   // Round 6 Phase 6A: cure restores 50 health (clamped at 100).
   uint32_t h = (uint32_t)health_stat_ + 50;
   health_stat_ = (uint8_t)(h > 100 ? 100 : h);
+  // Round 6 Phase 6D: push this cure into the vet-history ring buffer
+  // (only when we have a synced clock; today_day_index_ == 0 means
+  // we don't yet know what day it is).
+  if (today_day_index_ != 0) {
+    vet_history_days_[vet_history_head_] = today_day_index_;
+    vet_history_head_ = (uint8_t)((vet_history_head_ + 1) % 5);
+    if (vet_history_count_ < 5) vet_history_count_++;
+  }
   play_clip(ClipId::Heart);
   unlock_achievement(AchievementId::SurvivedSickness);
   dirty_ = true;
@@ -2510,6 +2549,7 @@ uint32_t Game::shop_price(uint8_t i) const {
   if (i < 15) return 20;           // coat
   if (i == 15) return 0;           // Trade-bones row: priced in bones, not biscuits
   if (i < 19) return 10;           // bath toy (rubber duck / boat / fish)
+  if (i == 19) return 30;          // Round 6 Phase 6D: auto-feeder item
   return 0;
 }
 
@@ -2531,6 +2571,14 @@ bool Game::buy_item(uint8_t i) {
     if (bath_toys_owned_ & bit) return false;
     bath_toys_owned_ |= bit;
     bath_toy_active_  = (uint8_t)(i - 16 + 1);   // 1..3
+    biscuits_ -= price;
+    dirty_ = true;
+    return true;
+  }
+  // Round 6 Phase 6D: auto-feeder (row 19): one-time purchase.
+  if (i == 19) {
+    if (auto_feeder_owned_) return false;
+    auto_feeder_owned_ = 1;
     biscuits_ -= price;
     dirty_ = true;
     return true;
@@ -2911,6 +2959,20 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6D: exercise 0..100 derived from today's walk steps.
+// 500 steps = full bar (matches the Walker title threshold).
+uint8_t Game::exercise_stat() const {
+  uint32_t s = (uint32_t)walk_today_steps_ / 5;
+  if (s > 100) s = 100;
+  return (uint8_t)s;
+}
+
+uint32_t Game::vet_history_day(uint8_t age_idx) const {
+  if (age_idx >= vet_history_count_) return 0;
+  uint8_t i = (uint8_t)((vet_history_head_ + 5 - 1 - age_idx) % 5);
+  return vet_history_days_[i];
 }
 
 // Round 6 Phase 6C: diary -- age_days 0 is yesterday, 6 is a week ago.
