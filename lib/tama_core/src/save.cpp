@@ -180,6 +180,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.chosen_title_id    = 0;
     s._pad27             = 0;
   }
+  if (s.version < 28) {
+    // v27 -> v28: empty diary, never-claimed cherry blossom.
+    for (int i = 0; i < 7; ++i) s.diary_entries[i] = 0xFF;
+    s.diary_head              = 0;
+    s.cherry_blossom_last_day = 0;
+    s._pad28[0] = s._pad28[1] = s._pad28[2] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

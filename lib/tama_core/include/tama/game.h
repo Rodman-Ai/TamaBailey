@@ -404,6 +404,12 @@ class Game {
   // first chars of pet_name; always upper-case ASCII; pad with spaces).
   const char* collar_engraving() const;
 
+  // Round 6 Phase 6C: daily diary (last 7 entries, message-bank ids).
+  // Returns 0xFF for an empty slot.
+  uint8_t  diary_entry(uint8_t age_days) const;     // 0 = yesterday
+  // Text for a diary message-bank id (0..7); nullptr for out-of-range.
+  static const char* diary_text(uint8_t id);
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -788,6 +794,11 @@ class Game {
   uint8_t  earned_titles_mask_ = 0;
   uint8_t  chosen_title_id_    = 0;
   void     update_earned_titles();   // recompute mask from counters
+
+  // Round 6 Phase 6C: daily diary ring buffer + Cherry Blossom Day.
+  uint8_t  diary_entries_[7]   = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+  uint8_t  diary_head_         = 0;
+  uint32_t cherry_blossom_last_day_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens

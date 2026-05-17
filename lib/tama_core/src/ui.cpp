@@ -1570,17 +1570,25 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   }
   y += 14;
 
-  // Diary auto-templated from yesterday's mood.
-  uint8_t y1 = game.mood_history(0);
-  if (y1 > 0) {
-    const char* desc =
-      y1 >= 80 ? "Great day with Bailey." :
-      y1 >= 60 ? "Bailey had a good day." :
-      y1 >= 40 ? "Bailey felt OK yesterday." :
-      y1 >= 20 ? "Bailey seemed bored." :
-                 "Bailey felt lonely.";
-    std::snprintf(buf, sizeof(buf), "Yesterday: %s", desc);
+  // Diary auto-templated from yesterday's mood. Round 6 Phase 6C
+  // prefers the persisted diary entry (richer message bank); falls
+  // back to the legacy mood-only summary if the diary is empty.
+  uint8_t did = game.diary_entry(0);
+  if (did != 0xFF && Game::diary_text(did) != nullptr) {
+    std::snprintf(buf, sizeof(buf), "Yesterday: %s", Game::diary_text(did));
     r.drawText(x, y, buf, kGrayLight, 1);
+  } else {
+    uint8_t y1 = game.mood_history(0);
+    if (y1 > 0) {
+      const char* desc =
+        y1 >= 80 ? "Great day with Bailey." :
+        y1 >= 60 ? "Bailey had a good day." :
+        y1 >= 40 ? "Bailey felt OK yesterday." :
+        y1 >= 20 ? "Bailey seemed bored." :
+                   "Bailey felt lonely.";
+      std::snprintf(buf, sizeof(buf), "Yesterday: %s", desc);
+      r.drawText(x, y, buf, kGrayLight, 1);
+    }
   }
 }
 
@@ -2385,6 +2393,16 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     uint16_t cols[5] = {kRed, kGreen, kYellow, kBlue, kPink};
     for (int x = 4; x < kScreenW; x += 8) {
       r.fillRect(x, kStatsBarH + 1, 3, 3, cols[(x / 8) % 5]);
+    }
+  } else if (game.active_holiday() == 8) {
+    // Round 6 Phase 6C: Cherry Blossom Day -- pink petals drift down.
+    // Petal positions are time-shifted so they appear to fall.
+    uint32_t t = now_ms / 80;
+    for (int k = 0; k < 14; ++k) {
+      int seed = k * 2654435761u;
+      int px = ((seed >> 8) & 0xFF) % kScreenW;
+      int py = ((seed >> 4) + (int)t) % (kScreenH - kStatsBarH - 30);
+      r.fillRect(px, kStatsBarH + py, 3, 3, kPink);
     }
   }
 

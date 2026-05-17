@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 27;
+constexpr uint16_t kSaveVersion  = 28;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -168,6 +168,11 @@ struct SaveData {
   uint8_t  earned_titles_mask;             // bit0 Bone Hunter / 1 Soul Bond / 2 Walker / 3 Showstopper
   uint8_t  chosen_title_id;                // 0=auto-by-XP, 1..4 = earned title
   uint16_t _pad27;
+  // ---- v28 additions (Round 6 Phase 6C: diary + cherry-blossom day) ----
+  uint8_t  diary_entries[7];               // ring buffer of last 7 days, message-bank ids 0..7 (0xFF = empty)
+  uint8_t  diary_head;                     // write index 0..6
+  uint32_t cherry_blossom_last_day;        // day_index of last +5 biscuit grant
+  uint8_t  _pad28[3];
 };
 #pragma pack(pop)
 

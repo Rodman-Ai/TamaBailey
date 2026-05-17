@@ -159,7 +159,10 @@ void draw_bailey(uint8_t* buf,
                  bool white_muzzle     = true,
                  bool white_face_blaze = true,
                  // Long curly tail for golden retrievers / Korean Jindos.
-                 bool tail_curl        = false) {
+                 bool tail_curl        = false,
+                 // Round 6 Phase 6C: when true, the muzzle paints in
+                 // light gray (LG) instead of white -- senior gray fur.
+                 bool gray_muzzle      = false) {
   std::memset(buf, TR, W * H);
 
   const int cx = W / 2;
@@ -288,9 +291,10 @@ void draw_bailey(uint8_t* buf,
 
   // White muzzle (wraps lower face, larger than before). Suppressed
   // for friends without a white muzzle -- a same-color patch keeps
-  // the muzzle silhouette but blends into the head.
-  fill_ellipse(buf, W, H, hx, hy + 4, 7, 5,
-               white_muzzle ? WH : body_color);
+  // the muzzle silhouette but blends into the head. Senior Bailey
+  // gets a light-gray muzzle to look his age.
+  uint8_t muzzle_color = white_muzzle ? (gray_muzzle ? LG : WH) : body_color;
+  fill_ellipse(buf, W, H, hx, hy + 4, 7, 5, muzzle_color);
 
   // Dark patches around the eyes (bandit mask) - subtle, just a band.
   // Skips the center 3 columns so the white facial blaze can run through.
@@ -686,34 +690,45 @@ static BaileyConfig bailey_config_for_stage(int stage) {
 void draw_pose(uint8_t* buf, PetPose pose, float size_scale,
                int stage = 0) {
   BaileyConfig c = bailey_config_for_stage(stage);
+  // Round 6 Phase 6C: Senior stage (id 2) gets a gray muzzle.
+  bool gray = (stage == 2);
   switch (pose) {
     case PetPose::IdleA:   draw_bailey(buf, 0, false, false, false, size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::IdleB:   draw_bailey(buf, 1, false, false, false, size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Eating:  draw_bailey(buf, 0, false, false, false, size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Playing: draw_bailey(buf, 1, false, true,  false, size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Sleep:   draw_bailey(buf, 0, true,  false, false, size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Sad:     draw_bailey(buf, 0, false, false, true,  size_scale,
                                        BD, HL, BM_Default,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Sit:     draw_bailey(buf, 0, false, false, false, size_scale,
                                        BD, HL, BM_Sit,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Bark:    draw_bailey(buf, 0, false, false, false, size_scale,
                                        BD, HL, BM_Bark,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::Pant:    draw_bailey(buf, 0, false, true,  false, size_scale,
                                        BD, HL, BM_Pant,
-                                       c.ear_length, c.body_rx_delta, c.tail_length); break;
+                                       c.ear_length, c.body_rx_delta, c.tail_length,
+                                       true, WH, false, true, true, true, false, gray); break;
     case PetPose::COUNT:   break;
     case PetPose::Gone: {
       std::memset(buf, TR, W * H);

@@ -301,6 +301,10 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
       friend_bond_levels_[i] = s.friend_bond_levels[i];
     earned_titles_mask_ = s.earned_titles_mask;
     chosen_title_id_    = s.chosen_title_id;
+    // v28 fields
+    for (int i = 0; i < 7; ++i) diary_entries_[i] = s.diary_entries[i];
+    diary_head_                = s.diary_head;
+    cherry_blossom_last_day_   = s.cherry_blossom_last_day;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1649,6 +1653,11 @@ void Game::force_save(Storage& storage) {
   s.earned_titles_mask      = earned_titles_mask_;
   s.chosen_title_id         = chosen_title_id_;
   s._pad27                  = 0;
+  // v28 additions
+  for (int i = 0; i < 7; ++i) s.diary_entries[i] = diary_entries_[i];
+  s.diary_head              = diary_head_;
+  s.cherry_blossom_last_day = cherry_blossom_last_day_;
+  s._pad28[0] = s._pad28[1] = s._pad28[2] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2156,16 +2165,28 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   bool easter     = (lt.month == 4  && lt.day == 12);
   bool valentines = (lt.month == 2  && lt.day == 14);
   bool newyear    = (lt.month == 1  && lt.day == 1);
+  // Round 6 Phase 6C: Cherry Blossom Day (Mar 27).
+  bool cherry     = (lt.month == 3  && lt.day == 27);
   is_birthday_today_ = birthday;
   // Holiday IDs: 0 none, 1 birthday, 2 halloween, 3 christmas, 4 st-patrick,
-  // 5 easter, 6 valentines, 7 newyear.
+  // 5 easter, 6 valentines, 7 newyear, 8 cherry blossom.
   active_holiday_    = birthday   ? 1 :
                        halloween  ? 2 :
                        christmas  ? 3 :
                        stpatrick  ? 4 :
                        easter     ? 5 :
                        valentines ? 6 :
-                       newyear    ? 7 : 0;
+                       newyear    ? 7 :
+                       cherry     ? 8 : 0;
+  // Round 6 Phase 6C: once per Cherry Blossom Day, grant +5 biscuits.
+  if (cherry) {
+    uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if (cherry_blossom_last_day_ != day) {
+      cherry_blossom_last_day_ = day;
+      grant_biscuits(5);
+      dirty_ = true;
+    }
+  }
   // Auto-unlock the seasonal accessory the first time we see the day.
   if (halloween)  seasonal_unlocks_ |= 0x01;   // pumpkin       (id 4)
   if (christmas)  seasonal_unlocks_ |= 0x02;   // santa hat     (id 5)
@@ -2398,6 +2419,25 @@ void Game::roll_over_day_if_needed(uint64_t now_unix_ms) {
                 : 0;
   mood_history_[mood_history_head_] = avg;
   mood_history_head_ = (uint8_t)((mood_history_head_ + 1) % 7);
+
+  // Round 6 Phase 6C: write yesterday's diary entry. Message-bank id
+  // is templated from today_actions_ + walk_today_steps_ + avg:
+  //   0 great day (avg>=80), 1 good day (avg>=60), 2 ok (avg>=40),
+  //   3 bored (avg>=20), 4 lonely (avg<20),
+  //   5 active (>=10 actions today),
+  //   6 wanderer (walk_today_steps_ >= 50),
+  //   7 quiet (no actions + no steps).
+  uint8_t diary_id;
+  if (today_actions_ == 0 && walk_today_steps_ == 0)  diary_id = 7;
+  else if (walk_today_steps_ >= 50)                   diary_id = 6;
+  else if (today_actions_ >= 10)                      diary_id = 5;
+  else if (avg >= 80)                                 diary_id = 0;
+  else if (avg >= 60)                                 diary_id = 1;
+  else if (avg >= 40)                                 diary_id = 2;
+  else if (avg >= 20)                                 diary_id = 3;
+  else                                                diary_id = 4;
+  diary_entries_[diary_head_] = diary_id;
+  diary_head_ = (uint8_t)((diary_head_ + 1) % 7);
 
   // Reset bedtime flag once per day (was tied to a noon check before).
   well_tucked_in_today_ = 0;
@@ -2870,6 +2910,30 @@ void Game::cycle_chosen_title() {
       dirty_ = true;
       return;
     }
+  }
+}
+
+// Round 6 Phase 6C: diary -- age_days 0 is yesterday, 6 is a week ago.
+uint8_t Game::diary_entry(uint8_t age_days) const {
+  if (age_days >= 7) return 0xFF;
+  // diary_head_ points to the next write slot, so the most-recent entry
+  // is at (diary_head_ - 1) mod 7.
+  uint8_t i = (uint8_t)((diary_head_ + 7 - 1 - age_days) % 7);
+  return diary_entries_[i];
+}
+
+// Round 6 Phase 6C: short one-line summaries for diary message ids 0..7.
+const char* Game::diary_text(uint8_t id) {
+  switch (id) {
+    case 0: return "Joyful day with Bailey.";
+    case 1: return "A pleasant day together.";
+    case 2: return "An ordinary day.";
+    case 3: return "Bailey was a bit bored.";
+    case 4: return "Bailey missed you today.";
+    case 5: return "A busy, hands-on day.";
+    case 6: return "Long walks, happy paws.";
+    case 7: return "A quiet, still day.";
+    default: return nullptr;
   }
 }
 
