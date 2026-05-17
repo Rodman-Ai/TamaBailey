@@ -805,6 +805,9 @@ void draw_footer(Renderer& r, const Game& game) {
     std::snprintf(msg_buf, sizeof(msg_buf), "%s is visiting",
                   friend_name((Friend)(v0 - 1)));
     msg = msg_buf;
+  } else if (game.bedtime_story_active()) {
+    std::snprintf(msg_buf, sizeof(msg_buf), "%s", game.bedtime_story_text());
+    msg = msg_buf;
   } else if (game.gourmet_active()) {
     uint32_t rem = game.gourmet_remaining_ms() / 1000;
     std::snprintf(msg_buf, sizeof(msg_buf), "GOURMET %u:%02u",
@@ -920,6 +923,10 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
     std::snprintf(buf, sizeof(buf), "Best friend: %04X",
                   (unsigned)(game.best_friend_hash() & 0xFFFFu));
     r.drawText(x, y, buf, kPink, 1); y += 12;
+  }
+  if (game.stories_heard() > 0) {
+    std::snprintf(buf, sizeof(buf), "Stories: %u", (unsigned)game.stories_heard());
+    r.drawText(x, y, buf, kGrayLight, 1); y += 12;
   }
   y += 2;
 

@@ -36,9 +36,10 @@ enum class AchievementId : uint8_t {
   Socialite         = 26,  // hosted all four friends at least once
   // Round 3 additions
   Pawmates          = 27,  // bonded with another player's Bailey via sync
+  Goodnight         = 28,  // 10 bedtime stories told
 };
 
-constexpr int kAchievementCount = 28;
+constexpr int kAchievementCount = 29;
 static_assert(kAchievementCount <= 32, "bitmask is 32 bits");
 
 const char* achievement_name(AchievementId id);

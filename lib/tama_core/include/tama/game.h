@@ -236,6 +236,13 @@ class Game {
   // Round 3 Phase 3: Best-friend bond (paired via sync code).
   uint32_t best_friend_hash() const { return best_friend_hash_; }
 
+  // Round 3 Phase 3D: Bedtime story playback.
+  uint16_t  stories_heard() const { return stories_heard_; }
+  bool      bedtime_story_active() const {
+    return last_tick_ms_ < bedtime_story_until_ms_;
+  }
+  const char* bedtime_story_text() const;
+
   // Round 3 Phase 3C: Tamagotchi-Connect-style treat gifting.
   // Writes a 9-char "GIFTXXXXX" code into a caller-owned buffer (>=10
   // chars). Returns false if `tier` is invalid or there are no treats
@@ -472,6 +479,11 @@ class Game {
   uint32_t combo_window_start_ms_ = 0;
   uint8_t  combo_mask_            = 0;
   uint32_t gourmet_until_ms_      = 0;
+
+  // Bedtime stories: persistent count + transient bubble timer.
+  uint16_t stories_heard_           = 0;
+  uint32_t bedtime_story_until_ms_  = 0;
+  uint8_t  bedtime_story_idx_       = 0;
 };
 
 }  // namespace tama

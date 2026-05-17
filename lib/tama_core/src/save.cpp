@@ -81,6 +81,11 @@ bool save_validate_and_migrate(SaveData& s) {
     // v9 -> v10: no gifts redeemed yet.
     s.last_gift_received_day = 0;
   }
+  if (s.version < 11) {
+    // v10 -> v11: no bedtime stories yet.
+    s.stories_heard = 0;
+    s._pad11        = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

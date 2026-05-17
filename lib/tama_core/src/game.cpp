@@ -237,6 +237,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     best_friend_hash_        = s.best_friend_hash;
     // v10 fields
     last_gift_received_day_  = s.last_gift_received_day;
+    // v11 fields
+    stories_heard_           = s.stories_heard;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -784,6 +786,12 @@ void Game::apply_input(Input in) {
       well_tucked_in_today_ = 1;
       pet_.stats.happiness  = clamp_stat((int)pet_.stats.happiness + 3);
       play_clip(ClipId::Heart);
+      // Round 3: bedtime story bubble. Pick a deterministic-but-varied
+      // story by stepping the index each tuck-in. 8s on-screen.
+      stories_heard_++;
+      bedtime_story_idx_      = (uint8_t)((bedtime_story_idx_ + 1) % 8);
+      bedtime_story_until_ms_ = last_tick_ms_ + 8000;
+      if (stories_heard_ >= 10) unlock_achievement(AchievementId::Goodnight);
       dirty_ = true;
       break;
     }
@@ -1236,6 +1244,9 @@ void Game::force_save(Storage& storage) {
   s.best_friend_hash        = best_friend_hash_;
   // v10 additions
   s.last_gift_received_day  = last_gift_received_day_;
+  // v11 additions
+  s.stories_heard           = stories_heard_;
+  s._pad11                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1840,6 +1851,22 @@ bool Game::apply_sync_code(const char* code) {
   unlock_achievement(AchievementId::Pawmates);
   dirty_ = true;
   return true;
+}
+
+// ---- Round 3 Phase 3D: Bedtime stories ----
+
+const char* Game::bedtime_story_text() const {
+  static const char* const kStories[8] = {
+    "Once upon a time...",
+    "A brave hound dog...",
+    "...chased the moon...",
+    "...found a bone...",
+    "...rolled in grass...",
+    "...made a friend...",
+    "...slept by the fire.",
+    "The end. Goodnight.",
+  };
+  return kStories[bedtime_story_idx_ % 8];
 }
 
 // ---- Round 3 Phase 3C: Gift treats ----
