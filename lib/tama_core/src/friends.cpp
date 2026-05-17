@@ -33,12 +33,12 @@ const char* friend_breed(Friend f) {
 float friend_size_scale(Friend f) {
   switch (f) {
     case Friend::Ollie:    return 1.00f;
-    case Friend::Mitchell: return 0.70f;
+    case Friend::Mitchell: return 0.56f;   // was 0.70, user asked -20%
     case Friend::Enzo:     return 1.00f;
     case Friend::Lincoln:  return 1.20f;
     case Friend::Ruben:    return 1.10f;
     case Friend::Francie:  return 0.50f;
-    case Friend::Bomi:     return 1.00f;
+    case Friend::Bomi:     return 0.85f;   // was 1.00, Jindo smaller than Bailey
     case Friend::Noshy:    return 0.90f;
     default:               return 1.0f;
   }

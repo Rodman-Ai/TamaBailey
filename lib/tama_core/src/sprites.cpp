@@ -582,7 +582,7 @@ void draw_friend_pose(uint8_t* buf, Friend f, PetPose pose) {
   switch (f) {
     // Brindle mix: brown coat with brindle stripes, no white anywhere.
     case Friend::Ollie:
-      body = BD; hi = HL;
+      body = BD; hi = HL; blaze = false;
       white_paws = false; white_muzzle = false; white_blaze = false;
       break;
     // Havanese: small white fluffy dog.
