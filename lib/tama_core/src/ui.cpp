@@ -1249,7 +1249,7 @@ static void draw_walk_progress(Renderer& r, const Game& game) {
   int fill = w * game.walk_steps() / 20;
   if (fill > 0) r.fillRect(x0, y0, fill, 5, kGreen);
   char buf[32];
-  std::snprintf(buf, sizeof(buf), "WALK  %u/20  (B=step)", game.walk_steps());
+  std::snprintf(buf, sizeof(buf), "WALK %u/20  B=step C=stop", game.walk_steps());
   r.drawText((kScreenW - text_width(buf, 1)) / 2, y0 + 10, buf, kYellow, 1);
 }
 

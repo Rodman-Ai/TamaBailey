@@ -54,8 +54,8 @@ void EspImu::poll(uint32_t now_ms, tama::Game& game) {
   if (reversals >= 4 && (ax > 2.0f || ax < -2.0f) &&
       now_ms - last_shake_ms_ > 600) {
     last_shake_ms_ = now_ms;
-    Serial.println("[imu] shake detected -> MicTrigger");
-    game.enqueue(tama::Input::MicTrigger);
+    Serial.println("[imu] shake detected -> ImuShake");
+    game.enqueue(tama::Input::ImuShake);
   }
 
   // ---- Flick detection: large forward (+X) accel spike ----
@@ -67,15 +67,16 @@ void EspImu::poll(uint32_t now_ms, tama::Game& game) {
   }
 
   // ---- Step detection: vertical (Z) pulse edge ----
-  // At rest Z ~ 1 G. A walking step bobs Z to ~1.4-1.8 G then back.
-  if (!step_high_ && az > 1.4f) {
+  // At rest Z ~ 1 G. A walking step bobs Z to ~1.2-1.8 G then back.
+  // Threshold lowered from 1.4 -> 1.2 so a gentle stroll still counts.
+  if (!step_high_ && az > 1.2f) {
     step_high_ = true;
     if (now_ms - last_step_ms_ > 350) {
       last_step_ms_ = now_ms;
       Serial.println("[imu] step detected -> Walk");
       game.enqueue(tama::Input::Walk);
     }
-  } else if (step_high_ && az < 1.1f) {
+  } else if (step_high_ && az < 0.95f) {
     step_high_ = false;
   }
 }

@@ -45,6 +45,8 @@ enum class Input : uint8_t {
   PlayWithFriendFrancie  = 33,
   PlayWithFriendBomi     = 34,
   PlayWithFriendNoshy    = 35,
+  // Round 3 inputs
+  ImuShake               = 36,  // physical shake of the device
 };
 
 }  // namespace tama

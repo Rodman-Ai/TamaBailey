@@ -452,6 +452,11 @@ void Game::apply_input(Input in) {
       break;
     }
     case Input::Play: {
+      // During a walk, B advances a step (matches the HUD label).
+      if (mode_ == GameMode::Walking) {
+        apply_input(Input::Walk);
+        break;
+      }
       // While in a fetch flow, button is treated as the "catch" press.
       if (mode_ == GameMode::FetchCatching) {
         // Hit -- award full happiness + skill increment
@@ -491,6 +496,15 @@ void Game::apply_input(Input in) {
       break;
     }
     case Input::Clean:
+      // During a walk, C ends the walk early.
+      if (mode_ == GameMode::Walking) {
+        mode_ = GameMode::Idle;
+        pet_.current_action = Action::None;
+        walk_steps_ = 0;
+        walk_target_ = 0;
+        dirty_ = true;
+        break;
+      }
       pet_.stats.cleanliness = clamp_stat((int)pet_.stats.cleanliness + kActionCleanBoost);
       pet_.current_action = Action::Clean;
       pet_.action_started_ms = last_tick_ms_;
@@ -808,6 +822,19 @@ void Game::apply_input(Input in) {
       // Loud sound: pet Bailey (with the usual cooldown) AND mark achievement.
       unlock_achievement(AchievementId::CalledByName);
       apply_input(Input::PetTap);  // chain to the pet logic
+      break;
+    case Input::ImuShake:
+      // Physical shake of the device. From Idle, if Bailey is eligible
+      // to walk, kick off a walk -- gives motion-control a clear hook.
+      // Otherwise fall back to a pet (same as a loud mic trigger).
+      if (mode_ == GameMode::Idle &&
+          pet_.stage != LifeStage::Puppy &&
+          pet_.stats.energy >= 30 &&
+          !in_transition()) {
+        apply_input(Input::Walk);   // start walk
+      } else {
+        apply_input(Input::PetTap);
+      }
       break;
     case Input::Restart:
       // Handled above when stage == Gone

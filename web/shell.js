@@ -24,6 +24,7 @@
     PlayWithFriendEnzo: 30, PlayWithFriendLincoln: 31,
     PlayWithFriendRuben: 32,
     PlayWithFriendFrancie: 33, PlayWithFriendBomi: 34, PlayWithFriendNoshy: 35,
+    ImuShake: 36,
   };
 
   // ---- Web Audio ----
@@ -132,6 +133,9 @@
   const keyMap = {
     a: INPUT.Feed, b: INPUT.Play, c: INPUT.Clean,
     m: INPUT.MenuToggle, r: INPUT.Restart, n: INPUT.MenuNext,
+    w: INPUT.Walk,       // start a walk / advance a step (motion-control proxy)
+    s: INPUT.ImuShake,   // shake gesture proxy
+    f: INPUT.ImuFlick,   // forward flick proxy (advances fetch)
   };
   let keyTimers = {};
   document.addEventListener('keydown', ev => {
