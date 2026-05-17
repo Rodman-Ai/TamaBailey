@@ -1428,6 +1428,12 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   // Round 6 Phase 6B: trainer title (auto by XP, or chosen earned title).
   std::snprintf(buf, sizeof(buf), "Title : %s", game.trainer_title());
   r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
+  // Round 6 Phase 6F: XP bonus from active streak.
+  if (game.xp_bonus_pct() > 100) {
+    std::snprintf(buf, sizeof(buf), "XP boost: +%u%%",
+                  (unsigned)(game.xp_bonus_pct() - 100));
+    r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
+  }
   {
     uint64_t mins = game.time_played_ms() / 60000ULL;
     uint64_t hrs  = mins / 60ULL;
@@ -1470,6 +1476,13 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
     std::snprintf(buf, sizeof(buf), "Vet: %u cures (last %ud ago)",
                   (unsigned)game.vet_history_count(), (unsigned)ago);
     r.drawText(x, y, buf, kRed, 1); y += kInfoStep;
+  }
+  // Round 6 Phase 6F: most-recent completed quest from history.
+  if (game.quest_history_count() > 0) {
+    uint8_t qid = game.quest_history_entry(0);
+    std::snprintf(buf, sizeof(buf), "Last quest: #%u (%u done)",
+                  (unsigned)qid, (unsigned)game.quest_history_count());
+    r.drawText(x, y, buf, kGreen, 1); y += kInfoStep;
   }
   // Round 5 Phase D remainder: last postcard received.
   if (game.last_postcard_msg_id() < 16) {
@@ -2438,6 +2451,39 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
       int px = ((seed >> 8) & 0xFF) % kScreenW;
       int py = ((seed >> 4) + (int)t) % (kScreenH - kStatsBarH - 30);
       r.fillRect(px, kStatsBarH + py, 3, 3, kPink);
+    }
+  } else if (game.active_holiday() == 9) {
+    // Round 6 Phase 6F: Day of Dogs -- paw-print confetti.
+    uint32_t t = now_ms / 100;
+    for (int k = 0; k < 10; ++k) {
+      int seed = k * 2654435761u;
+      int px = ((seed >> 8) + (int)t) % kScreenW;
+      int py = ((seed >> 12) & 0x7F) + kStatsBarH + 8;
+      r.fillRect(px, py, 4, 4, kYellow);
+      r.fillRect(px + 1, py - 2, 2, 2, kYellow);
+    }
+  }
+  // Round 6 Phase 6F: birthday cake animation (simple 3-stage stack
+  // drawn near the bottom of the playfield; UI marks it seen below
+  // so it self-clears within a few seconds).
+  if (game.birthday_cake_pending()) {
+    int cx = kScreenW / 2;
+    int by = kScreenH - kStatusH - 20;
+    // Phase progresses with now_ms: 0..1500 stage 1, 1500..3000 stage 2,
+    // 3000+ stage 3 (candle lit), then mark seen.
+    uint32_t phase = (now_ms / 1500) % 3;
+    // Plate
+    r.fillRect(cx - 14, by + 8, 28, 2, kGrayLight);
+    // Bottom layer (always).
+    r.fillRect(cx - 12, by, 24, 8, kPink);
+    if (phase >= 1) {
+      // Middle layer
+      r.fillRect(cx - 8, by - 6, 16, 6, kYellow);
+    }
+    if (phase >= 2) {
+      // Candle + flame
+      r.fillRect(cx - 1, by - 12, 2, 6, kWhite);
+      r.fillRect(cx - 1, by - 14, 2, 2, kOrange);
     }
   }
 

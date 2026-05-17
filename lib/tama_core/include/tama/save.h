@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 30;
+constexpr uint16_t kSaveVersion  = 31;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -184,6 +184,13 @@ struct SaveData {
   uint8_t  friend_wishlist_mask;           // bitmask of friends queued for invites
   uint32_t friend_last_visit_day[8];       // day_index of last visit per Friend slot
   uint16_t _pad30;
+  // ---- v31 additions (Round 6 Phase 6F: progression + events) ----
+  uint8_t  quest_history[7];               // ring buffer of last 7 quest ids that were awarded
+  uint8_t  quest_history_head;             // write index 0..6
+  uint8_t  quest_history_count;            // 0..7; saturates
+  uint32_t day_of_dogs_last_day;           // day_index of last Aug 26 event spawn
+  uint8_t  birthday_cake_seen_day;         // last day_index we played the cake animation (lo 8 bits)
+  uint8_t  _pad31[2];
 };
 #pragma pack(pop)
 

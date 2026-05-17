@@ -315,6 +315,12 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     friend_wishlist_mask_ = s.friend_wishlist_mask;
     for (int i = 0; i < (int)Friend::COUNT; ++i)
       friend_last_visit_day_[i] = s.friend_last_visit_day[i];
+    // v31 fields
+    for (int i = 0; i < 7; ++i) quest_history_[i] = s.quest_history[i];
+    quest_history_head_      = s.quest_history_head;
+    quest_history_count_     = s.quest_history_count;
+    day_of_dogs_last_day_    = s.day_of_dogs_last_day;
+    birthday_cake_seen_day_  = s.birthday_cake_seen_day;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1707,6 +1713,13 @@ void Game::force_save(Storage& storage) {
   for (int i = 0; i < (int)Friend::COUNT; ++i)
     s.friend_last_visit_day[i] = friend_last_visit_day_[i];
   s._pad30                  = 0;
+  // v31 additions
+  for (int i = 0; i < 7; ++i) s.quest_history[i] = quest_history_[i];
+  s.quest_history_head      = quest_history_head_;
+  s.quest_history_count     = quest_history_count_;
+  s.day_of_dogs_last_day    = day_of_dogs_last_day_;
+  s.birthday_cake_seen_day  = birthday_cake_seen_day_;
+  s._pad31[0] = s._pad31[1] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1833,10 +1846,12 @@ uint32_t Game::trainer_level() const {
 }
 
 void Game::award_xp(uint32_t n) {
-  // Cap at 9999 to keep the formatting line short.
-  uint32_t next = trainer_xp_ + n;
+  // Round 6 Phase 6F: scale by the active-streak XP bonus (100..200 %).
+  uint32_t bonus = xp_bonus_pct();
+  uint64_t scaled = (uint64_t)n * bonus / 100;
+  uint64_t next = (uint64_t)trainer_xp_ + scaled;
   if (next > 9999) next = 9999;
-  trainer_xp_ = next;
+  trainer_xp_ = (uint32_t)next;
   dirty_ = true;
 }
 
@@ -2238,9 +2253,11 @@ void Game::update_birthday(uint64_t now_unix_ms) {
   bool newyear    = (lt.month == 1  && lt.day == 1);
   // Round 6 Phase 6C: Cherry Blossom Day (Mar 27).
   bool cherry     = (lt.month == 3  && lt.day == 27);
+  // Round 6 Phase 6F: Day of Dogs (Aug 26).
+  bool dog_day    = (lt.month == 8  && lt.day == 26);
   is_birthday_today_ = birthday;
   // Holiday IDs: 0 none, 1 birthday, 2 halloween, 3 christmas, 4 st-patrick,
-  // 5 easter, 6 valentines, 7 newyear, 8 cherry blossom.
+  // 5 easter, 6 valentines, 7 newyear, 8 cherry blossom, 9 day-of-dogs.
   active_holiday_    = birthday   ? 1 :
                        halloween  ? 2 :
                        christmas  ? 3 :
@@ -2248,13 +2265,37 @@ void Game::update_birthday(uint64_t now_unix_ms) {
                        easter     ? 5 :
                        valentines ? 6 :
                        newyear    ? 7 :
-                       cherry     ? 8 : 0;
+                       cherry     ? 8 :
+                       dog_day    ? 9 : 0;
   // Round 6 Phase 6C: once per Cherry Blossom Day, grant +5 biscuits.
   if (cherry) {
     uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
     if (cherry_blossom_last_day_ != day) {
       cherry_blossom_last_day_ = day;
       grant_biscuits(5);
+      dirty_ = true;
+    }
+  }
+  // Round 6 Phase 6F: Day of Dogs (Aug 26) -- bump every friend's
+  // visit count by 1 and grant +10 biscuits, once per year.
+  if (dog_day) {
+    uint32_t day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if (day_of_dogs_last_day_ != day) {
+      day_of_dogs_last_day_ = day;
+      for (int i = 0; i < (int)Friend::COUNT; ++i) {
+        friend_visits_[i]++;
+        if (friend_bond_levels_[i] < 5) friend_bond_levels_[i]++;
+        friend_last_visit_day_[i] = day;
+      }
+      grant_biscuits(10);
+      // Spawn a friend in slot 0 to make the event feel like a party.
+      if (npc_visit_kind_ == 0) {
+        int pick = (int)(rng_next() % (int)Friend::COUNT);
+        npc_visit_kind_ = (uint8_t)(pick + 1);
+        npc_visit_ms_   = last_tick_ms_;
+      }
+      unlock_achievement(AchievementId::Socialite);
+      update_earned_titles();
       dirty_ = true;
     }
   }
@@ -2274,6 +2315,21 @@ void Game::update_birthday(uint64_t now_unix_ms) {
       play_clip(ClipId::Fanfare);
       dirty_ = true;
     }
+    // Round 6 Phase 6F: arm the cake-pending flag (cleared automatically
+    // 6 seconds after first detection so the 3-stage animation plays
+    // through twice and self-dismisses).
+    uint32_t bday_day = local_day_index(now_unix_ms, settings_.tz_offset_min);
+    if ((uint8_t)bday_day != birthday_cake_seen_day_) {
+      if (birthday_cake_started_ms_ == 0) {
+        birthday_cake_started_ms_ = last_tick_ms_;
+      } else if (last_tick_ms_ - birthday_cake_started_ms_ > 6000) {
+        birthday_cake_seen_day_ = (uint8_t)bday_day;
+        birthday_cake_started_ms_ = 0;
+        dirty_ = true;
+      }
+    }
+  } else {
+    birthday_cake_started_ms_ = 0;
   }
   if (halloween || christmas || stpatrick || easter || valentines || newyear) {
     unlock_achievement(AchievementId::SeasonalGreetings);
@@ -2927,6 +2983,10 @@ void Game::update_daily_quest(uint64_t now_unix_ms) {
   if (!daily_quest_complete()) return;
   grant_biscuits(5);
   daily_quest_awarded_day_ = today_day_index_;
+  // Round 6 Phase 6F: push this quest id into the history ring.
+  quest_history_[quest_history_head_] = daily_quest_id();
+  quest_history_head_ = (uint8_t)((quest_history_head_ + 1) % 7);
+  if (quest_history_count_ < 7) quest_history_count_++;
   dirty_ = true;
 }
 
@@ -2991,6 +3051,30 @@ void Game::cycle_chosen_title() {
       return;
     }
   }
+}
+
+// Round 6 Phase 6F: weekly XP bonus from active streak.
+// 100 % baseline + 10 % per streak day, capped at 200 % (10-day streak).
+uint16_t Game::xp_bonus_pct() const {
+  uint16_t bonus = (uint16_t)active_streak_days_ * 10;
+  if (bonus > 100) bonus = 100;
+  return (uint16_t)(100 + bonus);
+}
+
+// Round 6 Phase 6F: quest history -- age_idx 0 is the most recent.
+uint8_t Game::quest_history_entry(uint8_t age_idx) const {
+  if (age_idx >= quest_history_count_) return 0xFF;
+  uint8_t i = (uint8_t)((quest_history_head_ + 7 - 1 - age_idx) % 7);
+  return quest_history_[i];
+}
+
+// Round 6 Phase 6F: birthday cake animation flag. Pending on the
+// birthday morning until acknowledged via cake_seen() (we mark seen
+// implicitly on the first day we recognize the birthday).
+bool Game::birthday_cake_pending() const {
+  if (!is_birthday_today_) return false;
+  // Persisted as the low 8 bits of today_day_index_; one-shot per day.
+  return ((uint8_t)today_day_index_) != birthday_cake_seen_day_;
 }
 
 // Round 6 Phase 6E: which friends have been dormant for >=3 days?

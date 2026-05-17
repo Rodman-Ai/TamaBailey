@@ -202,6 +202,15 @@ bool save_validate_and_migrate(SaveData& s) {
     for (int i = 0; i < 8; ++i) s.friend_last_visit_day[i] = 0;
     s._pad30               = 0;
   }
+  if (s.version < 31) {
+    // v30 -> v31: empty quest history, no Day of Dogs / cake yet.
+    for (int i = 0; i < 7; ++i) s.quest_history[i] = 0xFF;
+    s.quest_history_head      = 0;
+    s.quest_history_count     = 0;
+    s.day_of_dogs_last_day    = 0;
+    s.birthday_cake_seen_day  = 0;
+    s._pad31[0] = s._pad31[1] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

@@ -443,6 +443,22 @@ class Game {
   // visited at least once). Empty when no clock yet.
   uint8_t  dormant_friends_mask() const;
 
+  // Round 6 Phase 6F: weekly XP bonus from active streak. The active
+  // streak gives +10 % XP per day, capped at +100 % (10-day streak).
+  // Returns the multiplier-as-percent (100 = baseline, 200 = 2x).
+  uint16_t xp_bonus_pct() const;
+  // Quest history: most-recent quest id at age_idx == 0; 0xFF if empty.
+  uint8_t  quest_history_count() const { return quest_history_count_; }
+  uint8_t  quest_history_entry(uint8_t age_idx) const;
+  // Birthday cake animation flag (true on birthday morning until the
+  // user sees it once that day). The UI calls mark_birthday_cake_seen()
+  // when it has finished rendering the 3-stage animation.
+  bool     birthday_cake_pending() const;
+  void     mark_birthday_cake_seen() {
+    birthday_cake_seen_day_ = (uint8_t)today_day_index_;
+    dirty_ = true;
+  }
+
   // Round 5 Phase B remainder: mini-game score accessors.
   uint16_t  fish_caught()    const { return fish_caught_; }
   uint16_t  tug_high_score() const { return tug_high_score_; }
@@ -845,6 +861,15 @@ class Game {
   uint8_t  soul_bond_friend_id_  = 0xFF;
   uint8_t  friend_wishlist_mask_ = 0;
   uint32_t friend_last_visit_day_[(int)Friend::COUNT] = {0,0,0,0,0,0,0,0};
+
+  // Round 6 Phase 6F: quest history + Day of Dogs + birthday cake (v31).
+  uint8_t  quest_history_[7] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+  uint8_t  quest_history_head_   = 0;
+  uint8_t  quest_history_count_  = 0;
+  uint32_t day_of_dogs_last_day_ = 0;
+  uint8_t  birthday_cake_seen_day_ = 0;
+  // Transient cake-display timer (resets when birthday window passes).
+  uint32_t birthday_cake_started_ms_ = 0;
   // Transient mini-game state.
   uint32_t fishing_started_ms_     = 0;
   uint32_t fishing_nibble_ms_      = 0;  // when the nibble window opens
