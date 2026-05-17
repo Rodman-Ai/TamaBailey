@@ -154,6 +154,55 @@ static const char* const kThoughts[16] = {
   "remembering puppy days",
 };
 
+// Round 5 Phase A: replace the first occurrence of "Bailey" in `src`
+// with `name`. If `name` is empty or equals "Bailey", just copies the
+// source (so default-named pets pay no extra cost beyond the strlen).
+// out_cap includes space for the null terminator.
+static void apply_pet_name(char* out, int out_cap,
+                           const char* src, const char* name) {
+  if (out_cap <= 0) return;
+  out[0] = '\0';
+  if (!src) return;
+  const char* needle = "Bailey";
+  const int needle_len = 6;
+  // Fast path: no rename in effect.
+  if (!name || name[0] == '\0' ||
+      (name[0] == 'B' && name[1] == 'a' && name[2] == 'i' &&
+       name[3] == 'l' && name[4] == 'e' && name[5] == 'y' &&
+       name[6] == '\0')) {
+    int n = 0;
+    while (src[n] && n < out_cap - 1) { out[n] = src[n]; ++n; }
+    out[n] = '\0';
+    return;
+  }
+  // Locate the first "Bailey" substring.
+  const char* hit = nullptr;
+  for (const char* p = src; *p; ++p) {
+    bool match = true;
+    for (int i = 0; i < needle_len; ++i) {
+      if (p[i] != needle[i]) { match = false; break; }
+    }
+    if (match) { hit = p; break; }
+  }
+  if (!hit) {
+    int n = 0;
+    while (src[n] && n < out_cap - 1) { out[n] = src[n]; ++n; }
+    out[n] = '\0';
+    return;
+  }
+  int pos = 0;
+  // Copy [src .. hit).
+  for (const char* p = src; p < hit && pos < out_cap - 1; ++p, ++pos)
+    out[pos] = *p;
+  // Copy name.
+  for (int i = 0; name[i] && pos < out_cap - 1; ++i, ++pos)
+    out[pos] = name[i];
+  // Copy [hit + needle_len .. end).
+  for (const char* p = hit + needle_len; *p && pos < out_cap - 1; ++p, ++pos)
+    out[pos] = *p;
+  out[pos] = '\0';
+}
+
 const char* mood_text_variant(const Game& game) {
   const Mood m = game.pet().mood;
   // MovingOut and Magic are special-cased in draw_footer; if we get
@@ -1158,13 +1207,19 @@ void draw_footer(Renderer& r, const Game& game) {
     msg = msg_buf;
   } else {
     // Round 4: rotating mood-text bank + time-of-day prefix.
+    // Round 5: substitute custom pet name into the body.
     const char* body   = mood_text_variant(game);
     const char* prefix = time_of_day_prefix(game);
+    static char body_named[48];
+    apply_pet_name(body_named, sizeof(body_named), body, game.pet_name());
     if (prefix[0] != '\0') {
-      std::snprintf(msg_buf, sizeof(msg_buf), "%s%s", prefix, body);
+      std::snprintf(msg_buf, sizeof(msg_buf), "%s%s", prefix, body_named);
       msg = msg_buf;
     } else {
-      msg = body;
+      // Copy into msg_buf so the rename is preserved across the wrap
+      // logic below (which reads `msg` and only `msg_buf` is owned).
+      std::snprintf(msg_buf, sizeof(msg_buf), "%s", body_named);
+      msg = msg_buf;
     }
   }
   // Round 5 revision: drop the bottom-right Stage/age/streak chip

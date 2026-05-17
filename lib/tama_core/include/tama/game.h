@@ -304,6 +304,14 @@ class Game {
   // Round 4 Phase 3: tomorrow's deterministic weather forecast.
   Weather   tomorrow_weather() const;
 
+  // Round 5 Phase A: personalization. Pet name + birthday are
+  // persisted and configurable. Defaults are "Bailey" + Jan 13.
+  const char* pet_name()       const { return pet_name_; }
+  uint8_t     birthday_month() const { return birthday_month_; }
+  uint8_t     birthday_day()   const { return birthday_day_; }
+  void        set_pet_name(const char* name);
+  void        set_birthday(uint8_t month, uint8_t day);
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -580,6 +588,11 @@ class Game {
   // Hardware init status (transient, set by the platform adapter).
   uint8_t  hw_imu_status_   = HwUnknown;
   uint8_t  hw_audio_status_ = HwUnknown;
+
+  // Round 5 Phase A: personalization (persisted v17).
+  char     pet_name_[12]    = {'B', 'a', 'i', 'l', 'e', 'y', 0};
+  uint8_t  birthday_month_  = 1;
+  uint8_t  birthday_day_    = 13;
 };
 
 }  // namespace tama

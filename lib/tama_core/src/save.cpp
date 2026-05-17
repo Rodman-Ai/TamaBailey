@@ -113,6 +113,13 @@ bool save_validate_and_migrate(SaveData& s) {
     s.achievements_hi = 0;
     s._pad16          = 0;
   }
+  if (s.version < 17) {
+    // v16 -> v17: seed default pet name + birthday.
+    std::memcpy(s.pet_name, "Bailey", 7);   // includes null terminator
+    s.birthday_month = 1;
+    s.birthday_day   = 13;
+    s._pad17[0] = s._pad17[1] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

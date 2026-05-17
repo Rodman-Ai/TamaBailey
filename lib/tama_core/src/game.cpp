@@ -252,6 +252,22 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     bath_toy_active_         = s.bath_toy_active;
     // v15 fields
     hide_seek_wins_          = s.hide_seek_wins;
+    // v17 fields
+    {
+      // Copy the persisted pet name; defensively null-terminate.
+      int n = 0;
+      while (n < 11 && s.pet_name[n] != '\0') {
+        pet_name_[n] = s.pet_name[n];
+        ++n;
+      }
+      pet_name_[n] = '\0';
+      if (pet_name_[0] == '\0')
+        std::memcpy(pet_name_, "Bailey", 7);
+    }
+    birthday_month_ = (s.birthday_month >= 1 && s.birthday_month <= 12)
+                        ? s.birthday_month : 1;
+    birthday_day_   = (s.birthday_day >= 1 && s.birthday_day <= 31)
+                        ? s.birthday_day : 13;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1350,6 +1366,18 @@ void Game::force_save(Storage& storage) {
   // v15 additions
   s.hide_seek_wins          = hide_seek_wins_;
   s._pad15                  = 0;
+  // v17 additions (v16 high-word stamped above near `s.achievements_hi`).
+  {
+    int n = 0;
+    while (n < 11 && pet_name_[n] != '\0') {
+      s.pet_name[n] = pet_name_[n];
+      ++n;
+    }
+    s.pet_name[n] = '\0';
+  }
+  s.birthday_month          = birthday_month_;
+  s.birthday_day            = birthday_day_;
+  s._pad17[0] = s._pad17[1] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1458,6 +1486,32 @@ Weather Game::tomorrow_weather() const {
   else if (roll < 25) return Weather::Rain;
   else if (roll < 29) return Weather::Snow;
   else                return Weather::Fog;
+}
+
+void Game::set_pet_name(const char* name) {
+  if (!name) return;
+  int n = 0;
+  while (n < 11 && name[n] != '\0') {
+    char c = name[n];
+    // Defensively strip control bytes / nulls; allow printable ASCII
+    // including space.
+    if (c < 0x20 || c > 0x7E) break;
+    pet_name_[n] = c;
+    ++n;
+  }
+  if (n == 0) {
+    std::memcpy(pet_name_, "Bailey", 7);
+  } else {
+    pet_name_[n] = '\0';
+  }
+  dirty_ = true;
+}
+
+void Game::set_birthday(uint8_t month, uint8_t day) {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return;
+  birthday_month_ = month;
+  birthday_day_   = day;
+  dirty_          = true;
 }
 
 void Game::maybe_trigger_snore(uint32_t now_ms) {
@@ -1638,13 +1692,9 @@ void Game::update_walk(uint32_t now_ms) {
 void Game::update_birthday(uint64_t now_unix_ms) {
   if (now_unix_ms == 0) return;
   LocalTime lt = to_local(now_unix_ms, settings_.tz_offset_min);
-#ifndef BAILEY_BIRTHDAY_MONTH
-#define BAILEY_BIRTHDAY_MONTH 1
-#endif
-#ifndef BAILEY_BIRTHDAY_DAY
-#define BAILEY_BIRTHDAY_DAY 13
-#endif
-  bool birthday  = (lt.month == BAILEY_BIRTHDAY_MONTH && lt.day == BAILEY_BIRTHDAY_DAY);
+  // Round 5: user-configurable birthday (was BAILEY_BIRTHDAY_MONTH/DAY
+  // compile-time macros; now stored in save as birthday_month_/_day_).
+  bool birthday  = (lt.month == birthday_month_ && lt.day == birthday_day_);
   bool halloween = (lt.month == 10 && lt.day == 31);
   bool christmas = (lt.month == 12 && lt.day == 25);
   bool stpatrick = (lt.month == 3  && lt.day == 17);
