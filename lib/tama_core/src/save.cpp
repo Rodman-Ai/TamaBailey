@@ -86,6 +86,11 @@ bool save_validate_and_migrate(SaveData& s) {
     s.stories_heard = 0;
     s._pad11        = 0;
   }
+  if (s.version < 12) {
+    // v11 -> v12: no successful walk-digs yet.
+    s.dig_successes = 0;
+    s._pad12        = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

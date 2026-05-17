@@ -236,6 +236,12 @@ class Game {
   // Round 3 Phase 3: Best-friend bond (paired via sync code).
   uint32_t best_friend_hash() const { return best_friend_hash_; }
 
+  // Round 3 Phase 3F: Walk dig mini-game.
+  uint16_t  dig_successes()      const { return dig_successes_; }
+  bool      dig_prompt_active()  const {
+    return last_tick_ms_ < dig_prompt_until_ms_;
+  }
+
   // Round 3 Phase 3D: Bedtime story playback.
   uint16_t  stories_heard() const { return stories_heard_; }
   bool      bedtime_story_active() const {
@@ -484,6 +490,11 @@ class Game {
   uint16_t stories_heard_           = 0;
   uint32_t bedtime_story_until_ms_  = 0;
   uint8_t  bedtime_story_idx_       = 0;
+
+  // Walk dig mini-game: persistent success count + transient
+  // dig-prompt timer (cleared when A scores or window expires).
+  uint16_t dig_successes_           = 0;
+  uint32_t dig_prompt_until_ms_     = 0;
 };
 
 }  // namespace tama

@@ -1317,9 +1317,15 @@ static void draw_walk_progress(Renderer& r, const Game& game) {
                 (unsigned)game.walk_today_steps(),
                 (unsigned)game.bones_collected());
   r.drawText((kScreenW - text_width(buf, 1)) / 2, y0 + 22, buf, kGrayLight, 1);
+  // Dig prompt overlay: shown for the prompt's 1.5 s window.
+  if (game.dig_prompt_active()) {
+    const char* msg = "DIG!  [A]";
+    int tx = (kScreenW - text_width(msg, 2)) / 2;
+    r.drawText(tx, y0 + 36, msg, kRed, 2);
+  }
   // Transient "FOUND!" popup for the last 1500 ms after a walk item-find.
   uint32_t since = game.last_tick_ms() - game.last_walk_find_ms();
-  if (game.last_walk_find_kind() != 0 && since < 1500) {
+  if (game.last_walk_find_kind() != 0 && since < 1500 && !game.dig_prompt_active()) {
     const char* what = game.last_walk_find_kind() == 1 ? "bone"
                      : game.last_walk_find_kind() == 2 ? "new toy"
                      :                                    "treat";

@@ -239,6 +239,8 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     last_gift_received_day_  = s.last_gift_received_day;
     // v11 fields
     stories_heard_           = s.stories_heard;
+    // v12 fields
+    dig_successes_           = s.dig_successes;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -450,6 +452,21 @@ void Game::apply_input(Input in) {
 
   switch (in) {
     case Input::Feed: {
+      // Walk dig: A button during an active dig prompt counts as a
+      // successful dig (+3 bones, achievement at 10 lifetime).
+      if (mode_ == GameMode::Walking && dig_prompt_active()) {
+        dig_successes_++;
+        bones_collected_       += 3;
+        last_walk_find_kind_    = 1;
+        last_walk_find_ms_      = last_tick_ms_;
+        dig_prompt_until_ms_    = 0;
+        if (dig_successes_ >= 10) unlock_achievement(AchievementId::MasterDigger);
+        dirty_ = true;
+        break;
+      }
+      // During a walk without an active prompt, A does nothing useful
+      // (feeding mid-walk would be a weird input).
+      if (mode_ == GameMode::Walking) break;
       uint32_t boost = kActionEatBoost;
       if (well_tucked_in_today_) boost *= 2;  // bedtime routine bonus
       if (horoscope_id() == 2) boost += 10;   // HUNGRY: bigger feed boost
@@ -585,6 +602,11 @@ void Game::apply_input(Input in) {
           last_walk_find_ms_ = last_tick_ms_;
         }
         fulfill_wish_if_matches(Wish::Walk);
+        // Walk-dig prompt: ~5 % per step. Don't restack an already
+        // active prompt.
+        if (!dig_prompt_active() && (rng_next() % 20) == 0) {
+          dig_prompt_until_ms_ = last_tick_ms_ + 1500;   // 1.5 s window
+        }
         dirty_ = true;
         break;
       }
@@ -1247,6 +1269,9 @@ void Game::force_save(Storage& storage) {
   // v11 additions
   s.stories_heard           = stories_heard_;
   s._pad11                  = 0;
+  // v12 additions
+  s.dig_successes           = dig_successes_;
+  s._pad12                  = 0;
 
   storage.save(s);
   dirty_ = false;

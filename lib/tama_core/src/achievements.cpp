@@ -35,6 +35,7 @@ const Entry kEntries[kAchievementCount] = {
   /* Socialite         */ {"Socialite",      "Played with all four friends"},
   /* Pawmates          */ {"Pawmates",       "Bonded with another player's Bailey"},
   /* Goodnight         */ {"Goodnight",      "Told Bailey 10 bedtime stories"},
+  /* MasterDigger      */ {"Master Digger",  "Caught 10 dig prompts mid-walk"},
 };
 }  // namespace
 
