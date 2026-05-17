@@ -1452,6 +1452,14 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.hide_seek_wins());
     r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
   }
+  // Round 5 Phase D remainder: last postcard received.
+  if (game.last_postcard_msg_id() < 16) {
+    const char* m = Game::postcard_message(game.last_postcard_msg_id());
+    if (m) {
+      std::snprintf(buf, sizeof(buf), "Card: %s", m);
+      r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
+    }
+  }
   // Round 5 Phase C remainder: daily login wheel state.
   {
     static const char* const kWheelName[5] = {

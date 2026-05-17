@@ -147,6 +147,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.last_wheel_reward    = 0;
     s._pad22[0] = s._pad22[1] = s._pad22[2] = 0;
   }
+  if (s.version < 23) {
+    // v22 -> v23: no postcards received yet.
+    s.last_postcard_msg_id = 0xFF;       // sentinel = "never received"
+    s.postcards_received   = 0;
+    s._pad23               = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }

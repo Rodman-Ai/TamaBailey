@@ -307,6 +307,19 @@ class Game {
   bool      fireworks_active() const {
     return last_tick_ms_ < new_year_fireworks_until_ms_;
   }
+  // Round 5 Phase D remainder: postcards. Async social via a sync-code-
+  // like 9-char "POSTXXXXX" format that carries a message-bank index.
+  // Generate one by passing 0..15. Receivers store the last message
+  // id + bump postcards_received; the Stats tab displays the line.
+  bool      generate_postcard_code(uint8_t msg_id, char* out_buf, int buf_len);
+  bool      apply_postcard_code(const char* code);
+  // 0xFF = never received any postcard yet.
+  uint8_t   last_postcard_msg_id() const { return last_postcard_msg_id_; }
+  uint8_t   postcards_received()  const { return postcards_received_; }
+  // Returns the message bank string for the given id (0..15) -- safe
+  // to call with 0xFF (returns nullptr).
+  static const char* postcard_message(uint8_t id);
+
   // Round 5 Phase C remainder: daily login wheel.
   // Returns true if a spin is available (today != last_login_wheel_day
   // AND today_day_index != 0). Reward enum: 0 = 5 biscuits, 1 = 3
@@ -701,6 +714,10 @@ class Game {
   // Round 5 Phase C remainder: daily login wheel (persisted v22).
   uint32_t last_login_wheel_day_ = 0;
   uint8_t  last_wheel_reward_    = 0;
+
+  // Round 5 Phase D remainder: postcards (persisted v23).
+  uint8_t  last_postcard_msg_id_ = 0xFF;
+  uint8_t  postcards_received_   = 0;
 };
 
 }  // namespace tama

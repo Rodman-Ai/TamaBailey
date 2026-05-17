@@ -281,6 +281,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     // v22 fields
     last_login_wheel_day_ = s.last_login_wheel_day;
     last_wheel_reward_    = s.last_wheel_reward & 0x07;
+    // v23 fields
+    last_postcard_msg_id_ = s.last_postcard_msg_id;
+    postcards_received_   = s.postcards_received;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -1487,6 +1490,10 @@ void Game::force_save(Storage& storage) {
   s.last_login_wheel_day    = last_login_wheel_day_;
   s.last_wheel_reward       = last_wheel_reward_;
   s._pad22[0] = s._pad22[1] = s._pad22[2] = 0;
+  // v23 additions
+  s.last_postcard_msg_id    = last_postcard_msg_id_;
+  s.postcards_received      = postcards_received_;
+  s._pad23                  = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -2429,6 +2436,87 @@ bool Game::apply_gift_code(const char* code) {
       last_gift_received_day_ == today_day_index_) return false;
   treats_[t]++;
   if (today_day_index_ != 0) last_gift_received_day_ = today_day_index_;
+  dirty_ = true;
+  return true;
+}
+
+// Round 5 Phase D remainder: postcard message bank + code format.
+//
+// Code: "POST" + 5 hex chars
+//   chars 4-5 = message id (2 hex = 8 bits; we mask to 4 bits / 0..15)
+//   chars 6-7 = sender seed (anti-replay flavor; not validated)
+//   char  8   = checksum (XOR of the 4 nibbles)
+static const char* const kPostcards[16] = {
+  "miss you, friend",
+  "made a new friend",
+  "took a great nap",
+  "ran fast today",
+  "found a stick",
+  "love this weather",
+  "saw a squirrel",
+  "got a good belly rub",
+  "ate a fancy treat",
+  "rolled in the grass",
+  "watched the sunset",
+  "tail won't stop wagging",
+  "dreamt of bones",
+  "splashed a puddle",
+  "snoozed in a sunbeam",
+  "thinking of you",
+};
+
+const char* Game::postcard_message(uint8_t id) {
+  if (id >= 16) return nullptr;
+  return kPostcards[id];
+}
+
+bool Game::generate_postcard_code(uint8_t msg_id, char* out_buf, int buf_len) {
+  if (msg_id >= 16) return false;
+  if (!out_buf || buf_len < 10) return false;
+  uint32_t seed = rng_next() & 0xFF;            // 2 hex digits
+  uint8_t n0 = (uint8_t)(msg_id & 0x0F);        // low nibble (we only need 4 bits)
+  uint8_t n1 = (uint8_t)((msg_id >> 4) & 0x0F); // high nibble (always 0 for 0..15)
+  uint8_t n2 = (uint8_t)((seed >> 4) & 0x0F);
+  uint8_t n3 = (uint8_t)(seed & 0x0F);
+  uint8_t crc = (uint8_t)(n0 ^ n1 ^ n2 ^ n3);
+  auto hex = [](uint8_t v) -> char {
+    v &= 0xF;
+    return v < 10 ? (char)('0' + v) : (char)('A' + v - 10);
+  };
+  out_buf[0] = 'P';
+  out_buf[1] = 'O';
+  out_buf[2] = 'S';
+  out_buf[3] = 'T';
+  out_buf[4] = hex(n0);
+  out_buf[5] = hex(n1);
+  out_buf[6] = hex(n2);
+  out_buf[7] = hex(n3);
+  out_buf[8] = hex(crc);
+  out_buf[9] = '\0';
+  return true;
+}
+
+bool Game::apply_postcard_code(const char* code) {
+  if (!code) return false;
+  if (code[0] != 'P' || code[1] != 'O' || code[2] != 'S' || code[3] != 'T') return false;
+  auto hex_v = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+  };
+  int a = hex_v(code[4]);
+  int b = hex_v(code[5]);
+  int c = hex_v(code[6]);
+  int d = hex_v(code[7]);
+  int crc_in = hex_v(code[8]);
+  if (a < 0 || b < 0 || c < 0 || d < 0 || crc_in < 0) return false;
+  uint8_t crc = (uint8_t)((a ^ b ^ c ^ d) & 0xF);
+  if (crc != (uint8_t)crc_in) return false;
+  uint8_t msg_id = (uint8_t)((b << 4) | a);
+  if (msg_id >= 16) return false;
+  last_postcard_msg_id_ = msg_id;
+  if (postcards_received_ < 255) postcards_received_++;
   dirty_ = true;
   return true;
 }
