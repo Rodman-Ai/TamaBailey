@@ -1,0 +1,12 @@
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+.idea/
+.DS_Store
+
+include/secrets.h
+
+*.bin
+*.elf
+*.map
