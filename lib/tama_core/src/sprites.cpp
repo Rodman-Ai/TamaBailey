@@ -37,7 +37,14 @@ constexpr uint8_t DG = 14;  // dark gray
 constexpr uint8_t LG = 15;  // light gray
 
 uint8_t  g_pet[4][(int)PetPose::COUNT][W * H];  // stage x pose x pixels
-uint8_t  g_friend[(int)Friend::COUNT][(int)PetPose::COUNT][W * H];
+
+// Friends are only ever rendered with IdleA / IdleB (the visitor render
+// in ui.cpp alternates between the two). Caching the other 8 poses per
+// friend would cost ~144 KB of internal DRAM for buffers that are never
+// read. TODO: bump kFriendCachedPoses + revisit if friends ever need to
+// perform actions next to Bailey.
+static constexpr int kFriendCachedPoses = 2;
+uint8_t  g_friend[(int)Friend::COUNT][kFriendCachedPoses][W * H];
 uint8_t  g_food[A * A];
 uint8_t  g_food_empty[A * A];
 uint8_t  g_ball[A * A];
@@ -664,11 +671,11 @@ void sprites_init() {
     draw_pose(g_pet[3][p], PetPose::Gone, 1.0f);
   }
 
-  // Friend sprites (Ollie/Mitchell/Enzo/Lincoln) -- all poses.
+  // Friend sprites -- only IdleA + IdleB are cached (kFriendCachedPoses)
+  // since the visitor render in ui.cpp only uses those two.
   for (int fi = 0; fi < (int)Friend::COUNT; ++fi) {
-    for (int p = 0; p < (int)PetPose::COUNT; ++p) {
-      draw_friend_pose(g_friend[fi][p], (Friend)fi, (PetPose)p);
-    }
+    draw_friend_pose(g_friend[fi][0], (Friend)fi, PetPose::IdleA);
+    draw_friend_pose(g_friend[fi][1], (Friend)fi, PetPose::IdleB);
   }
 
   draw_accessory_food();
@@ -690,10 +697,10 @@ const uint8_t* pet_sprite(LifeStage stage, PetPose pose) {
 
 const uint8_t* friend_sprite(Friend f, PetPose pose) {
   int fi = (int)f;
-  int p  = (int)pose;
   if (fi < 0 || fi >= (int)Friend::COUNT) fi = 0;
-  if (p  < 0 || p  >= (int)PetPose::COUNT) p = 0;
-  return g_friend[fi][p];
+  // Only IdleA + IdleB are cached. Anything else falls back to IdleA.
+  int slot = (pose == PetPose::IdleB) ? 1 : 0;
+  return g_friend[fi][slot];
 }
 
 const uint8_t* food_bowl_sprite()       { return g_food; }
