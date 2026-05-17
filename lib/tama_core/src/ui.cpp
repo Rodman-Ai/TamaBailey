@@ -939,6 +939,12 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
   int y = 14 + kStatsBarH + 18;
   char buf[40];
 
+  // Round 3 (post-audit): the upper info block uses 10 px line spacing
+  // instead of 12, to keep the Mood sparkline + Yesterday diary on
+  // screen when every conditional row is present (synced clock + best
+  // friend + bedtime stories).
+  constexpr int kInfoStep = 10;
+
   // Round 3: daily quest line (only if a synced clock has set a day index).
   if (game.daily_quest_goal() > 0) {
     const char* check = game.daily_quest_awarded_today() ? " (done!)" :
@@ -949,36 +955,36 @@ void draw_menu_stats(Renderer& r, const Pet& pet, const Game& game) {
                   (unsigned)game.daily_quest_goal(), check);
     r.drawText(x, y, buf,
                game.daily_quest_awarded_today() ? kGreen : kYellow, 1);
-    y += 12;
+    y += kInfoStep;
   }
   if (game.horoscope_text()[0] != '\0') {
     std::snprintf(buf, sizeof(buf), "Today : %s", game.horoscope_text());
-    r.drawText(x, y, buf, kPink, 1); y += 12;
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
   }
 
   std::snprintf(buf, sizeof(buf), "Stage : %s", stage_text(pet.stage));
-  r.drawText(x, y, buf, kWhite, 1); y += 12;
+  r.drawText(x, y, buf, kWhite, 1); y += kInfoStep;
 
   uint32_t age_min = (uint32_t)(pet.age_ms / 60000ULL);
   std::snprintf(buf, sizeof(buf), "Age   : %lu min", (unsigned long)age_min);
-  r.drawText(x, y, buf, kWhite, 1); y += 12;
+  r.drawText(x, y, buf, kWhite, 1); y += kInfoStep;
 
   std::snprintf(buf, sizeof(buf), "Trait : %s", personality_name(game.personality()));
-  r.drawText(x, y, buf, kPink, 1); y += 12;
+  r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
 
   std::snprintf(buf, sizeof(buf), "Streak: %u days  Pets: %lu",
                 (unsigned)game.streak_days(), (unsigned long)game.total_pets());
-  r.drawText(x, y, buf, kYellow, 1); y += 12;
+  r.drawText(x, y, buf, kYellow, 1); y += kInfoStep;
 
   // Round 3: best-friend bond from the last sync code consumed.
   if (game.best_friend_hash() != 0) {
     std::snprintf(buf, sizeof(buf), "Best friend: %04X",
                   (unsigned)(game.best_friend_hash() & 0xFFFFu));
-    r.drawText(x, y, buf, kPink, 1); y += 12;
+    r.drawText(x, y, buf, kPink, 1); y += kInfoStep;
   }
   if (game.stories_heard() > 0) {
     std::snprintf(buf, sizeof(buf), "Stories: %u", (unsigned)game.stories_heard());
-    r.drawText(x, y, buf, kGrayLight, 1); y += 12;
+    r.drawText(x, y, buf, kGrayLight, 1); y += kInfoStep;
   }
   y += 2;
 

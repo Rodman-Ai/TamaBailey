@@ -174,7 +174,7 @@ class Game {
   const Pet& pet() const { return pet_; }
   const Settings& settings() const { return settings_; }
   Settings& mut_settings() { dirty_ = true; return settings_; }
-  uint32_t  achievements() const { return achievements_; }
+  uint64_t  achievements() const { return achievements_; }
   uint16_t  streak_days()  const { return streak_days_; }
   Weather   weather()      const { return (Weather)weather_; }
   Personality personality() const { return (Personality)personality_trait_; }
@@ -379,7 +379,7 @@ class Game {
 
   Pet      pet_;
   Settings settings_;
-  uint32_t achievements_  = 0;
+  uint64_t achievements_  = 0;
   uint16_t streak_days_   = 0;
   uint64_t streak_last_visit_unix_ms_ = 0;
   uint64_t last_save_real_unix_ms_    = 0;

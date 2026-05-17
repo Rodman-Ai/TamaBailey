@@ -9,7 +9,7 @@
 namespace tama {
 
 constexpr uint32_t kSaveMagic    = 0x42414C59u;  // "BALY"
-constexpr uint16_t kSaveVersion  = 15;
+constexpr uint16_t kSaveVersion  = 16;
 
 #pragma pack(push, 1)
 struct SaveDataV1 {
@@ -116,6 +116,13 @@ struct SaveData {
   // ---- v15 additions ----
   uint16_t hide_seek_wins;                 // Hide & Seek wins lifetime
   uint16_t _pad15;
+  // ---- v16 additions ----
+  // High 32 bits of the achievement bitmask. The low 32 bits stay at
+  // the v2 offset (the existing `achievements` field above) so v1..v15
+  // saves load with their stamped achievements intact and only the
+  // upper word zero-init's.
+  uint32_t achievements_hi;
+  uint32_t _pad16;
 };
 #pragma pack(pop)
 

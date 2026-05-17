@@ -43,22 +43,22 @@ enum class AchievementId : uint8_t {
 };
 
 constexpr int kAchievementCount = 32;
-static_assert(kAchievementCount <= 32, "bitmask is 32 bits");
+static_assert(kAchievementCount <= 64, "bitmask is 64 bits");
 
 const char* achievement_name(AchievementId id);
 const char* achievement_desc(AchievementId id);
 
 // NOTE: Arduino.h defines a `bit(b)` macro that would clobber any function
 // called `bit` in this namespace. Use `achievement_bit` instead.
-inline uint32_t achievement_bit(AchievementId id) {
-  return 1u << static_cast<uint8_t>(id);
+inline uint64_t achievement_bit(AchievementId id) {
+  return (uint64_t)1 << static_cast<uint8_t>(id);
 }
-inline bool is_unlocked(uint32_t mask, AchievementId id) {
+inline bool is_unlocked(uint64_t mask, AchievementId id) {
   return (mask & achievement_bit(id)) != 0;
 }
 // Returns true if this was a NEW unlock.
-inline bool unlock(uint32_t& mask, AchievementId id) {
-  uint32_t b = achievement_bit(id);
+inline bool unlock(uint64_t& mask, AchievementId id) {
+  uint64_t b = achievement_bit(id);
   if (mask & b) return false;
   mask |= b;
   return true;

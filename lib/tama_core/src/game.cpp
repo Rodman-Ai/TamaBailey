@@ -196,7 +196,11 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     pet_.last_pet_ms       = 0;
     // v2 fields
     settings_                  = s.settings;
-    achievements_              = s.achievements;
+    // Reassemble the 64-bit achievement bitmask from the v2 low word
+    // and the v16 high word. v15-and-older saves load achievements_hi
+    // as 0 via the migrator.
+    achievements_              = (uint64_t)s.achievements |
+                                 ((uint64_t)s.achievements_hi << 32);
     streak_days_               = s.streak_days;
     streak_last_visit_unix_ms_ = s.streak_last_visit_unix_ms;
     last_save_real_unix_ms_    = s.last_save_real_unix_ms;
@@ -1279,7 +1283,10 @@ void Game::force_save(Storage& storage) {
   s.healthy_streak_ms       = pet_.healthy_streak_ms;
   s.neglect_streak_ms       = pet_.neglect_streak_ms;
   s.settings                = settings_;
-  s.achievements            = achievements_;
+  // Split the 64-bit bitmask back into low (v2) + high (v16) words.
+  s.achievements            = (uint32_t)(achievements_ & 0xFFFFFFFFu);
+  s.achievements_hi         = (uint32_t)((achievements_ >> 32) & 0xFFFFFFFFu);
+  s._pad16                  = 0;
   s.streak_days             = streak_days_;
   s.streak_last_visit_unix_ms = streak_last_visit_unix_ms_;
   s.last_save_real_unix_ms  = last_save_real_unix_ms_;

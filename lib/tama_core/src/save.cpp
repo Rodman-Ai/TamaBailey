@@ -107,6 +107,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.hide_seek_wins = 0;
     s._pad15         = 0;
   }
+  if (s.version < 16) {
+    // v15 -> v16: widen achievements_ to 64 bits by zero-init'ing
+    // the new high word; the low 32 bits are already populated.
+    s.achievements_hi = 0;
+    s._pad16          = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
