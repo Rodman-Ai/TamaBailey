@@ -243,6 +243,9 @@ void Game::init(Storage& storage, uint32_t now_ms, Clock* clock, Speaker* speake
     dig_successes_           = s.dig_successes;
     // v13 fields
     seasonal_unlocks_        = s.seasonal_unlocks;
+    // v14 fields
+    bath_toys_owned_         = s.bath_toys_owned;
+    bath_toy_active_         = s.bath_toy_active;
   } else {
     // Fresh pet: roll a personality and START AS ADULT so demo features
     // (fetch, walks, tricks, accessories) are reachable immediately.
@@ -351,7 +354,7 @@ void Game::apply_input(Input in) {
     if (menu_tab_ == MenuTab::Shop) {
       if (in == Input::Feed) { buy_item(shop_cursor_); return; }
       if (in == Input::Play) {
-        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 16);
+        shop_cursor_ = (uint8_t)((shop_cursor_ + 1) % 19);
         return;
       }
     } else if (menu_tab_ == MenuTab::Actions) {
@@ -900,6 +903,18 @@ void Game::apply_input(Input in) {
       // 5 bones -> 1 biscuit. Same path as Shop row 15.
       buy_item(15);
       break;
+    case Input::CycleBathToy: {
+      // Cycle 0 (none) + owned bath toys. Always allow 0.
+      for (uint8_t try_n = 0; try_n < 4; ++try_n) {
+        uint8_t cand = (uint8_t)((bath_toy_active_ + 1 + try_n) % 4);
+        if (cand == 0 || (bath_toys_owned_ & (1u << (cand - 1)))) {
+          bath_toy_active_ = cand;
+          dirty_ = true;
+          break;
+        }
+      }
+      break;
+    }
     case Input::ImuShake:
       // Physical shake of the device. From Idle, if Bailey is eligible
       // to walk, kick off a walk -- gives motion-control a clear hook.
@@ -1278,6 +1293,10 @@ void Game::force_save(Storage& storage) {
   // v13 additions
   s.seasonal_unlocks        = seasonal_unlocks_;
   s._pad13[0] = s._pad13[1] = s._pad13[2] = 0;
+  // v14 additions
+  s.bath_toys_owned         = bath_toys_owned_;
+  s.bath_toy_active         = bath_toy_active_;
+  s._pad14[0] = s._pad14[1] = 0;
 
   storage.save(s);
   dirty_ = false;
@@ -1790,6 +1809,7 @@ uint32_t Game::shop_price(uint8_t i) const {
   }
   if (i < 15) return 20;           // coat
   if (i == 15) return 0;           // Trade-bones row: priced in bones, not biscuits
+  if (i < 19) return 10;           // bath toy (rubber duck / boat / fish)
   return 0;
 }
 
@@ -1805,6 +1825,16 @@ bool Game::buy_item(uint8_t i) {
   }
   uint32_t price = shop_price(i);
   if (price == 0 || biscuits_ < price) return false;
+  // Bath toy rows (16/17/18): set bit + activate.
+  if (i >= 16 && i < 19) {
+    uint8_t bit = (uint8_t)(1u << (i - 16));
+    if (bath_toys_owned_ & bit) return false;
+    bath_toys_owned_ |= bit;
+    bath_toy_active_  = (uint8_t)(i - 16 + 1);   // 1..3
+    biscuits_ -= price;
+    dirty_ = true;
+    return true;
+  }
   if (i < 5) {
     uint8_t bit = (uint8_t)(1u << i);
     if (toy_owned_ & bit) return false;

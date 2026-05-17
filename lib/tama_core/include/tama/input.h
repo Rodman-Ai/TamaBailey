@@ -48,6 +48,7 @@ enum class Input : uint8_t {
   // Round 3 inputs
   ImuShake               = 36,  // physical shake of the device
   TradeBones             = 37,  // spend 5 bones for 1 biscuit (Shop row)
+  CycleBathToy           = 38,  // cycle active bath toy (0..3)
 };
 
 }  // namespace tama

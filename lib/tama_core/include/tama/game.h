@@ -238,6 +238,9 @@ class Game {
 
   // Round 3 Phase 3G: Seasonal accessories (auto-unlocked on holiday).
   uint8_t  seasonal_unlocks() const { return seasonal_unlocks_; }
+  // Round 3 Phase 3H: Bath toys.
+  uint8_t  bath_toys_owned() const  { return bath_toys_owned_; }
+  uint8_t  bath_toy_active() const  { return bath_toy_active_; }
 
   // Round 3 Phase 3F: Walk dig mini-game.
   uint16_t  dig_successes()      const { return dig_successes_; }
@@ -502,6 +505,11 @@ class Game {
   // Seasonal accessory unlocks (bitmap): bit0 pumpkin, bit1 santa,
   // bit2 shamrock. Persistent once granted (wear year-round).
   uint8_t  seasonal_unlocks_        = 0;
+
+  // Bath toys: owned bitmap (bit0 duck, bit1 boat, bit2 fish) +
+  // active selection (0..3).
+  uint8_t  bath_toys_owned_         = 0;
+  uint8_t  bath_toy_active_         = 0;
 };
 
 }  // namespace tama

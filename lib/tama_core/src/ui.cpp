@@ -1130,7 +1130,7 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 
   struct Row { const char* name; bool owned; uint32_t price; };
   // Catalog mirrors Game::buy_item indices.
-  const Row rows[16] = {
+  const Row rows[19] = {
     {"Ball",          (game.toys_owned() & 1)  != 0, game.shop_price(0)},
     {"Frisbee",       (game.toys_owned() & 2)  != 0, game.shop_price(1)},
     {"Rope",          (game.toys_owned() & 4)  != 0, game.shop_price(2)},
@@ -1146,15 +1146,18 @@ void draw_menu_shop(Renderer& r, const Game& game) {
     {"Brindle +nrg",  game.coat_pattern() == 2,      game.shop_price(12)},
     {"Tri +cuddle",   game.coat_pattern() == 3,      game.shop_price(13)},
     {"Black +bones",  game.coat_pattern() == 4,      game.shop_price(14)},
-    {"Trade 5 bones", false,                          0},  // priced in bones, not biscuits
+    {"Trade 5 bones", false,                          0},   // priced in bones
+    {"Rubber duck",   (game.bath_toys_owned() & 1) != 0, game.shop_price(16)},
+    {"Toy boat",      (game.bath_toys_owned() & 2) != 0, game.shop_price(17)},
+    {"Toy fish",      (game.bath_toys_owned() & 4) != 0, game.shop_price(18)},
   };
   // Show 6 rows around the cursor
   uint8_t cur = game.shop_cursor();
   int start = (cur > 2) ? (cur - 2) : 0;
-  if (start > 10) start = 10;
+  if (start > 13) start = 13;
   for (int i = 0; i < 6; ++i) {
     int idx = start + i;
-    if (idx >= 16) break;
+    if (idx >= 19) break;
     bool sel = idx == cur;
     if (sel) r.fillRect(x - 2, y - 1, kScreenW - 28, 10, kGrayDark);
     if (idx == 15) {
@@ -1460,6 +1463,32 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
   }
   if (any_visitor) {
     r.drawText(8, kStatsBarH + 18, "Press to greet!", kYellow, 1);
+  }
+
+  // Round 3: bath-toy floater during the Clean action. Bobs gently up
+  // and down beside Bailey's head while the bath choreography runs.
+  if (pet.current_action == Action::Clean && game.bath_toy_active() != 0) {
+    int bx = kPetX + kPetDrawW + 4;
+    int by = kPetY + 16 + (int)((now_ms / 80) % 6);
+    switch (game.bath_toy_active()) {
+      case 1: // rubber duck: yellow body + orange beak + black eye dot
+        r.fillRect(bx,     by,     8, 6, kYellow);
+        r.fillRect(bx + 2, by - 3, 5, 4, kYellow);   // head
+        r.fillRect(bx + 5, by - 2, 3, 2, kOrange);   // beak
+        r.fillRect(bx + 4, by - 2, 1, 1, kBlack);    // eye
+        break;
+      case 2: // toy boat: brown hull + white sail
+        r.fillRect(bx,     by + 1, 10, 4, kBrownDark);
+        r.fillRect(bx + 4, by - 5, 1, 7, kBrownDark);   // mast
+        r.fillRect(bx + 5, by - 5, 4, 5, kWhite);       // sail
+        break;
+      case 3: // toy fish: pink body + tail fork
+        r.fillRect(bx,     by,     8, 4, kPink);
+        r.fillRect(bx + 8, by - 1, 2, 2, kPink);        // upper fin
+        r.fillRect(bx + 8, by + 3, 2, 2, kPink);        // lower fin
+        r.fillRect(bx + 2, by + 1, 1, 1, kBlack);       // eye
+        break;
+    }
   }
 
   // Birthday confetti goes UNDER the footer overlay so the message still reads.

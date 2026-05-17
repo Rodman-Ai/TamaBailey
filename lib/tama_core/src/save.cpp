@@ -96,6 +96,12 @@ bool save_validate_and_migrate(SaveData& s) {
     s.seasonal_unlocks = 0;
     s._pad13[0] = s._pad13[1] = s._pad13[2] = 0;
   }
+  if (s.version < 14) {
+    // v13 -> v14: no bath toys yet.
+    s.bath_toys_owned = 0;
+    s.bath_toy_active = 0;
+    s._pad14[0] = s._pad14[1] = 0;
+  }
   s.version = kSaveVersion;
   return true;
 }
