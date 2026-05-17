@@ -792,6 +792,11 @@ void draw_footer(Renderer& r, const Game& game) {
     std::snprintf(msg_buf, sizeof(msg_buf), "%s is visiting",
                   friend_name((Friend)(v0 - 1)));
     msg = msg_buf;
+  } else if (game.gourmet_active()) {
+    uint32_t rem = game.gourmet_remaining_ms() / 1000;
+    std::snprintf(msg_buf, sizeof(msg_buf), "GOURMET %u:%02u",
+                  (unsigned)(rem / 60), (unsigned)(rem % 60));
+    msg = msg_buf;
   } else {
     msg = mood_text(pet.mood);
   }

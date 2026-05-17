@@ -469,6 +469,7 @@ void Game::apply_input(Input in) {
         // Hit -- award full happiness + skill increment.
         uint32_t play_boost = kActionPlayBoost;
         if (horoscope_id() == 0) play_boost += 10;   // PLAYFUL: bigger boost
+        if (gourmet_active())    play_boost = play_boost * 5 / 4;
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + play_boost);
         pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
         fetch_catches_++;
@@ -486,6 +487,7 @@ void Game::apply_input(Input in) {
       if (pet_.stage == LifeStage::Puppy || sickness_ != 0) {
         uint32_t play_boost = kActionPlayBoost;
         if (horoscope_id() == 0) play_boost += 10;
+        if (gourmet_active())    play_boost = play_boost * 5 / 4;
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + play_boost);
         pet_.stats.energy    = clamp_stat((int)pet_.stats.energy - kEnergyCostPlay);
         pet_.current_action  = Action::Play;
@@ -530,6 +532,7 @@ void Game::apply_input(Input in) {
       if (since >= kPetCooldownMs || pet_.last_pet_ms == 0) {
         uint32_t pet_boost = kActionPetBoost;
         if (coat_pattern_ == 3) pet_boost += 5;   // Tri-color: extra cuddly
+        if (gourmet_active())   pet_boost = pet_boost * 5 / 4;
         pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + pet_boost);
         pet_.current_action = Action::Pet;
         pet_.action_started_ms = last_tick_ms_;
@@ -602,12 +605,25 @@ void Game::apply_input(Input in) {
       treats_[tier]--;
       uint32_t boost = (uint32_t)(5 + tier * 7);    // 5/12/19
       uint32_t food  = (uint32_t)(3 + tier * 4);    // 3/7/11
+      if (gourmet_active()) boost = boost * 5 / 4;  // GOURMET buff: +25 %
       pet_.stats.happiness = clamp_stat((int)pet_.stats.happiness + boost);
       pet_.stats.hunger    = clamp_stat((int)pet_.stats.hunger    + food);
       pet_.current_action  = Action::Eat;
       pet_.action_started_ms = last_tick_ms_;
       play_clip(ClipId::Yip);
       fulfill_wish_if_matches(Wish::Treat);
+      // Recipe-combo tracking: feed biscuit + bacon + steak within 60 s
+      // (in any order) to activate the GOURMET buff for 600 s.
+      if (combo_mask_ == 0 ||
+          last_tick_ms_ - combo_window_start_ms_ > 60000) {
+        combo_window_start_ms_ = last_tick_ms_;
+        combo_mask_ = 0;
+      }
+      combo_mask_ |= (uint8_t)(1u << tier);
+      if (combo_mask_ == 0x07) {
+        gourmet_until_ms_ = last_tick_ms_ + 600000;   // 10 min
+        combo_mask_ = 0;
+      }
       dirty_ = true;
       break;
     }

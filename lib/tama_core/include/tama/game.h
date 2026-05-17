@@ -225,6 +225,14 @@ class Game {
   uint8_t   last_walk_find_kind() const { return last_walk_find_kind_; }
   uint32_t  last_walk_find_ms()   const { return last_walk_find_ms_; }
 
+  // Round 3 Phase 2A: Gourmet buff (treat-recipe combo).
+  bool      gourmet_active() const {
+    return last_tick_ms_ < gourmet_until_ms_;
+  }
+  uint32_t  gourmet_remaining_ms() const {
+    return gourmet_active() ? gourmet_until_ms_ - last_tick_ms_ : 0;
+  }
+
   // Round 3 Phase 1C: daily quest + pet horoscope.
   // Quest types rotate by today_day_index_ % 2.
   // Returns 0 when no synced clock (so UI can hide the quest line).
@@ -431,6 +439,12 @@ class Game {
   // Daily quest: which day_index we last awarded biscuits for. Persisted.
   uint32_t daily_quest_awarded_day_ = 0;
   void update_daily_quest(uint64_t now_unix_ms);
+
+  // Treat recipe combo: bitmask of tiers eaten in the last 60s.
+  // Transient: not persisted across save/load.
+  uint32_t combo_window_start_ms_ = 0;
+  uint8_t  combo_mask_            = 0;
+  uint32_t gourmet_until_ms_      = 0;
 };
 
 }  // namespace tama
