@@ -579,7 +579,9 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
       uint8_t kind = game.voice_trick_kind();
       uint32_t elapsed = now_ms - pet.action_started_ms;
       switch (kind) {
-        case 1: pose = PetPose::Sit; break;                       // Sit
+        case 1:  // Sit -- tiny tail wag (pose flip every 150 ms).
+          pose = ((elapsed / 150) & 1) ? PetPose::IdleA : PetPose::Sit;
+          break;
         case 2: pose = ((elapsed / 200) & 1) ? PetPose::IdleA     // Come
                                               : PetPose::IdleB;
                 break;
@@ -707,10 +709,33 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
     case Action::Eat:   draw_feed_choreography(r, pet, now_ms, draw_x); break;
     case Action::Play:  draw_play_choreography(r, pet, now_ms, draw_x); break;
     case Action::Clean: draw_bath_choreography(r, pet, now_ms, draw_x); break;
-    case Action::Pet:
+    case Action::Pet: {
       r.drawSprite(draw_x + kPetDrawW / 2 - 16, kPetY - 4,
                    16, 16, heart_sprite(), kSpritePalette, kAccessoryScale);
+      // Voice-trick "High Five": raised paw indicator + small "5" plate.
+      if (game.voice_trick_kind() == 3) {
+        int px = draw_x + kPetDrawW - 8;
+        int py = draw_y + kPetDrawH / 2 - 14;
+        r.fillRect(px,     py,     2, 14, kBrownDark);
+        r.fillRect(px - 3, py - 6, 8,  6, kWhite);
+        r.drawText(px - 2, py - 6, "5", kBlack, 1);
+      }
+      // Per-trick name banner: every voice trick gets a clear text
+      // overlay so the user knows *which* trick is running.
+      static const char* const kTrickBanner[6] = {
+        nullptr, "SIT!", "COME!", "HIGH FIVE!", "ROLL OVER!", "JUMP!",
+      };
+      uint8_t kind = game.voice_trick_kind();
+      if (kind >= 1 && kind <= 5) {
+        const char* label = kTrickBanner[kind];
+        int tw = text_width(label, 1);
+        int tx = draw_x + kPetDrawW / 2 - tw / 2;
+        int ty = kPetY - 14;
+        r.fillRect(tx - 2, ty - 1, tw + 4, 10, kBlack);
+        r.drawText(tx, ty, label, kYellow, 1);
+      }
       break;
+    }
     case Action::None:
       if (pet.mood == Mood::Sleeping) {
         // Round 4: snore intensity -- the Z's pulse small/med/large
