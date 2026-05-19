@@ -201,6 +201,8 @@ class Game {
   uint8_t   tricks_learned() const { return tricks_learned_; }
   uint64_t  fetch_catches()  const { return fetch_catches_; }
   uint32_t  fetch_state_ms() const { return mode_started_ms_; }
+  // 1 = caught on the last fetch, 2 = missed, 0 = none / cleared.
+  uint32_t  last_fetch_result() const { return last_fetch_result_; }
   // Round 2 inspection
   uint32_t  biscuits()       const { return biscuits_; }
   uint8_t   toys_owned()     const { return toy_owned_; }

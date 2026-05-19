@@ -670,6 +670,14 @@ void Game::apply_input(Input in) {
         break;
       }
       // While in a fetch flow, button is treated as the "catch" press.
+      if (mode_ == GameMode::FetchAiming) {
+        // B during aim = release the throw (mirrors ImuFlick).
+        mode_            = GameMode::FetchInFlight;
+        mode_started_ms_ = last_tick_ms_;
+        play_clip(ClipId::Yip);
+        dirty_           = true;
+        break;
+      }
       if (mode_ == GameMode::FetchCatching) {
         // Hit -- award full happiness + skill increment.
         uint32_t play_boost = kActionPlayBoost;
@@ -687,6 +695,13 @@ void Game::apply_input(Input in) {
         fulfill_wish_if_matches(Wish::Fetch);
         dirty_ = true;
         break;
+      }
+      // FetchResult: B dismisses the result early and falls through to
+      // the start-fetch branch below so rapid B presses chain rounds.
+      if (mode_ == GameMode::FetchResult) {
+        mode_              = GameMode::Idle;
+        last_fetch_result_ = 0;
+        dirty_             = true;
       }
       // Puppy or sick: skip the fetch flow, do classic Play.
       if (pet_.stage == LifeStage::Puppy || sickness_ != 0) {
