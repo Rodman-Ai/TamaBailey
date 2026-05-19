@@ -191,6 +191,17 @@ class Game {
   // exposed via chrome_slide_pct() (0 = off-screen, 256 = on-screen).
   bool      chrome_visible() const { return chrome_target_visible_; }
   int       chrome_slide_pct() const;
+
+  // Power-off request flag. Transient. The game just records the
+  // request + when it was made; the platform's main loop polls
+  // power_off_requested() and decides what to do (esp_deep_sleep on
+  // native, no-op + auto-clear on WASM).
+  bool      power_off_requested()    const { return power_off_requested_; }
+  uint32_t  power_off_requested_ms() const { return power_off_started_ms_; }
+  void      clear_power_off_request()      {
+    power_off_requested_  = false;
+    power_off_started_ms_ = 0;
+  }
   Personality personality() const { return (Personality)personality_trait_; }
   bool      menu_open()    const { return menu_open_; }
   GameMode  mode()         const { return mode_; }
@@ -776,6 +787,9 @@ class Game {
   uint32_t chrome_toggle_ms_      = 0;     // when the target last flipped
   uint16_t chrome_start_pct_      = 256;   // slide pct at the moment of the flip
   void     set_chrome_target(bool visible);
+  // Transient: power-off request. Not persisted.
+  bool     power_off_requested_   = false;
+  uint32_t power_off_started_ms_  = 0;
   MenuTab  menu_tab_         = MenuTab::Actions;
   GameMode mode_             = GameMode::Idle;
   uint32_t mode_started_ms_  = 0;

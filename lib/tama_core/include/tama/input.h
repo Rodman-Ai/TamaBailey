@@ -72,6 +72,8 @@ enum class Input : uint8_t {
   // Chrome (header + footer) visibility toggle via vertical swipe.
   HideChrome             = 54,  // swipe-up-on-top OR swipe-down-on-bottom
   ShowChrome             = 55,  // swipe-down-on-top OR swipe-up-on-bottom
+  // System: request a deep-sleep / device-off (hw-gated in main.cpp).
+  PowerOff               = 56,
 };
 
 }  // namespace tama

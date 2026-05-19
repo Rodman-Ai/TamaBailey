@@ -1994,11 +1994,12 @@ void draw_menu_shop(Renderer& r, const Game& game) {
 }
 
 void draw_menu_actions(Renderer& r, const Game& game) {
-  static const char* const kMain[10] = {
+  static const char* const kMain[11] = {
     "Play with a friend >", "Tricks >",
     "Change scene", "Change hat",
     "Go for a walk", "Play fetch", "Give treat", "Brush",
     "Switch toy", "Bedtime",
+    "Power off",
   };
   static const char* const kTricks[6] = {
     "Sit", "Come", "High five", "Roll over", "Jump", "< Back",
@@ -2016,7 +2017,7 @@ void draw_menu_actions(Renderer& r, const Game& game) {
   } else if (sub == 2) {
     rows = kFriends; n_rows = 10; header = "VISIT FRIENDS";
   } else {
-    rows = kMain;    n_rows = 10; header = "ACTIONS";
+    rows = kMain;    n_rows = 11; header = "ACTIONS";
   }
 
   int x = 14;
@@ -2687,6 +2688,21 @@ void draw_scene(Renderer& r, const Game& game, uint32_t now_ms) {
     } else if (game.is_birthday()) {
       draw_thought_bubble(r, "Birthday!", kHeartRed);
     }
+  }
+
+  // Power-off goodbye overlay. Drawn on top of everything else so the
+  // user knows their press registered; main.cpp picks up from here on
+  // hardware and calls esp_deep_sleep_start() after ~1.5 s.
+  if (game.power_off_requested()) {
+    r.fillRect(0, 0, kScreenW, kScreenH, kBlack);
+    const char* msg = "Powering off...";
+    int tw = text_width(msg, 1);
+    r.drawText((kScreenW - tw) / 2, kScreenH / 2 - 4, msg, kYellow, 1);
+#ifdef __EMSCRIPTEN__
+    const char* sub = "(Web build -- not supported)";
+    int sw = text_width(sub, 1);
+    r.drawText((kScreenW - sw) / 2, kScreenH / 2 + 10, sub, kGrayLight, 1);
+#endif
   }
 }
 

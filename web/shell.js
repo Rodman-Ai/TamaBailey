@@ -26,6 +26,7 @@
     PlayWithFriendFrancie: 33, PlayWithFriendBomi: 34, PlayWithFriendNoshy: 35,
     ImuShake: 36,
     HideChrome: 54, ShowChrome: 55,
+    PowerOff: 56,
   };
 
   // ---- Web Audio ----

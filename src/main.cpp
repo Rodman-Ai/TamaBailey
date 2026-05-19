@@ -11,9 +11,11 @@
 #include "esp_imu.h"
 #include "esp_input.h"
 #include "esp_mic.h"
+#include "esp_power.h"
 #include "esp_renderer.h"
 #include "esp_storage.h"
 #include "esp_touch.h"
+#include "pins.h"
 #include "tama/game.h"
 
 static bailey::LGFX_ST7789_240x240 lcd;
@@ -72,6 +74,16 @@ void loop() {
   game.draw(*renderer);
   renderer->present();
   game.maybe_save(storage);
+
+  // Power-off request from the Actions menu: show the goodbye overlay
+  // for ~1.5 s (already rendered above), flush the latest state to
+  // flash, then deep-sleep with BTN_A as the wake source.
+  if (game.power_off_requested() &&
+      now - game.power_off_requested_ms() > 1500) {
+    game.force_save(storage);
+    bailey::enter_deep_sleep(PIN_BTN_A);
+    // unreachable
+  }
 
   delay(16);
 }

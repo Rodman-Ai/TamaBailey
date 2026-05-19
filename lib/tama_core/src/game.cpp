@@ -446,6 +446,16 @@ void Game::apply_input(Input in) {
   // and they don't fall through to the rest of the input pipeline.
   if (in == Input::HideChrome) { set_chrome_target(false); return; }
   if (in == Input::ShowChrome) { set_chrome_target(true);  return; }
+  // System: power-off request. Records the intent and closes the menu;
+  // the platform's main loop polls power_off_requested() and decides
+  // what to do with it.
+  if (in == Input::PowerOff) {
+    power_off_requested_  = true;
+    power_off_started_ms_ = last_tick_ms_;
+    menu_open_            = false;
+    dirty_                = true;
+    return;
+  }
   // Any other player input restores the chrome bars.
   set_chrome_target(true);
   // While the menu is open, short button presses cycle tabs instead of
@@ -496,15 +506,16 @@ void Game::apply_input(Input in) {
           if (actions_cursor_ == 1) {
             actions_submenu_ = 1; actions_cursor_ = 0; return;
           }
-          static const Input kMain[10] = {
+          static const Input kMain[11] = {
             Input::None,            // Friends >  (handled above)
             Input::None,            // Tricks >   (handled above)
             Input::CycleScene,      // Change scene
             Input::CycleAccessory,  // Change hat
             Input::Walk, Input::Play, Input::TreatGive, Input::Brush,
             Input::CycleToy, Input::Bedtime,
+            Input::PowerOff,        // Power off (system)
           };
-          Input chosen = kMain[actions_cursor_ % 10];
+          Input chosen = kMain[actions_cursor_ % 11];
           if (chosen != Input::None) {
             menu_open_ = false;
             apply_input(chosen);
@@ -512,7 +523,7 @@ void Game::apply_input(Input in) {
           return;
         }
         if (in == Input::Play) {
-          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 10);
+          actions_cursor_ = (uint8_t)((actions_cursor_ + 1) % 11);
           return;
         }
       } else if (actions_submenu_ == 1) {
@@ -1395,6 +1406,7 @@ void Game::apply_input(Input in) {
     }
     case Input::HideChrome:
     case Input::ShowChrome:
+    case Input::PowerOff:
       // Handled earlier with a short-circuit; cases listed here only
       // to satisfy -Wswitch enumeration coverage.
       break;

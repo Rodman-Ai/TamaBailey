@@ -83,6 +83,12 @@ void bailey_frame() {
   game.draw(renderer);
   renderer.present();
   if (!spectator_mode) game.maybe_save(storage);
+  // Web build has no hardware to sleep. After 2 s of "Powering off..."
+  // overlay, clear the flag so the game resumes.
+  if (game.power_off_requested() &&
+      now - game.power_off_requested_ms() > 2000) {
+    game.clear_power_off_request();
+  }
 }
 
 }  // extern "C"
