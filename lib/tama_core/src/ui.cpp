@@ -24,6 +24,14 @@ constexpr int kPetX = (kScreenW - kPetDrawW) / 2;
 constexpr int kPetY = kStatsBarH + 8;
 constexpr int kAccessoryScale = 2;
 
+// Roll Over trick: render-time Y-flipped Bailey. Reused per frame --
+// 48*48 = 2304 bytes static is fine.
+uint8_t g_pet_flipped[kPetW * kPetH];
+inline void flip_sprite_y(const uint8_t* src, uint8_t* dst, int w, int h) {
+  for (int y = 0; y < h; ++y)
+    std::memcpy(dst + (h - 1 - y) * w, src + y * w, (size_t)w);
+}
+
 // Surname pool for the move-out narrative beat -- cosmetic only,
 // picked by Game::move_out_family_idx().
 static const char* const kFamilyNames[8] = {
@@ -556,6 +564,9 @@ static void draw_bath_choreography(Renderer& r, const Pet& pet,
 void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
                      const Game& game) {
   PetPose pose = PetPose::IdleA;
+  // Roll Over trick state (only non-default during voice_trick_kind() == 4).
+  int  roll_y_off  = 0;
+  bool roll_flip_y = false;
 
   switch (pet.current_action) {
     case Action::Eat: {
@@ -587,10 +598,12 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
                 break;
         case 3: pose = PetPose::Bark; break;                      // High five
         case 4: {                                                 // Roll over
-          uint32_t phase = (elapsed / 150) % 4;
-          pose = (phase == 0) ? PetPose::IdleA :
-                 (phase == 1) ? PetPose::Sleep :
-                 (phase == 2) ? PetPose::IdleB : PetPose::IdleA;
+          // 600 ms total: crouch -> belly-up -> paws-wiggle -> rise -> upright.
+          if      (elapsed < 100) { pose = PetPose::Sit; }
+          else if (elapsed < 250) { pose = PetPose::IdleA; roll_y_off = 8; roll_flip_y = true; }
+          else if (elapsed < 400) { pose = PetPose::IdleB; roll_y_off = 8; roll_flip_y = true; }
+          else if (elapsed < 500) { pose = PetPose::Sit;   roll_y_off = 4; }
+          else                    { pose = PetPose::IdleA; }
           break;
         }
         case 5: pose = PetPose::IdleB; break;                     // Jump
@@ -691,7 +704,11 @@ void draw_pet_sprite(Renderer& r, const Pet& pet, uint32_t now_ms,
   }
 
   const uint8_t* sprite = pet_sprite(pet.stage, pose);
-  r.drawSprite(draw_x, draw_y, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
+  if (roll_flip_y) {
+    flip_sprite_y(sprite, g_pet_flipped, kPetW, kPetH);
+    sprite = g_pet_flipped;
+  }
+  r.drawSprite(draw_x, draw_y + roll_y_off, kPetW, kPetH, sprite, kSpritePalette, kPetScale);
 
   // Magic transition: scatter twinkles over the pet.
   if (pet.mood == Mood::Magic) {
